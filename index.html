@@ -150,6 +150,31 @@ nav button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--
   .menu-sheet, .menu-backdrop, .menu-panel, .burger i { transition: none; }
 }
 
+/* На телефоне строки таблиц становятся карточками: главное крупно, остальное мелкой строкой ниже. */
+.mobile-only { display: none; }
+@media (max-width: 760px) {
+  .mobile-only { display: block; }
+  table.m-rows thead { display: none; }
+  table.m-rows, table.m-rows tbody { display: block; width: 100%; }
+  table.m-rows tr {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 10px; position: relative;
+    padding: 10px 12px; border-bottom: 1px solid var(--line);
+  }
+  table.m-rows tbody tr:last-child { border-bottom: 0; }
+  table.m-rows tr.has-lead { padding-left: 58px; min-height: 58px; }
+  table.m-rows td { display: block; border: 0; padding: 0; white-space: normal; text-align: left; }
+  table.m-rows td.empty { width: 100%; text-align: center; padding: 20px 0; }
+  table.m-rows .m-lead { position: absolute; left: 10px; top: 10px; width: 40px; text-align: center; }
+  table.m-rows .m-main { order: 1; flex: 1 1 calc(100% - 130px); min-width: 0; font-size: 15px; }
+  table.m-rows .m-side { order: 2; flex: 0 0 auto; text-align: right; font-weight: 600; }
+  table.m-rows .m-meta { order: 3; font-size: 12px; color: var(--muted); }
+  table.m-rows .m-meta[data-label]::before { content: attr(data-label) " "; }
+  table.m-rows .m-side .bar { grid-template-columns: auto; justify-content: end; }
+  table.m-rows .m-side .bar u { display: none; }
+  table.m-rows .alt { display: inline; margin-left: 4px; }
+  table.m-rows .hero span { display: block; }
+}
+
 .view { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
 .view > * { min-width: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -431,6 +456,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
     </div>
     <div class="tools">
       <input id="search" type="search" placeholder="Найти героя" aria-label="Найти героя">
+      <select id="topSort" class="mobile-only" aria-label="Сортировка"></select>
       <select id="titleFilter" aria-label="Тайтл"></select>
       <button class="btn ghost" id="csv" hidden>Скачать CSV</button>
     </div>
@@ -438,7 +464,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
       <span id="simText"></span>
       <div class="track" id="simTrack" hidden><span id="simBar"></span></div>
     </div>
-    <div class="table-box"><table id="topTable"></table></div>
+    <div class="table-box"><table id="topTable" class="m-rows"></table></div>
     <p class="small muted" id="topHint"></p>
   </section>
 
@@ -489,7 +515,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
           <button class="btn ghost mini" id="colClearAll"></button>
         </div>
       </div>
-      <div class="table-box"><table id="colTable"></table></div>
+      <div class="table-box"><table id="colTable" class="m-rows"></table></div>
       <button class="btn ghost" id="colMore" hidden>Показать ещё</button>
     </div>
     <details class="card">
@@ -1359,18 +1385,21 @@ function renderTop() {
       const overall = s
         ? `<div class="bar"><span>${pct(s.overall)}</span><u><span style="width:${s.overall * 100}%"></span></u></div>`
         : '—';
-      return `<tr data-row="${esc(E.heroId(h))}"${offTop ? ' class="skin-row"' : ''}>
-        <td class="left place">${placeCell}${tie}</td>
-        ${hasChange ? `<td class="left">${moveCell(changes.get(h.key))}</td>` : ''}
-        <td class="left hero"><strong>${esc(h.name)}${isOwned(h) ? '<span class="own" title="Есть в коллекции">✓</span>' : ''}</strong><span>${esc(h.title || 'Тайтл не указан')}${baseNote}</span></td>
-        <td>${fmt(h.bm)}</td><td>${fmt(h.hp)}</td>
-        <td>${fmt(value.score(h))}${formulaNote}</td>
-        <td>${s ? pct(s.atk) : '—'}</td><td>${s ? pct(s.def) : '—'}</td><td>${overall}</td>
-        ${hasMine ? `<td>${(!offTop && h.myPlace) || '—'}</td>` : ''}
+      return `<tr data-row="${esc(E.heroId(h))}" class="has-lead${offTop ? ' skin-row' : ''}">
+        <td class="left place m-lead">${placeCell}${tie}</td>
+        ${hasChange ? `<td class="left m-meta">${moveCell(changes.get(h.key))}</td>` : ''}
+        <td class="left hero m-main"><strong>${esc(h.name)}${isOwned(h) ? '<span class="own" title="Есть в коллекции">✓</span>' : ''}</strong><span>${esc(h.title || 'Тайтл не указан')}${baseNote}</span></td>
+        <td class="m-meta" data-label="💥">${fmt(h.bm)}</td><td class="m-meta" data-label="❤️">${fmt(h.hp)}</td>
+        <td class="m-meta" data-label="Очки">${fmt(value.score(h))}${formulaNote}</td>
+        <td class="m-meta" data-label="Нап.">${s ? pct(s.atk) : '—'}</td><td class="m-meta" data-label="Защ.">${s ? pct(s.def) : '—'}</td><td class="m-side">${overall}</td>
+        ${hasMine ? `<td class="m-meta" data-label="У тебя №">${(!offTop && h.myPlace) || '—'}</td>` : ''}
       </tr>`;
     }).join('');
   }
   $('topTable').innerHTML = `<thead><tr>${headHtml}</tr></thead><tbody>${body}</tbody>`;
+  // На телефоне заголовков нет, поэтому сортировка выбирается списком.
+  const sortOptions = [['place', 'По месту'], ...(hasChange ? [['change', 'По сдвигу']] : []), ['overall', 'По победам'], ['bm', 'По БМ'], ['hp', 'По ЖВ'], ['score', 'По очкам формулы'], ['atk', 'По нападению'], ['def', 'По защите'], ['name', 'По имени']];
+  $('topSort').innerHTML = sortOptions.map(([k, label]) => `<option value="${k}"${state.sort === k ? ' selected' : ''}>${label}</option>`).join('');
   $('csv').hidden = !downloads || !shown.length;
   lastTop = merged.map((h) => ({
     h,
@@ -1788,12 +1817,12 @@ function renderCard() {
   const hitsText = (n) => (n > 5 ? 'больше 5' : String(n));
   const opponents = cardOpponents(hero, pool, calc);
   const opponentRows = (list) => list.map((o) => `<tr>
-      <td class="left">${openLink(o.rival)}<div class="small muted">${fmt(o.rival.bm)} / ${fmt(o.rival.hp)}</div></td>
-      <td>${pct(o.wins)}</td><td>${hitsText(o.kills)}</td><td>${hitsText(o.dies)}</td>
+      <td class="left m-main">${openLink(o.rival)}<div class="small muted">${fmt(o.rival.bm)} / ${fmt(o.rival.hp)}</div></td>
+      <td class="m-side">${pct(o.wins)}</td><td class="m-meta" data-label="Убьёт за">${hitsText(o.kills)}</td><td class="m-meta" data-label="Умрёт за">${hitsText(o.dies)}</td>
     </tr>`).join('');
   const opponentTable = (title, list) => `<div class="card">
       <h2>${title}</h2>
-      <div class="table-box"><table>
+      <div class="table-box"><table class="m-rows">
         <thead><tr><th class="left">Соперник, БМ / ЖВ</th><th>Шанс победы</th><th title="Сколько ударов нужно этому герою, чтобы убить соперника">Убьёт за</th><th title="Сколько ударов нужно сопернику, чтобы убить этого героя">Умрёт за</th></tr></thead>
         <tbody>${opponentRows(list)}</tbody>
       </table></div>
@@ -1958,13 +1987,13 @@ function renderCollection() {
   const rows = shown.slice(0, colState.limit).map((h) => {
     const id = esc(E.heroId(h));
     const entry = ownEntry(h);
-    return `<tr>
-      <td class="left"><label class="skin-toggle"><input type="checkbox" data-own="${id}"${entry ? ' checked' : ''} aria-label="Есть в коллекции"></label></td>
-      <td class="left">${h.skin ? `<label class="skin-toggle"><input type="checkbox" data-own-skin="${id}"${entry && entry.skin ? ' checked' : ''}${entry ? '' : ' disabled'} aria-label="Есть скин"> 🎭</label>` : ''}</td>
-      <td class="left hero">${openLink(h)}<span>${esc(h.title || E.NO_TITLE)}</span></td>
-      <td class="left"><b>${h.rank}</b></td>
-      <td class="left">${ICONS[h.cls]} ${esc(h.cls)}</td>
-      <td>${fmt(h.bm)}</td><td>${fmt(h.hp)}</td>
+    return `<tr class="has-lead">
+      <td class="left m-lead"><label class="skin-toggle"><input type="checkbox" data-own="${id}"${entry ? ' checked' : ''} aria-label="Есть в коллекции"></label></td>
+      <td class="left m-side">${h.skin ? `<label class="skin-toggle"><input type="checkbox" data-own-skin="${id}"${entry && entry.skin ? ' checked' : ''}${entry ? '' : ' disabled'} aria-label="Есть скин"> 🎭</label>` : ''}</td>
+      <td class="left hero m-main">${openLink(h)}<span>${esc(h.title || E.NO_TITLE)}</span></td>
+      <td class="left m-meta"><b>${h.rank}</b></td>
+      <td class="left m-meta">${ICONS[h.cls]} ${esc(h.cls)}</td>
+      <td class="m-meta" data-label="💥">${fmt(h.bm)}</td><td class="m-meta" data-label="❤️">${fmt(h.hp)}</td>
     </tr>`;
   }).join('');
   $('colTable').innerHTML = `<thead><tr><th class="left">Есть</th><th class="left">Скин</th><th class="left">Герой</th><th class="left">Ранг</th><th class="left">Класс</th><th>БМ</th><th>ЖВ</th></tr></thead>
@@ -2070,9 +2099,9 @@ function renderNews() {
   newsData = { sections, note, title: `Новости сезона: ${view.season ? view.name : 'сейчас'}` };
   $('newsOut').innerHTML = sections.map((s) => `<div class="card${s.id === 'ups' || s.id === 'downs' || s.id === 'strong' ? ' stat-card wide' : ''}">
       <h2>${esc(s.title)}</h2>
-      <div class="table-box"><table>
+      <div class="table-box"><table class="m-rows">
         <thead><tr>${s.head.map((c, i) => `<th${i ? '' : ' class="left"'}>${esc(c)}</th>`).join('')}</tr></thead>
-        <tbody>${s.rows.map((r, n) => `<tr>${r.map((c, i) => `<td${i ? '' : ' class="left"'}>${i === 0 && s.ids ? openLink(s.ids[n]) : esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+        <tbody>${s.rows.map((r, n) => `<tr>${r.map((c, i) => `<td${i ? ` class="m-meta" data-label="${esc(s.head[i])}:"` : ' class="left m-main"'}>${i === 0 && s.ids ? openLink(s.ids[n]) : esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
       </table></div>
     </div>`).join('') || `<p class="empty">${waiting ? 'Считаю…' : 'За этот период в выбранном ранге ничего не изменилось.'}</p>`;
 }
@@ -3389,6 +3418,11 @@ $('siteExport').addEventListener('click', async () => {
 });
 
 $('search').addEventListener('input', (e) => { state.search = e.target.value; renderTop(); });
+$('topSort').addEventListener('change', (e) => {
+  state.sort = e.target.value;
+  state.dir = state.sort === 'name' || state.sort === 'place' ? 1 : -1;
+  renderTop();
+});
 $('titleFilter').addEventListener('change', (e) => { state.title = e.target.value; renderTop(); });
 $('seasonView').addEventListener('change', (e) => { state.viewSeason = e.target.value; renderTop(); });
 $('seasonCompare').addEventListener('change', (e) => { state.compareWith = e.target.value; renderTop(); });
