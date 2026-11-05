@@ -943,7 +943,18 @@
   // Аватарки в сообщении бота при копировании превращаются в эмодзи перед ником, их убираем.
   const cleanRecordName = (name) => String(name || '').replace(/^[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}️‍⃣\s]+/u, '').trim();
 
-  // Строки результатов: «1. Ник ➢ 14,567», «1. Ник — 12 345», «🥇 Ник: 900», «Ник 500».
+  const RECORD_ARROW = /[➢➤→]|\s->\s/;
+  const LINK = /\(\s*https?:\/\/[^)]*\)/g;
+
+  // Ник со ссылкой бота: «Ник (https://t.me/AniMatrixGame_bot?start=user_1706393853)».
+  // Из ссылки берётся Telegram ID игрока, сама ссылка из ника убирается.
+  function parsePlayerCell(text) {
+    const id = String(text || '').match(/start=user_(\d+)/);
+    const player = cleanRecordName(String(text || '').replace(LINK, ' ').replace(/[➢➤→]\s*$/, '').replace(/\s+/g, ' '));
+    return { player, tgId: id ? id[1] : null };
+  }
+
+  // Строки результатов: «1. Ник ➤ 14,567», «1. Ник — 12 345», «🥇 Ник: 900», «Ник 500».
   // Без номера место берётся по порядку строк, одинаковый номер значит общее место.
   function parseRecordLines(text) {
     let order = 0;
@@ -957,55 +968,112 @@
       if (numbered) { place = place || Number(numbered[1]); rest = numbered[2]; }
       let player = rest;
       let value = '';
-      const split = rest.split(/\s*➢\s*|\t|\s+[—–-]\s+|\s*\|\s*|:\s+/);
+      // Ссылки в нике убираются до деления строки: в них есть двоеточие.
+      const links = [];
+      const masked = rest.replace(LINK, (m) => { links.push(m); return `\u0000${links.length - 1}\u0000`; });
+      const unmask = (part) => part.replace(/\u0000(\d+)\u0000/g, (_, i) => links[Number(i)]);
+      const split = masked.split(/\s*[➢➤→]\s*|\s->\s|\t|\s+[—–-]\s+|\s*\|\s*|:\s+/);
       if (split.length > 1) {
-        player = split[0];
-        value = split.slice(1).join(' — ');
+        player = unmask(split[0]);
+        value = unmask(split.slice(1).join(' — '));
       } else {
-        const tail = rest.match(/^(.+?)\s+(\d[\d\s.,]*(?:\s*\S+)?)$/);
-        if (tail) { player = tail[1]; value = tail[2]; }
+        const tail = masked.match(/^(.+?)\s+(\d[\d\s.,]*(?:\s*\S+)?)$/);
+        if (tail) { player = unmask(tail[1]); value = unmask(tail[2]); }
       }
       value = value.trim();
-      return { place: place || order, player: cleanRecordName(player), value, score: recordScore(value) };
+      return { place: place || order, ...parsePlayerCell(player), value, score: recordScore(value) };
     }).filter((row) => row.player);
   }
 
-  // Сообщение бота «Итоги прошлого события ➢ Аркейн»: название ивента и строки мест с «➢».
-  // Номер группы и блок «Ваше место» не нужны: группы каждую неделю собираются заново.
-  function parseEventMessage(text) {
+  const MONTHS = ['январ', 'феврал', 'мар', 'апрел', 'ма', 'июн', 'июл', 'август', 'сентябр', 'октябр', 'ноябр', 'декабр'];
+
+  // Последний день периода «13–19 октября» или «28 октября – 3 ноября». Год берётся такой,
+  // чтобы дата не оказалась больше чем на неделю в будущем.
+  function periodEnd(period, now) {
+    const parts = [...String(period || '').toLowerCase().matchAll(/(\d{1,2})\s*([а-яё]+)?/g)];
+    if (!parts.length) return '';
+    const day = Number(parts[parts.length - 1][1]);
+    const word = [...parts].reverse().map((p) => p[2]).find(Boolean);
+    const month = word ? MONTHS.findIndex((m) => word.startsWith(m)) : -1;
+    if (month < 0 || day < 1 || day > 31) return '';
+    const today = now || new Date();
+    let year = today.getFullYear();
+    if (new Date(year, month, day) - today > 7 * 86400000) year -= 1;
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  // Сообщение бота с местами ивента. Название берётся из «Итоги прошлого события ➢ Аркейн»
+  // или из первой строки «Аркейн | …», период из строки «Период». Номер группы не нужен:
+  // группы каждую неделю собираются заново.
+  function parseEventMessage(text, now) {
     const src = String(text || '');
-    const head = src.match(/Итоги[^\n➢]*➢\s*([^\n|]+)/);
-    const lines = src.split(/\r?\n/).filter((line) => /^\s*\d{1,3}\s*\.\s*\S/.test(line) && line.includes('➢'));
+    const lines = src.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const rowLines = lines.filter((line) => /^\d{1,3}\s*\.\s*\S/.test(line) && RECORD_ARROW.test(line));
+    let event = '';
+    const total = src.match(/Итоги[^\n➢➤]*[➢➤]\s*([^\n|]+)/);
+    if (total) event = total[1];
+    else if (rowLines.length && lines.length) event = lines[0].replace(LINK, ' ').split(/\s*\|\s*|:\s+|,\s+/)[0];
+    const periodLine = lines.map(cleanRecordName).find((line) => /^период/i.test(line));
+    const period = periodLine ? periodLine.replace(/^период\s*[:➢➤]?\s*/i, '').replace(LINK, '').trim() : '';
     return {
-      event: head ? cleanRecordName(head[1]) : '',
-      rows: parseRecordLines(lines.length ? lines.join('\n') : src),
+      event: cleanRecordName(event),
+      period,
+      endDate: periodEnd(period, now),
+      rows: parseRecordLines(rowLines.length ? rowLines.join('\n') : src),
     };
   }
+
+  // Игрок узнаётся по Telegram ID из ссылки бота, а без ссылки по нику.
+  const recordPlayerKey = (row) => (row.tgId ? `id:${row.tgId}` : `n:${normName(row.player)}`);
+  const recordEventKey = (title) => normName(cleanRecordName(title));
 
   // Рекорды за всё время: по каждому ивенту лучший результат каждого игрока, сильнейшие сверху.
   function recordLeaders(events) {
     const groups = new Map();
     events.forEach((ev) => {
-      const key = normName(ev.title);
+      const key = recordEventKey(ev.title);
       if (!key) return;
-      const group = groups.get(key) || { title: ev.title, weeks: 0, lastDate: '', best: new Map() };
+      const group = groups.get(key) || { key, title: cleanRecordName(ev.title), weeks: 0, lastDate: '', best: new Map() };
       group.weeks += 1;
-      if (String(ev.date || '') >= group.lastDate) { group.lastDate = String(ev.date || ''); group.title = ev.title; }
+      if (String(ev.date || '') >= group.lastDate) { group.lastDate = String(ev.date || ''); group.title = cleanRecordName(ev.title); }
       (ev.rows || []).forEach((row) => {
         const score = row.score === null || row.score === undefined ? recordScore(row.value) : row.score;
         if (score === null) return;
-        const who = normName(row.player);
+        const who = recordPlayerKey(row);
         const current = group.best.get(who);
-        if (!current || score > current.score) group.best.set(who, { player: row.player, score, value: row.value, date: ev.date || '' });
+        if (!current || score > current.score) {
+          group.best.set(who, { key: who, player: row.player, tgId: row.tgId || null, score, value: row.value, date: ev.date || '' });
+        }
       });
       groups.set(key, group);
     });
     return [...groups.values()].map((g) => ({
+      key: g.key,
       title: g.title,
       weeks: g.weeks,
       lastDate: g.lastDate,
       players: [...g.best.values()].sort((a, b) => b.score - a.score),
     })).sort((a, b) => b.lastDate.localeCompare(a.lastDate) || a.title.localeCompare(b.title, 'ru'));
+  }
+
+  // Профиль игрока: все его недели и лучший результат в каждом ивенте с местом за всё время.
+  function playerRecords(events, playerKey) {
+    const weeks = [];
+    let name = '';
+    let tgId = null;
+    let lastDate = '';
+    events.forEach((ev) => (ev.rows || []).forEach((row) => {
+      if (recordPlayerKey(row) !== playerKey) return;
+      weeks.push({ event: cleanRecordName(ev.title), eventId: ev.id, date: ev.date || '', place: row.place, value: row.value });
+      if (String(ev.date || '') >= lastDate) { lastDate = String(ev.date || ''); name = row.player; }
+      tgId = tgId || row.tgId || null;
+    }));
+    const best = recordLeaders(events).map((l) => {
+      const rank = l.players.findIndex((p) => p.key === playerKey);
+      return rank < 0 ? null : { event: l.title, rank: rank + 1, of: l.players.length, ...l.players[rank] };
+    }).filter(Boolean);
+    weeks.sort((a, b) => b.date.localeCompare(a.date));
+    return { key: playerKey, name, tgId, weeks, best };
   }
 
   // Свежие события сверху; без даты в конце.
@@ -1171,7 +1239,7 @@
   return {
     deriveHeroes, numberedHeroes, offTopHeroes, groupCacheKey, runsForGroup, hasEqualScores, offTopRow, collectGroupRows, groupError,
     packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, chunkText, hitsToKill, seasonNews,
-    parseRecordLines, parseEventMessage, recordLeaders, recordScore, sortRecordEvents,
+    parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
     CLASSES, RANKS, DEFAULTS, NO_TITLE, SKIN_BONUS, fight, duel, plainFight, formulaScore,
