@@ -98,6 +98,58 @@ nav button {
 }
 nav button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
 
+/* На телефоне вкладки уезжали за край ленты, поэтому там вместо них кнопка меню, которая всегда под рукой. */
+.mobile-bar { display: none; }
+.menu-sheet { position: fixed; inset: 0; z-index: 40; visibility: hidden; transition: visibility 0s linear .22s; }
+.menu-sheet.open { visibility: visible; transition-delay: 0s; }
+.menu-backdrop { position: absolute; inset: 0; background: rgba(10, 8, 18, .55); opacity: 0; transition: opacity .22s ease; }
+.menu-sheet.open .menu-backdrop { opacity: 1; }
+.menu-panel {
+  position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); top: var(--menu-top, 64px);
+  max-height: calc(100dvh - var(--menu-top, 64px) - 16px); overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .35); display: grid; gap: 2px;
+  opacity: 0; transform: translateY(-10px) scale(.98); transform-origin: top right;
+  transition: opacity .22s ease, transform .22s cubic-bezier(.2, .9, .3, 1.15);
+}
+.menu-sheet.open .menu-panel { opacity: 1; transform: none; }
+.menu-item {
+  all: unset; box-sizing: border-box; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 2px 10px; align-items: center;
+  padding: 10px 12px; border-radius: 8px; cursor: pointer;
+}
+.menu-item:hover, .menu-item:focus-visible { background: var(--tint); }
+.menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.menu-item[aria-current="page"] { background: var(--tint); box-shadow: inset 3px 0 0 var(--accent); }
+.menu-item .icon { grid-row: span 2; font-size: 20px; text-align: center; }
+.menu-item b { font-weight: 600; }
+.menu-item small { color: var(--muted); font-size: 12px; line-height: 1.3; }
+.menu-group { color: var(--muted); font-size: 12px; padding: 8px 12px 2px; }
+.menu-btn {
+  all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); font: 500 14px var(--body);
+}
+.menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.burger { position: relative; width: 18px; height: 14px; display: inline-block; }
+.burger i { position: absolute; left: 0; width: 18px; height: 2px; border-radius: 2px; background: currentColor; transition: transform .22s ease, opacity .18s ease, top .22s ease; }
+.burger i:nth-child(1) { top: 0; }
+.burger i:nth-child(2) { top: 6px; }
+.burger i:nth-child(3) { top: 12px; }
+.menu-btn[aria-expanded="true"] .burger i:nth-child(1) { top: 6px; transform: rotate(45deg); }
+.menu-btn[aria-expanded="true"] .burger i:nth-child(2) { opacity: 0; }
+.menu-btn[aria-expanded="true"] .burger i:nth-child(3) { top: 6px; transform: rotate(-45deg); }
+@media (max-width: 760px) {
+  nav[role="tablist"] { display: none; }
+  .mobile-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    position: sticky; top: 0; z-index: 30; background: var(--bg);
+    margin: 0 -16px; padding: 8px 16px; border-bottom: 1px solid var(--line);
+  }
+  .mobile-title { font: 500 16px/1.2 var(--display); min-width: 0; overflow-wrap: anywhere; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-sheet, .menu-backdrop, .menu-panel, .burger i { transition: none; }
+}
+
 .view { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
 .view > * { min-width: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -348,6 +400,18 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <button role="tab" data-tab="export" aria-selected="false" data-admin>Выгрузка</button>
     <button role="tab" data-tab="rules" aria-selected="false">Правила боя</button>
   </nav>
+
+  <div class="mobile-bar">
+    <span class="mobile-title" id="currentTabLabel">Топ</span>
+    <button class="menu-btn" id="menuBtn" aria-expanded="false" aria-controls="menuSheet">
+      <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
+      Разделы
+    </button>
+  </div>
+  <div class="menu-sheet" id="menuSheet">
+    <div class="menu-backdrop" data-menu-close></div>
+    <div class="menu-panel" id="menuPanel" role="menu" aria-label="Разделы сайта"></div>
+  </div>
 
   <p class="notice" id="notice" hidden></p>
 
@@ -2818,6 +2882,8 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
     else tg.BackButton.hide();
   }
   document.querySelectorAll('nav button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  $('currentTabLabel').textContent = (TAB_INFO[tab] || {}).label || '';
+  closeMenu(false);
   ['top', 'compare', 'card', 'collection', 'news', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
   if (tab === 'card') renderCard();
   if (tab === 'collection') renderCollection();
@@ -2843,6 +2909,75 @@ function armed(button) {
 document.querySelector('nav').addEventListener('click', (e) => {
   const b = e.target.closest('[data-tab]');
   if (b) showTab(b.dataset.tab);
+});
+
+// Пункты меню повторяют вкладки: скрытые для игроков разделы в меню тоже не попадают.
+const TAB_INFO = {
+  top: { icon: '🏆', label: 'Топ', note: 'Лучшие герои ранга и класса' },
+  compare: { icon: '⚔️', label: 'Сравнение', note: 'Бой двух героев один на один' },
+  card: { icon: '🃏', label: 'Карточка героя', note: 'Место, соперники и история по сезонам' },
+  collection: { icon: '📚', label: 'Моя коллекция', note: 'Отметь свои карты и смотри личный топ' },
+  news: { icon: '📰', label: 'Новости сезона', note: 'Новые герои, скины и кто сдвинулся' },
+  stats: { icon: '📊', label: 'Статистика', note: 'Доли рангов, классов и аниме' },
+  rules: { icon: '📜', label: 'Правила боя', note: 'Как считается бой и что не подтверждено' },
+  heroes: { icon: '🎭', label: 'Герои и скины', note: 'Отметки скинов и ивент-карт' },
+  seasons: { icon: '🗓', label: 'Сезоны', note: 'Сохранение сезонов и файл для сайта' },
+  add: { icon: '➕', label: 'Добавить героев', note: 'Вставка из каталога бота' },
+  export: { icon: '📤', label: 'Выгрузка', note: 'Топы для статей Telegram' },
+};
+const PLAYER_TABS = ['top', 'compare', 'card', 'collection', 'news', 'stats', 'rules'];
+
+function renderMenu() {
+  const shown = [...document.querySelectorAll('nav [data-tab]')].filter((b) => !(b.hasAttribute('data-admin') && document.body.classList.contains('public')));
+  const tabs = shown.map((b) => b.dataset.tab);
+  const item = (tab) => {
+    const info = TAB_INFO[tab];
+    return `<button class="menu-item" role="menuitem" data-go="${tab}"${tab === currentTab() ? ' aria-current="page"' : ''}>
+      <span class="icon" aria-hidden="true">${info.icon}</span><b>${info.label}</b><small>${info.note}</small>
+    </button>`;
+  };
+  const players = PLAYER_TABS.filter((t) => tabs.includes(t));
+  const admin = tabs.filter((t) => !PLAYER_TABS.includes(t));
+  $('menuPanel').innerHTML = players.map(item).join('')
+    + (admin.length ? `<div class="menu-group">Для владельца</div>${admin.map(item).join('')}` : '');
+}
+
+function openMenu() {
+  renderMenu();
+  $('menuSheet').style.setProperty('--menu-top', `${Math.round($('menuBtn').getBoundingClientRect().bottom + 8)}px`);
+  $('menuSheet').classList.add('open');
+  $('menuBtn').setAttribute('aria-expanded', 'true');
+  const current = $('menuPanel').querySelector('[aria-current="page"]') || $('menuPanel').querySelector('.menu-item');
+  if (current) current.focus({ preventScroll: true });
+}
+
+function closeMenu(returnFocus) {
+  if (!$('menuSheet').classList.contains('open')) return;
+  $('menuSheet').classList.remove('open');
+  $('menuBtn').setAttribute('aria-expanded', 'false');
+  if (returnFocus) $('menuBtn').focus({ preventScroll: true });
+}
+
+$('menuBtn').addEventListener('click', () => {
+  if ($('menuSheet').classList.contains('open')) closeMenu(true);
+  else openMenu();
+});
+$('menuSheet').addEventListener('click', (e) => {
+  const go = e.target.closest('[data-go]');
+  if (go) {
+    showTab(go.dataset.go);
+    window.scrollTo(0, 0);
+  } else if (e.target.closest('[data-menu-close]')) closeMenu(true);
+});
+document.addEventListener('keydown', (e) => {
+  if (!$('menuSheet').classList.contains('open')) return;
+  if (e.key === 'Escape') closeMenu(true);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const items = [...$('menuPanel').querySelectorAll('.menu-item')];
+    const at = items.indexOf(document.activeElement);
+    const next = items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
+    if (next) { next.focus(); e.preventDefault(); }
+  }
 });
 $('rankChips').addEventListener('click', (e) => {
   const b = e.target.closest('[data-rank]');
