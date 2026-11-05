@@ -554,7 +554,8 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 
   <section class="view" id="view-records" hidden>
-    <div class="card" id="recEditor" data-admin hidden>
+    <div class="card" id="recAdmin" hidden></div>
+    <div class="card" id="recEditor" hidden>
       <h2 id="recFormTitle">Итоги ивента</h2>
       <label class="field">Сообщение бота «Итоги прошлого события» целиком или список по строке на игрока
         <textarea id="recLines" placeholder="Итоги прошлого события ➢ Аркейн&#10;1. Ник ➢ 14,567,529,636&#10;2. Другой ник ➢ 10,187,430,358"></textarea>
@@ -2163,7 +2164,100 @@ function fillRecEvents() {
 }
 const BOT_PROFILE = 'https://t.me/AniMatrixGame_bot?start=user_';
 const REC_SHOWN = 10;
-const recEditable = () => canWrite && !siteData;
+const recEditable = () => (canWrite && !siteData) || siteAdmin.state === 'ready';
+
+// ---------- Админ рекордов на сайте ----------
+// Сайт только раздаёт файлы, поэтому рекорды записываются прямо в records.json репозитория.
+// Защита — ключ GitHub с доступом только к этому репозиторию: он хранится лишь на устройстве админа.
+// Проверка Telegram ID только показывает форму входа, подделать её может кто угодно.
+const ADMIN_TG_ID = '921847623';
+const GH_REPO = 'Insloushn/animatrix-fans';
+const GH_FILE = 'records.json';
+const siteAdmin = { token: readStore('ani-gh-token', ''), sha: '', state: 'idle', message: '' };
+
+const adminWanted = () => {
+  if (!siteData) return false;
+  const user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  return !!siteAdmin.token || location.hash === '#admin' || (user && String(user.id) === ADMIN_TG_ID);
+};
+
+const toBase64 = (text) => {
+  let bin = '';
+  new TextEncoder().encode(text).forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin);
+};
+const fromBase64 = (b64) => new TextDecoder().decode(Uint8Array.from(atob(String(b64).replace(/\s/g, '')), (c) => c.charCodeAt(0)));
+
+async function github(path, options) {
+  const response = await fetch(`https://api.github.com/repos/${GH_REPO}/${path}`, {
+    ...options,
+    cache: 'no-store',
+    headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${siteAdmin.token}`, ...(options && options.body ? { 'Content-Type': 'application/json' } : {}) },
+  });
+  if (!response.ok) {
+    const error = new Error('github');
+    error.status = response.status;
+    throw error;
+  }
+  return response.json();
+}
+
+const adminError = (e) => ({
+  401: 'GitHub не принял ключ: он неверный или истёк. Создай новый и вставь его снова.',
+  403: 'У ключа нет права записи в репозиторий. Проверь, что выдан доступ Contents: Read and write.',
+  404: 'Ключ не видит репозиторий animatrix-fans. Проверь, что при создании выбран именно он.',
+  409: 'Пока ты правил, рекорды изменились. Обнови страницу и повтори.',
+}[e && e.status] || 'Нет связи с GitHub. Проверь интернет и повтори.');
+
+// Свежие рекорды берутся из репозитория, а не с сайта: сайт обновляется с задержкой.
+async function adminConnect() {
+  if (!siteAdmin.token) { siteAdmin.state = 'login'; renderRecords(); return; }
+  siteAdmin.state = 'connecting';
+  renderRecords();
+  try {
+    const file = await github(`contents/${GH_FILE}?ref=main`);
+    siteAdmin.sha = file.sha;
+    setRecords(JSON.parse(fromBase64(file.content)).events || []);
+    siteAdmin.state = 'ready';
+  } catch (e) {
+    if (e.status === 404) {
+      // Ключ рабочий, если репозиторий виден, а файла с рекордами ещё нет.
+      try { await github(''); siteAdmin.sha = ''; siteAdmin.state = 'ready'; } catch (e2) { siteAdmin.state = 'error'; siteAdmin.message = adminError(e2); }
+    } else {
+      siteAdmin.state = 'error';
+      siteAdmin.message = adminError(e);
+    }
+  }
+  renderRecords();
+}
+
+async function commitRecords(list, message) {
+  const body = { message, branch: 'main', content: toBase64(JSON.stringify({ savedAt: new Date().toISOString(), events: list })) };
+  if (siteAdmin.sha) body.sha = siteAdmin.sha;
+  const result = await github(`contents/${GH_FILE}`, { method: 'PUT', body: JSON.stringify(body) });
+  siteAdmin.sha = result.content.sha;
+  setRecords(list);
+}
+
+function renderRecAdmin() {
+  const box = $('recAdmin');
+  box.hidden = !adminWanted() || !!recState.player;
+  if (box.hidden) return;
+  if (siteAdmin.state === 'idle') { adminConnect(); return; }
+  if (siteAdmin.state === 'ready') {
+    box.innerHTML = `<div class="card-head"><div><h2>Админ</h2><p class="small" style="color:var(--good)">✓ Можно добавлять рекорды. У игроков изменения появятся через 1–2 минуты.</p></div>
+      <div class="actions"><button class="btn ghost mini" data-admin-logout>Выйти</button></div></div>`;
+    return;
+  }
+  if (siteAdmin.state === 'connecting') { box.innerHTML = '<h2>Админ</h2><p class="small muted">Подключаюсь к GitHub…</p>'; return; }
+  box.innerHTML = `<h2>Вход для админа</h2>
+    ${siteAdmin.state === 'error' ? `<p class="small" style="color:var(--warn)">${esc(siteAdmin.message)}</p>` : ''}
+    <p class="small muted">Нужен ключ GitHub с доступом только к репозиторию animatrix-fans и правом Contents: Read and write. Ключ сохранится только на этом устройстве. Как его создать, написано в инструкции к сайту.</p>
+    <div class="tools">
+      <input id="adminToken" type="password" autocomplete="off" placeholder="github_pat_…" aria-label="Ключ GitHub">
+      <button class="btn mini" data-admin-login>Войти</button>
+    </div>`;
+}
 
 function setRecords(list) {
   records = E.sortRecordEvents(list || []);
@@ -2280,7 +2374,9 @@ function recSourcesHtml() {
 
 function renderRecords() {
   if ($('view-records').hidden) return;
+  renderRecAdmin();
   $('recEditor').hidden = !recEditable() || !!recState.player;
+  $('recDownload').hidden = !!siteData;
   if (recEditable()) fillRecEvents();
   if (recEditable() && !$('recDate').value && !recState.editing) $('recDate').value = todayIso();
   if (recState.player) {
@@ -2356,23 +2452,26 @@ async function saveRecordEvent() {
   };
   $('recSave').disabled = true;
   try {
-    if (db) await db.doc(`records/${id}`).set(doc);
+    if (siteData) await commitRecords(records.filter((ev) => ev.id !== id).concat({ id, ...doc }), `Рекорды: итоги «${title}»`);
+    else if (db) await db.doc(`records/${id}`).set(doc);
     else {
       const list = records.filter((ev) => ev.id !== id).concat({ id, ...doc });
       if (!writeStore('ani-records', list)) throw new Error('storage');
       setRecords(list);
     }
-    $('recResult').textContent = `Итоги «${title}» сохранены: игроков ${rows.length}.`;
+    $('recResult').textContent = `Итоги «${title}» сохранены: игроков ${rows.length}.${siteData ? ' У игроков появятся через 1–2 минуты.' : ''}`;
     recResetForm();
   } catch (e) {
-    $('recResult').textContent = writeError(e);
+    $('recResult').textContent = siteData ? adminError(e) : writeError(e);
   }
   $('recSave').disabled = false;
 }
 
 async function deleteRecordEvent(id) {
   try {
-    if (db) await db.doc(`records/${id}`).delete();
+    const gone = records.find((ev) => ev.id === id);
+    if (siteData) await commitRecords(records.filter((ev) => ev.id !== id), `Рекорды: удалён список «${gone ? gone.title : id}»`);
+    else if (db) await db.doc(`records/${id}`).delete();
     else {
       const list = records.filter((ev) => ev.id !== id);
       writeStore('ani-records', list);
@@ -2380,7 +2479,7 @@ async function deleteRecordEvent(id) {
     }
     if (recState.editing === id) recResetForm();
   } catch (e) {
-    $('recResult').textContent = writeError(e);
+    $('recResult').textContent = siteData ? adminError(e) : writeError(e);
   }
 }
 
@@ -3724,6 +3823,21 @@ $('recTitle').addEventListener('input', (e) => {
   recPreview();
 });
 $('recSave').addEventListener('click', saveRecordEvent);
+$('recAdmin').addEventListener('click', (e) => {
+  if (e.target.closest('[data-admin-login]')) {
+    const token = $('adminToken').value.trim();
+    if (!token) return;
+    siteAdmin.token = token;
+    writeStore('ani-gh-token', token);
+    adminConnect();
+  } else if (e.target.closest('[data-admin-logout]')) {
+    siteAdmin.token = '';
+    siteAdmin.state = 'login';
+    writeStore('ani-gh-token', null);
+    recResetForm();
+    renderRecords();
+  }
+});
 $('recCancel').addEventListener('click', recResetForm);
 $('recDownload').addEventListener('click', downloadRecords);
 $('recList').addEventListener('click', async (e) => {
