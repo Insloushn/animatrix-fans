@@ -155,6 +155,8 @@ nav button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--
 .rec-hit { background: var(--tint); }
 .rec-hit .m-main, .rec-hit td:nth-child(2) { font-weight: 700; }
 .rec-medal { font-size: 18px; line-height: 1; }
+.rec-best li { padding: 4px 6px; border-radius: 6px; }
+.rec-best li span:first-child { font-size: 14px; color: var(--fg); }
 @media (max-width: 760px) { table.m-rows tr.has-lead.rec-row { min-height: 0; padding-top: 8px; padding-bottom: 8px; } table.m-rows tr.has-lead.rec-row .m-lead { top: 8px; } }
 @media (max-width: 760px) {
   .mobile-only { display: block; }
@@ -552,19 +554,19 @@ details.card summary { cursor: pointer; font-weight: 500; }
 
   <section class="view" id="view-records" hidden>
     <div class="card" id="recEditor" data-admin hidden>
-      <h2 id="recFormTitle">Новое событие</h2>
-      <div class="two">
-        <label class="field">Название события <input id="recTitle" placeholder="Например: ивент «Хэллоуин»"></label>
-        <label class="field">Дата <input id="recDate" type="date"></label>
-        <label class="field">Что считается <input id="recMetric" placeholder="Например: урон по боссу"></label>
-        <label class="field">Описание, по желанию <input id="recNote"></label>
-      </div>
-      <label class="field">Результаты: по строке на игрока, место и результат по желанию
-        <textarea id="recLines" placeholder="1. Ник — 12 345&#10;2. Другой ник — 11 000&#10;🥉 Третий: 9 500"></textarea>
+      <h2 id="recFormTitle">Итоги ивента</h2>
+      <label class="field">Сообщение бота «Итоги прошлого события» целиком или список по строке на игрока
+        <textarea id="recLines" placeholder="Итоги прошлого события ➢ Аркейн&#10;1. Ник ➢ 14,567,529,636&#10;2. Другой ник ➢ 10,187,430,358"></textarea>
       </label>
-      <p class="small muted" id="recPreview">Можно вставить список прямо из сообщения бота: номер места, ник и результат через тире, двоеточие или табуляцию.</p>
+      <p class="small muted" id="recPreview">Номер группы и блок «Ваше место» пропускаются сами.</p>
+      <div class="two">
+        <label class="field">Ивент <input id="recTitle" placeholder="Подставится из сообщения, например Аркейн"></label>
+        <label class="field">Дата окончания <input id="recDate" type="date"></label>
+        <label class="field">Что считается <input id="recMetric" placeholder="Очки"></label>
+        <label class="field">Заметка, по желанию <input id="recNote"></label>
+      </div>
       <div class="tools">
-        <button class="btn" id="recSave">Сохранить событие</button>
+        <button class="btn" id="recSave">Сохранить итоги</button>
         <button class="btn ghost" id="recCancel" hidden>Отменить правку</button>
         <button class="btn ghost mini" id="recDownload">Скачать records.json для сайта</button>
         <span class="small muted" id="recResult"></span>
@@ -2138,7 +2140,7 @@ function renderNews() {
 
 // ---------- Рекорды игроков ----------
 
-const recState = { editing: '', search: '' };
+const recState = { editing: '', search: '', autoTitle: '' };
 const REC_SHOWN = 10;
 const recEditable = () => canWrite && !siteData;
 
@@ -2161,29 +2163,53 @@ function recRow(row, hit) {
   </tr>`;
 }
 
+// Сводка: лучший результат за всё время в каждом ивенте. При поиске показывается и место игрока.
+function recLeadersHtml(q) {
+  const leaders = E.recordLeaders(records);
+  const hit = (p) => q && E.normName(p.player).includes(q);
+  const cards = leaders.map((l) => {
+    const found = q ? l.players.findIndex(hit) : -1;
+    if (q && found < 0) return '';
+    const line = (p, i) => `<li class="${hit(p) ? 'rec-hit' : ''}">
+        <span>${i < 3 ? recPlace(i + 1) : `№${i + 1}`} <b>${esc(p.player)}</b> — ${esc(p.value)}</span>
+        <span>${recDate(p.date) ? `неделя до ${recDate(p.date)}` : ''}</span>
+      </li>`;
+    const top = l.players.slice(0, 3).map(line).join('');
+    const own = found >= 3 ? line(l.players[found], found) : '';
+    return `<div class="card">
+      <h2>${esc(l.title)}</h2>
+      <p class="small muted">Недель в истории: ${l.weeks}</p>
+      <ol class="best-list rec-best">${top}${own}</ol>
+    </div>`;
+  }).join('');
+  return cards ? `<h2>Рекорды за всё время</h2><div class="best-grid">${cards}</div>` : '';
+}
+
 function renderRecords() {
   if ($('view-records').hidden) return;
   $('recEditor').hidden = !recEditable();
+  if (recEditable() && !$('recDate').value && !recState.editing) $('recDate').value = todayIso();
   const q = E.normName(recState.search);
   const hits = (row) => q && E.normName(row.player).includes(q);
   const shown = q ? records.filter((ev) => (ev.rows || []).some(hits)) : records;
   if (!records.length) {
-    $('recList').innerHTML = `<p class="empty">${recEditable() ? 'Добавь первое событие в форме выше.' : 'Скоро здесь появятся рекорды игроков в ивентах и событиях бота.'}</p>`;
+    $('recList').innerHTML = `<p class="empty">${recEditable() ? 'Вставь в форму выше сообщение бота с итогами ивента.' : 'Скоро здесь появятся рекорды игроков в ивентах бота.'}</p>`;
     return;
   }
   if (!shown.length) {
     $('recList').innerHTML = '<p class="empty">Игрок с таким ником в рекордах не найден.</p>';
     return;
   }
+  const leadersHtml = recLeadersHtml(q);
   const table = (rows) => `<div class="table-box"><table class="m-rows">
       <thead><tr><th class="left">Место</th><th class="left">Игрок</th><th>Результат</th></tr></thead>
       <tbody>${rows.map((row) => recRow(row, hits(row))).join('')}</tbody>
     </table></div>`;
-  $('recList').innerHTML = shown.map((ev) => {
+  $('recList').innerHTML = leadersHtml + '<h2>История ивентов</h2>' + shown.map((ev) => {
     const rows = ev.rows || [];
     const top = q ? rows : rows.slice(0, REC_SHOWN);
     const rest = q ? [] : rows.slice(REC_SHOWN);
-    const meta = [recDate(ev.date), ev.metric].filter(Boolean).map(esc).join(' · ');
+    const meta = [recDate(ev.date) && `неделя до ${recDate(ev.date)}`, ev.metric].filter(Boolean).map(esc).join(' · ');
     return `<article class="card">
       <div class="card-head">
         <div><h2>${esc(ev.title)}</h2>${meta ? `<p class="small muted">${meta}</p>` : ''}</div>
@@ -2196,25 +2222,39 @@ function renderRecords() {
   }).join('');
 }
 
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// Название ивента подставляется из сообщения, пока игрок не вписал своё.
 function recPreview() {
-  const rows = E.parseRecordLines($('recLines').value);
-  $('recPreview').textContent = rows.length
-    ? `Распознано игроков: ${rows.length}. Первая строка: место ${rows[0].place}, ник «${rows[0].player}», результат «${rows[0].value || '—'}».`
-    : 'Можно вставить список прямо из сообщения бота: номер места, ник и результат через тире, двоеточие или табуляцию.';
+  const parsed = E.parseEventMessage($('recLines').value);
+  const title = $('recTitle').value.trim();
+  if (parsed.event && (!title || title === recState.autoTitle)) {
+    $('recTitle').value = parsed.event;
+    recState.autoTitle = parsed.event;
+  }
+  const first = parsed.rows[0];
+  $('recPreview').textContent = first
+    ? `${parsed.event ? `Ивент «${parsed.event}». ` : ''}Игроков: ${parsed.rows.length}. Первое место: ${first.player} — ${first.value || '—'}.`
+    : 'Номер группы и блок «Ваше место» пропускаются сами.';
 }
 
 function recResetForm() {
   recState.editing = '';
-  ['recTitle', 'recDate', 'recMetric', 'recNote', 'recLines'].forEach((id) => { $(id).value = ''; });
-  $('recFormTitle').textContent = 'Новое событие';
+  recState.autoTitle = '';
+  ['recTitle', 'recMetric', 'recNote', 'recLines'].forEach((id) => { $(id).value = ''; });
+  $('recDate').value = todayIso();
+  $('recFormTitle').textContent = 'Итоги ивента';
   $('recCancel').hidden = true;
   recPreview();
 }
 
 async function saveRecordEvent() {
   const title = $('recTitle').value.trim();
-  const rows = E.parseRecordLines($('recLines').value);
-  if (!title) { $('recResult').textContent = 'Укажи название события.'; return; }
+  const rows = E.parseEventMessage($('recLines').value).rows;
+  if (!title) { $('recResult').textContent = 'Укажи название ивента.'; return; }
   if (!rows.length) { $('recResult').textContent = 'Вставь хотя бы одну строку с игроком.'; return; }
   const id = recState.editing || `r-${Date.now().toString(36)}`;
   const old = records.find((ev) => ev.id === id);
@@ -2234,7 +2274,7 @@ async function saveRecordEvent() {
       if (!writeStore('ani-records', list)) throw new Error('storage');
       setRecords(list);
     }
-    $('recResult').textContent = `Событие «${title}» сохранено: игроков ${rows.length}.`;
+    $('recResult').textContent = `Итоги «${title}» сохранены: игроков ${rows.length}.`;
     recResetForm();
   } catch (e) {
     $('recResult').textContent = writeError(e);
@@ -3604,7 +3644,8 @@ $('recList').addEventListener('click', (e) => {
     $('recDate').value = ev.date || '';
     $('recMetric').value = ev.metric || '';
     $('recNote').value = ev.note || '';
-    $('recLines').value = (ev.rows || []).map((r) => `${r.place}. ${r.player}${r.value ? ` — ${r.value}` : ''}`).join('\n');
+    $('recLines').value = (ev.rows || []).map((r) => `${r.place}. ${r.player}${r.value ? ` ➢ ${r.value}` : ''}`).join('\n');
+    recState.autoTitle = '';
     $('recFormTitle').textContent = `Правка: ${ev.title}`;
     $('recCancel').hidden = false;
     recPreview();

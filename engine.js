@@ -932,7 +932,18 @@
 
   const MEDALS = { '🥇': 1, '🥈': 2, '🥉': 3 };
 
-  // Строки результатов из сообщения бота или таблицы: «1. Ник — 12 345», «🥇 Ник: 900», «Ник 500».
+  // Число очков из результата: «14,567,529,636» и «8 700 урона» дают 14567529636 и 8700.
+  function recordScore(value) {
+    const lead = String(value || '').match(/^[\d\s., ]*\d/);
+    if (!lead) return null;
+    const digits = lead[0].replace(/[^\d]/g, '');
+    return digits ? Number(digits) : null;
+  }
+
+  // Аватарки в сообщении бота при копировании превращаются в эмодзи перед ником, их убираем.
+  const cleanRecordName = (name) => String(name || '').replace(/^[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}️‍⃣\s]+/u, '').trim();
+
+  // Строки результатов: «1. Ник ➢ 14,567», «1. Ник — 12 345», «🥇 Ник: 900», «Ник 500».
   // Без номера место берётся по порядку строк, одинаковый номер значит общее место.
   function parseRecordLines(text) {
     let order = 0;
@@ -946,7 +957,7 @@
       if (numbered) { place = place || Number(numbered[1]); rest = numbered[2]; }
       let player = rest;
       let value = '';
-      const split = rest.split(/\t|\s+[—–-]\s+|\s*\|\s*|:\s+/);
+      const split = rest.split(/\s*➢\s*|\t|\s+[—–-]\s+|\s*\|\s*|:\s+/);
       if (split.length > 1) {
         player = split[0];
         value = split.slice(1).join(' — ');
@@ -954,8 +965,47 @@
         const tail = rest.match(/^(.+?)\s+(\d[\d\s.,]*(?:\s*\S+)?)$/);
         if (tail) { player = tail[1]; value = tail[2]; }
       }
-      return { place: place || order, player: player.trim(), value: value.trim() };
+      value = value.trim();
+      return { place: place || order, player: cleanRecordName(player), value, score: recordScore(value) };
     }).filter((row) => row.player);
+  }
+
+  // Сообщение бота «Итоги прошлого события ➢ Аркейн»: название ивента и строки мест с «➢».
+  // Номер группы и блок «Ваше место» не нужны: группы каждую неделю собираются заново.
+  function parseEventMessage(text) {
+    const src = String(text || '');
+    const head = src.match(/Итоги[^\n➢]*➢\s*([^\n|]+)/);
+    const lines = src.split(/\r?\n/).filter((line) => /^\s*\d{1,3}\s*\.\s*\S/.test(line) && line.includes('➢'));
+    return {
+      event: head ? cleanRecordName(head[1]) : '',
+      rows: parseRecordLines(lines.length ? lines.join('\n') : src),
+    };
+  }
+
+  // Рекорды за всё время: по каждому ивенту лучший результат каждого игрока, сильнейшие сверху.
+  function recordLeaders(events) {
+    const groups = new Map();
+    events.forEach((ev) => {
+      const key = normName(ev.title);
+      if (!key) return;
+      const group = groups.get(key) || { title: ev.title, weeks: 0, lastDate: '', best: new Map() };
+      group.weeks += 1;
+      if (String(ev.date || '') >= group.lastDate) { group.lastDate = String(ev.date || ''); group.title = ev.title; }
+      (ev.rows || []).forEach((row) => {
+        const score = row.score === null || row.score === undefined ? recordScore(row.value) : row.score;
+        if (score === null) return;
+        const who = normName(row.player);
+        const current = group.best.get(who);
+        if (!current || score > current.score) group.best.set(who, { player: row.player, score, value: row.value, date: ev.date || '' });
+      });
+      groups.set(key, group);
+    });
+    return [...groups.values()].map((g) => ({
+      title: g.title,
+      weeks: g.weeks,
+      lastDate: g.lastDate,
+      players: [...g.best.values()].sort((a, b) => b.score - a.score),
+    })).sort((a, b) => b.lastDate.localeCompare(a.lastDate) || a.title.localeCompare(b.title, 'ru'));
   }
 
   // Свежие события сверху; без даты в конце.
@@ -1121,7 +1171,7 @@
   return {
     deriveHeroes, numberedHeroes, offTopHeroes, groupCacheKey, runsForGroup, hasEqualScores, offTopRow, collectGroupRows, groupError,
     packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, chunkText, hitsToKill, seasonNews,
-    parseRecordLines, sortRecordEvents,
+    parseRecordLines, parseEventMessage, recordLeaders, recordScore, sortRecordEvents,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
     CLASSES, RANKS, DEFAULTS, NO_TITLE, SKIN_BONUS, fight, duel, plainFight, formulaScore,
