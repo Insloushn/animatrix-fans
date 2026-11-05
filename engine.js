@@ -944,6 +944,10 @@
   const cleanRecordName = (name) => String(name || '').replace(/^[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}️‍⃣\s]+/u, '').trim();
 
   const RECORD_ARROW = /[➢➤→]|\s->\s/;
+  // Ветки «┣ ┗ ├» перед номером места в старых итогах бота.
+  const TREE = /^[\u2500-\u257F\s]+/;
+  const TRAILING_EMOJI = /[\s\p{Extended_Pictographic}\p{Emoji_Modifier}\uFE0F\u200D]+$/u;
+  const DATE_RANGE = /\d{1,2}\.\d{1,2}\s*(?:по|–|—|-)\s*\d{1,2}\.\d{1,2}/i;
   const LINK = /\(\s*https?:\/\/[^)]*\)/g;
 
   // Ник со ссылкой бота: «Ник (https://t.me/AniMatrixGame_bot?start=user_1706393853)».
@@ -960,7 +964,7 @@
     let order = 0;
     return String(text || '').split(/\r?\n/).map((raw) => raw.trim()).filter(Boolean).map((line) => {
       order += 1;
-      let rest = line;
+      let rest = line.replace(TREE, '');
       let place = null;
       const medal = Object.keys(MEDALS).find((m) => rest.startsWith(m));
       if (medal) { place = MEDALS[medal]; rest = rest.slice(medal.length).trim(); }
@@ -980,7 +984,7 @@
         const tail = masked.match(/^(.+?)\s+(\d[\d\s.,]*(?:\s*\S+)?)$/);
         if (tail) { player = unmask(tail[1]); value = unmask(tail[2]); }
       }
-      value = value.trim();
+      value = value.replace(TRAILING_EMOJI, '').trim();
       return { place: place || order, ...parsePlayerCell(player), value, score: recordScore(value) };
     }).filter((row) => row.player);
   }
@@ -990,11 +994,18 @@
   // Последний день периода «13–19 октября» или «28 октября – 3 ноября». Год берётся такой,
   // чтобы дата не оказалась больше чем на неделю в будущем.
   function periodEnd(period, now) {
-    const parts = [...String(period || '').toLowerCase().matchAll(/(\d{1,2})\s*([а-яё]+)?/g)];
+    const text = String(period || '').toLowerCase();
+    // Числовой вид «С 01.02 по 07.02»: берётся последняя дата.
+    const numeric = [...text.matchAll(/(\d{1,2})\.(\d{1,2})(?!\d)/g)];
+    const parts = [...text.matchAll(/(\d{1,2})\s*([а-яё]+)?/g)];
     if (!parts.length) return '';
-    const day = Number(parts[parts.length - 1][1]);
+    let day = Number(parts[parts.length - 1][1]);
     const word = [...parts].reverse().map((p) => p[2]).find(Boolean);
-    const month = word ? MONTHS.findIndex((m) => word.startsWith(m)) : -1;
+    let month = word ? MONTHS.findIndex((m) => word.startsWith(m)) : -1;
+    if (numeric.length) {
+      day = Number(numeric[numeric.length - 1][1]);
+      month = Number(numeric[numeric.length - 1][2]) - 1;
+    }
     if (month < 0 || day < 1 || day > 31) return '';
     const today = now || new Date();
     let year = today.getFullYear();
@@ -1008,13 +1019,18 @@
   function parseEventMessage(text, now) {
     const src = String(text || '');
     const lines = src.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-    const rowLines = lines.filter((line) => /^\d{1,3}\s*\.\s*\S/.test(line) && RECORD_ARROW.test(line));
+    // Строка места: номер, ник и очки после стрелки, двоеточия или тире.
+    const isRow = (line) => {
+      const bare = line.replace(TREE, '').replace(LINK, ' ');
+      return /^\d{1,3}\s*[.)]\s*\S/.test(bare) && (RECORD_ARROW.test(bare) || /:\s*\d/.test(bare) || /\s[—–-]\s*\d/.test(bare));
+    };
+    const rowLines = lines.filter(isRow);
     let event = '';
     const total = src.match(/Итоги[^\n➢➤]*[➢➤]\s*([^\n|]+)/);
     if (total) event = total[1];
-    else if (rowLines.length && lines.length && !rowLines.includes(lines[0])) event = lines[0].replace(LINK, ' ').split(/\s*\|\s*|:\s+|,\s+/)[0];
-    const periodLine = lines.map(cleanRecordName).find((line) => /^период/i.test(line));
-    const period = periodLine ? periodLine.replace(/^период\s*[:➢➤]?\s*/i, '').replace(LINK, '').trim() : '';
+    else if (rowLines.length && lines.length && !isRow(lines[0]) && /\||:\s/.test(lines[0])) event = lines[0].replace(LINK, ' ').split(/\s*\|\s*|:\s+|,\s+/)[0];
+    const periodLine = lines.map(cleanRecordName).find((line) => /^период/i.test(line) || DATE_RANGE.test(line));
+    const period = periodLine ? periodLine.replace(/^период\s*[:➢➤]?\s*/i, '').replace(LINK, '').replace(/^с\s+/i, '').trim() : '';
     return {
       event: cleanRecordName(event),
       period,
