@@ -448,6 +448,10 @@ details.card summary { cursor: pointer; font-weight: 500; }
       <div class="card" id="sideB"></div>
     </div>
     <div class="chips" id="compareModes" aria-label="Навыки в сравнении"></div>
+    <div class="tools">
+      <button class="btn" id="compareRun">Сравнить</button>
+      <span class="small muted" id="compareNote"></span>
+    </div>
     <div class="card" id="verdict"></div>
     <div class="card" id="verdictPlain"></div>
     <datalist id="heroList"></datalist>
@@ -466,6 +470,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 
   <section class="view" id="view-collection" hidden>
+    <div class="card" id="colAccount"></div>
     <div class="stat-tiles" id="colTiles"></div>
     <div id="colBest" class="view"></div>
     <div class="stat-grid" id="colProgress"></div>
@@ -1875,8 +1880,37 @@ function knownPlace(hero) {
   return ranked.pending ? null : E.sharedPlaces(ranked.order, sameStats).get(hero.key);
 }
 
+// Игрок видит, к какому аккаунту привязана коллекция и сохранилась ли она.
+function renderColAccount() {
+  const box = $('colAccount');
+  if (!tg) {
+    const link = siteConfig.telegramLink;
+    box.innerHTML = `<h2>Где хранится коллекция</h2>
+      <p class="small muted">Сейчас коллекция хранится только в этом браузере.${link ? ` Открой сайт через мини-приложение <a href="${esc(link)}">${esc(link.replace('https://', ''))}</a>, и она будет привязана к твоему аккаунту Telegram: не пропадёт при очистке браузера и появится на всех твоих устройствах.` : ''}</p>`;
+    return;
+  }
+  const user = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+  const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || (user.username ? `@${user.username}` : 'Игрок');
+  const time = cloudStatus.at ? cloudStatus.at.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
+  const status = {
+    loading: 'Загружаю коллекцию из Telegram…',
+    saving: 'Сохраняю в Telegram…',
+    saved: `✓ Сохранено в Telegram${time ? ` в ${time}` : ''}`,
+    error: 'Не удалось сохранить в Telegram. Отметки остались на этом устройстве, сохранение повторится при следующем изменении.',
+    loadError: 'Не удалось загрузить коллекцию из Telegram. Пока ничего не меняй и нажми «Повторить».',
+    off: 'Эта версия Telegram не поддерживает облако, коллекция хранится только на этом устройстве. Обнови Telegram.',
+  }[cloudStatus.state];
+  const bad = cloudStatus.state === 'error' || cloudStatus.state === 'loadError' || cloudStatus.state === 'off';
+  box.innerHTML = `<h2>Твой аккаунт</h2>
+    <p>${esc(name)}${user.id ? ` <span class="muted small">· ID ${esc(user.id)}</span>` : ''}</p>
+    <p class="small ${bad ? '' : 'muted'}" style="${bad ? 'color:var(--warn)' : ''}">${status}</p>
+    ${cloudStatus.state === 'loadError' ? '<div><button class="btn ghost mini" id="cloudRetry">Повторить</button></div>' : ''}
+    <p class="small muted">Коллекция привязана к твоему аккаунту Telegram: она хранится в облаке Telegram, не пропадёт при очистке телефона и появится на всех твоих устройствах, где ты открываешь это мини-приложение.</p>`;
+}
+
 function renderCollection() {
   if ($('view-collection').hidden) return;
+  renderColAccount();
   const owned = heroes.filter(isOwned);
   const skins = owned.filter((h) => h.skin && ownEntry(h).skin).length;
   const titleNames = [...new Set(heroes.map((h) => h.title || E.NO_TITLE))];
@@ -2541,21 +2575,31 @@ function renderVerdict() {
   $('compareModes').innerHTML = [['skills', 'С навыками'], ['plain', 'Без навыков'], ['both', 'Оба варианта']]
     .map(([mode, label]) => `<button class="chip" data-compare-mode="${mode}" aria-pressed="${settings.compareMode === mode}">${label}</button>`)
     .join('');
+  const showSkills = settings.compareMode !== 'plain';
+  const showPlain = settings.compareMode !== 'skills';
+  const done = compareDone && compareDone.key === compareKey();
+  const ready = a && b && done && (!showSkills || compareDone.skills);
+  $('compareRun').disabled = !a || !b || compareBusy || !!ready;
+  $('compareRun').textContent = compareBusy ? 'Считаю…' : 'Сравнить';
+  $('compareNote').textContent = ready ? 'Поменяй героя, уровень или скин, чтобы сравнить снова.' : '';
   if (!a || !b) {
     $('verdict').hidden = false;
     $('verdict').innerHTML = '<p class="muted">Выбери двух героев из базы.</p>';
     $('verdictPlain').hidden = true;
     return;
   }
-  const showSkills = settings.compareMode !== 'plain';
-  const showPlain = settings.compareMode !== 'skills';
+  // Симуляция идёт только по кнопке: пока игрок меняет обоих героев, ничего лишнего не считается.
+  if (!ready) {
+    $('verdict').hidden = false;
+    $('verdict').innerHTML = `<p class="muted">${compareBusy ? 'Считаю бои…' : 'Выбери героев, уровни и скины, затем нажми «Сравнить».'}</p>`;
+    $('verdictPlain').hidden = true;
+    return;
+  }
   $('verdict').hidden = !showSkills;
   $('verdictPlain').hidden = !showPlain;
   if (showPlain) renderPlainVerdict(a, b);
   if (!showSkills) return;
-  const runs = 100000;
-  const aFirst = pairRate(a, b, runs, settings.maxMoves);
-  const bFirst = pairRate(b, a, runs, settings.maxMoves);
+  const { runs, aFirst, bFirst } = compareDone.skills;
   const overallA = (aFirst + (1 - bFirst)) / 2;
   $('verdict').innerHTML = `
     <h2>С навыками</h2>
@@ -2565,6 +2609,30 @@ function renderVerdict() {
       <div><span class="small muted">В среднем за обе стороны</span><span class="big">${pct(overallA)}</span><span class="small muted">Шанс победы: ${esc(a.name)}</span></div>
     </div>
     <p class="small muted">Каждая сторона считается по ${fmt(runs)} боёв.</p>`;
+}
+
+// Что уже посчитано: сравнение повторяется, только если изменились герои, уровни, скины или лимит ходов.
+let compareDone = null;
+let compareBusy = false;
+const compareKey = () => JSON.stringify([compare.a, compare.b, settings.maxMoves]);
+
+function runCompare() {
+  const a = pickHero('a');
+  const b = pickHero('b');
+  if (!a || !b || compareBusy) return;
+  compareBusy = true;
+  renderVerdict();
+  // Пауза даёт странице показать «Считаю…» до тяжёлого расчёта.
+  setTimeout(() => {
+    let skills = null;
+    if (settings.compareMode !== 'plain') {
+      const runs = 100000;
+      skills = { runs, aFirst: pairRate(a, b, runs, settings.maxMoves), bFirst: pairRate(b, a, runs, settings.maxMoves) };
+    }
+    compareDone = { key: compareKey(), skills };
+    compareBusy = false;
+    renderVerdict();
+  }, 30);
 }
 
 function renderPlainVerdict(a, b) {
@@ -3252,6 +3320,9 @@ $('colClearAll').addEventListener('click', () => {
   saveCollection();
   renderCollection();
 });
+$('colAccount').addEventListener('click', (e) => {
+  if (e.target.closest('#cloudRetry') && tg) cloudLoad();
+});
 $('colCopy').addEventListener('click', () => {
   const code = JSON.stringify(collection);
   if (copyRich(code)) { $('colCopyNote').textContent = 'Код скопирован'; return; }
@@ -3333,6 +3404,7 @@ $('topTable').addEventListener('click', (e) => {
   const row = e.target.closest('[data-row]');
   if (row) openCard(row.dataset.row);
 });
+$('compareRun').addEventListener('click', runCompare);
 $('compareModes').addEventListener('click', (e) => {
   const b = e.target.closest('[data-compare-mode]');
   if (!b) return;
@@ -3579,24 +3651,48 @@ function paintTelegram() {
   try { tg.setHeaderColor(bg); tg.setBackgroundColor(bg); } catch (e) { /* старый клиент Telegram */ }
 }
 
+// Состояние облака для блока «Твой аккаунт» в коллекции.
+const cloudStatus = { state: 'off', at: null };
+function setCloudStatus(state) {
+  cloudStatus.state = state;
+  if (state === 'saved') cloudStatus.at = new Date();
+  if (!$('view-collection').hidden) renderColAccount();
+}
+
 function cloudSave() {
   if (!tg) return;
   if (!cloudReady) { changedBeforeCloud = true; return; }
   clearTimeout(cloudTimer);
+  setCloudStatus('saving');
   cloudTimer = setTimeout(() => {
     const parts = E.chunkText(E.packCollection(collection, heroes), CLOUD_PART);
-    parts.forEach((part, i) => tg.CloudStorage.setItem(`col${i}`, part));
-    for (let i = parts.length; i < cloudParts; i += 1) tg.CloudStorage.removeItem(`col${i}`);
-    tg.CloudStorage.setItem('colN', String(parts.length));
-    cloudParts = parts.length;
+    // Счётчик частей пишется последним: пока части не записаны, старая коллекция читается целиком.
+    let waiting = parts.length;
+    let failed = false;
+    const finish = () => {
+      if (failed) { setCloudStatus('error'); return; }
+      tg.CloudStorage.setItem('colN', String(parts.length), (error) => {
+        if (error) { setCloudStatus('error'); return; }
+        for (let i = parts.length; i < cloudParts; i += 1) tg.CloudStorage.removeItem(`col${i}`);
+        cloudParts = parts.length;
+        setCloudStatus('saved');
+      });
+    };
+    if (!waiting) { finish(); return; }
+    parts.forEach((part, i) => tg.CloudStorage.setItem(`col${i}`, part, (error) => {
+      if (error) failed = true;
+      waiting -= 1;
+      if (!waiting) finish();
+    }));
   }, 600);
 }
 
 // Облако главнее браузера: так коллекция одинакова на всех устройствах игрока.
 // Если облако не ответило, в него ничего не пишется, чтобы не затереть сохранённое.
 function cloudLoad() {
+  setCloudStatus('loading');
   tg.CloudStorage.getItem('colN', (error, value) => {
-    if (error) return;
+    if (error) { setCloudStatus('loadError'); return; }
     const count = parseInt(value, 10) || 0;
     const finish = (remote) => {
       const merge = changedBeforeCloud;
@@ -3605,13 +3701,14 @@ function cloudLoad() {
       writeStore('ani-collection', collection);
       cloudReady = true;
       cloudParts = count;
+      setCloudStatus('saved');
       if (!count || merge) cloudSave();
       renderRanking();
     };
     if (!count) { finish({}); return; }
     const keys = Array.from({ length: count }, (_, i) => `col${i}`);
     tg.CloudStorage.getItems(keys, (error2, values) => {
-      if (error2) return;
+      if (error2) { setCloudStatus('loadError'); return; }
       finish(E.unpackCollection(keys.map((k) => values[k] || '').join(''), heroes));
     });
   });
