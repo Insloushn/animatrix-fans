@@ -2160,13 +2160,6 @@ const recPlace = (place) => ({ 1: '🥇', 2: '🥈', 3: '🥉' }[place] ? `<span
 // Ник ведёт в профиль игрока на сайте.
 const recPlayerLink = (row) => `<button class="link-btn" data-rec-player="${esc(E.recordPlayerKey(row))}">${esc(row.player)}</button>`;
 
-function recRow(row, hit) {
-  return `<tr class="has-lead rec-row${hit ? ' rec-hit' : ''}">
-    <td class="left place m-lead">${recPlace(row.place)}</td>
-    <td class="left m-main">${recPlayerLink(row)}</td>
-    <td class="m-side">${esc(row.value || '—')}</td>
-  </tr>`;
-}
 
 const myPlayerKey = () => {
   const user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
@@ -2199,25 +2192,20 @@ function openPlayer(key) {
   window.scrollTo(0, 0);
 }
 
-// Профиль: лучший результат в каждом ивенте с местом за всё время и все недели игрока.
+// Профиль: лучший результат игрока в каждом ивенте и его место среди всех списков этого ивента.
 function recProfileHtml(key) {
   const p = E.playerRecords(records, key);
   const back = '<div><button class="btn ghost mini" data-rec-back>← Все рекорды</button></div>';
-  if (!p.weeks.length) return `${back}<p class="empty">У этого игрока пока нет записанных результатов.</p>`;
+  if (!p.best.length) return `${back}<p class="empty">У этого игрока пока нет записанных результатов.</p>`;
   const mine = key === myPlayerKey();
   const best = p.best.map((b) => `<li>
       <span>${b.rank <= 3 ? recPlace(b.rank) : `№${b.rank}`} <b>${esc(b.event)}</b> — ${esc(b.value)}</span>
-      <span>${b.rank}-е место из ${b.of} за всё время${recDate(b.date) ? `, неделя до ${recDate(b.date)}` : ''}</span>
+      <span>${b.rank}-е место из ${b.of}</span>
     </li>`).join('');
-  const weeks = p.weeks.map((w) => `<tr class="has-lead rec-row">
-      <td class="left place m-lead">${recPlace(w.place)}</td>
-      <td class="left m-main">${esc(w.event)}<span class="small muted" style="display:block">${recDate(w.date) ? `неделя до ${recDate(w.date)}` : ''}</span></td>
-      <td class="m-side">${esc(w.value || '—')}</td>
-    </tr>`).join('');
   return `${back}
     <div class="card">
       <div class="card-head">
-        <div><h2>${esc(p.name)}${mine ? ' <span class="tag">это ты</span>' : ''}</h2><p class="small muted">Недель в рекордах: ${p.weeks.length}</p></div>
+        <div><h2>${esc(p.name)}${mine ? ' <span class="tag">это ты</span>' : ''}</h2><p class="small muted">Ивентов в рекордах: ${p.best.length}</p></div>
         <div class="actions">
           ${p.tgId ? `<a class="btn ghost mini" href="${BOT_PROFILE}${esc(p.tgId)}" target="_blank" rel="noopener">Профиль в боте</a>` : ''}
           ${siteData ? '<button class="btn ghost mini" data-rec-share>Поделиться</button>' : ''}
@@ -2225,33 +2213,48 @@ function recProfileHtml(key) {
       </div>
       <p class="small muted" id="recShareNote"></p>
     </div>
-    <div class="card"><h2>Лучшие результаты</h2><ol class="best-list rec-best">${best}</ol></div>
-    <div class="card"><h2>Все недели</h2><div class="table-box"><table class="m-rows">
-      <thead><tr><th class="left">Место</th><th class="left">Ивент</th><th>Результат</th></tr></thead>
-      <tbody>${weeks}</tbody>
-    </table></div></div>`;
+    <div class="card"><h2>Лучшие результаты</h2><ol class="best-list rec-best">${best}</ol></div>`;
 }
 
-// Сводка: лучший результат за всё время в каждом ивенте. При поиске показывается и место игрока.
-function recLeadersHtml(q) {
-  const leaders = E.recordLeaders(records);
+// По каждому ивенту один топ из всех сохранённых списков: у игрока берётся лучший результат.
+// Если игрок из поиска не попал в топ, его строка показывается под топом со своим местом.
+function recTopsHtml(q) {
   const hit = (p) => q && E.normName(p.player).includes(q);
-  const cards = leaders.map((l) => {
+  const row = (p) => `<tr class="has-lead rec-row${hit(p) ? ' rec-hit' : ''}">
+      <td class="left place m-lead">${recPlace(p.place)}</td>
+      <td class="left m-main">${recPlayerLink(p)}</td>
+      <td class="m-side">${esc(p.value || '—')}</td>
+    </tr>`;
+  return E.recordLeaders(records).map((l) => {
     const found = q ? l.players.findIndex(hit) : -1;
     if (q && found < 0) return '';
-    const line = (p, i) => `<li class="${hit(p) ? 'rec-hit' : ''}">
-        <span>${i < 3 ? recPlace(i + 1) : `№${i + 1}`} ${recPlayerLink(p)} — ${esc(p.value)}</span>
-        <span>${recDate(p.date) ? `неделя до ${recDate(p.date)}` : ''}</span>
-      </li>`;
-    const top = l.players.slice(0, 3).map(line).join('');
-    const own = found >= 3 ? line(l.players[found], found) : '';
-    return `<div class="card">
+    const top = l.players.slice(0, REC_SHOWN);
+    const own = found >= REC_SHOWN ? l.players[found] : null;
+    return `<article class="card">
       <h2>${esc(l.title)}</h2>
-      <p class="small muted">Недель в истории: ${l.weeks}</p>
-      <ol class="best-list rec-best">${top}${own}</ol>
+      <p class="small muted">Топ-${Math.min(REC_SHOWN, l.players.length)} из ${l.players.length} игроков</p>
+      <div class="table-box"><table class="m-rows">
+        <thead><tr><th class="left">Место</th><th class="left">Игрок</th><th>Результат</th></tr></thead>
+        <tbody>${top.map(row).join('')}${own ? row(own) : ''}</tbody>
+      </table></div>
+    </article>`;
+  }).join('');
+}
+
+// Сохранённые списки видит только владелец: чтобы поправить или удалить вставку.
+function recSourcesHtml() {
+  if (!recEditable()) return '';
+  const items = records.map((ev) => {
+    const meta = [ev.period || recDate(ev.date), `игроков: ${(ev.rows || []).length}`].filter(Boolean).map(esc).join(' · ');
+    return `<div>
+      <span><b>${esc(E.cleanRecordName(ev.title))}</b> <span class="small muted">${meta}</span></span>
+      <span class="actions"><button class="btn ghost mini" data-rec-edit="${esc(ev.id)}">Изменить</button><button class="btn ghost mini" data-rec-del="${esc(ev.id)}">Удалить</button></span>
     </div>`;
   }).join('');
-  return cards ? `<h2>Рекорды за всё время</h2><div class="best-grid">${cards}</div>` : '';
+  return `<details class="card"><summary>Сохранённые списки: ${records.length}</summary>
+    <p class="small muted">Видно только тебе. Игроки видят только общий топ по каждому ивенту.</p>
+    <div class="list">${items}</div>
+  </details>`;
 }
 
 function renderRecords() {
@@ -2262,42 +2265,19 @@ function renderRecords() {
     $('recList').innerHTML = recProfileHtml(recState.player);
     return;
   }
-  const q = E.normName(recState.search);
-  const hits = (row) => q && E.normName(row.player).includes(q);
-  const shown = q ? records.filter((ev) => (ev.rows || []).some(hits)) : records;
   if (!records.length) {
     $('recList').innerHTML = `<p class="empty">${recEditable() ? 'Вставь в форму выше сообщение бота с итогами ивента.' : 'Скоро здесь появятся рекорды игроков в ивентах бота.'}</p>`;
     return;
   }
-  if (!shown.length) {
-    $('recList').innerHTML = '<p class="empty">Игрок с таким ником в рекордах не найден.</p>';
-    return;
-  }
+  const q = E.normName(recState.search);
+  const tops = recTopsHtml(q);
   const me = myPlayerKey();
   const meFound = me && records.some((ev) => (ev.rows || []).some((row) => E.recordPlayerKey(row) === me));
   const mineHtml = me ? (meFound
     ? `<div><button class="btn mini" data-rec-player="${esc(me)}">🏅 Мои рекорды</button></div>`
     : '<p class="small muted">Твоих результатов в рекордах пока нет.</p>') : '';
-  const leadersHtml = mineHtml + recLeadersHtml(q);
-  const table = (rows) => `<div class="table-box"><table class="m-rows">
-      <thead><tr><th class="left">Место</th><th class="left">Игрок</th><th>Результат</th></tr></thead>
-      <tbody>${rows.map((row) => recRow(row, hits(row))).join('')}</tbody>
-    </table></div>`;
-  $('recList').innerHTML = leadersHtml + '<h2>История ивентов</h2>' + shown.map((ev) => {
-    const rows = ev.rows || [];
-    const top = q ? rows : rows.slice(0, REC_SHOWN);
-    const rest = q ? [] : rows.slice(REC_SHOWN);
-    const meta = [ev.period || (recDate(ev.date) && `неделя до ${recDate(ev.date)}`), ev.metric].filter(Boolean).map(esc).join(' · ');
-    return `<article class="card">
-      <div class="card-head">
-        <div><h2>${esc(E.cleanRecordName(ev.title))}</h2>${meta ? `<p class="small muted">${meta}</p>` : ''}</div>
-        ${recEditable() ? `<div class="actions"><button class="btn ghost mini" data-rec-edit="${esc(ev.id)}">Изменить</button><button class="btn ghost mini" data-rec-del="${esc(ev.id)}">Удалить</button></div>` : ''}
-      </div>
-      ${ev.note ? `<p class="small">${esc(ev.note)}</p>` : ''}
-      ${table(top)}
-      ${rest.length ? `<details><summary class="small muted">Показать всех: ещё ${rest.length}</summary>${table(rest)}</details>` : ''}
-    </article>`;
-  }).join('');
+  $('recList').innerHTML = recSourcesHtml() + mineHtml
+    + (tops || '<p class="empty">Игрок с таким ником в рекордах не найден.</p>');
 }
 
 const todayIso = () => {

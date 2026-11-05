@@ -1012,7 +1012,7 @@
     let event = '';
     const total = src.match(/Итоги[^\n➢➤]*[➢➤]\s*([^\n|]+)/);
     if (total) event = total[1];
-    else if (rowLines.length && lines.length) event = lines[0].replace(LINK, ' ').split(/\s*\|\s*|:\s+|,\s+/)[0];
+    else if (rowLines.length && lines.length && !rowLines.includes(lines[0])) event = lines[0].replace(LINK, ' ').split(/\s*\|\s*|:\s+|,\s+/)[0];
     const periodLine = lines.map(cleanRecordName).find((line) => /^период/i.test(line));
     const period = periodLine ? periodLine.replace(/^период\s*[:➢➤]?\s*/i, '').replace(LINK, '').trim() : '';
     return {
@@ -1052,7 +1052,9 @@
       title: g.title,
       weeks: g.weeks,
       lastDate: g.lastDate,
-      players: [...g.best.values()].sort((a, b) => b.score - a.score),
+      // Одинаковые очки делят место.
+      players: [...g.best.values()].sort((a, b) => b.score - a.score)
+        .map((p, i, list) => ({ ...p, place: list.findIndex((x) => x.score === p.score) + 1 })),
     })).sort((a, b) => b.lastDate.localeCompare(a.lastDate) || a.title.localeCompare(b.title, 'ru'));
   }
 
@@ -1070,7 +1072,7 @@
     }));
     const best = recordLeaders(events).map((l) => {
       const rank = l.players.findIndex((p) => p.key === playerKey);
-      return rank < 0 ? null : { event: l.title, rank: rank + 1, of: l.players.length, ...l.players[rank] };
+      return rank < 0 ? null : { event: l.title, rank: l.players[rank].place, of: l.players.length, ...l.players[rank] };
     }).filter(Boolean);
     weeks.sort((a, b) => b.date.localeCompare(a.date));
     return { key: playerKey, name, tgId, weeks, best };
