@@ -1039,6 +1039,41 @@
     };
   }
 
+  // Ивенты бота, по которым ведутся топы. Эмодзи как в списке «Все ивенты» бота;
+  // единица показывается рядом с результатом: очки, алмазы или урон.
+  const RECORD_UNITS = {
+    points: { icon: '🎲', label: 'Очки' },
+    diamonds: { icon: '💎', label: 'Алмазы' },
+    damage: { icon: '💥', label: 'Урон' },
+  };
+  const RECORD_EVENTS = [
+    { name: 'Аркейн', emoji: '🎏', unit: 'damage' },
+    { name: 'Эпоха Низших', emoji: '📗', unit: 'points' },
+    { name: 'Рекрут-Фест', emoji: '🥡', unit: 'points' },
+    { name: 'Престиж Капитала', emoji: '💎', unit: 'diamonds' },
+    { name: 'Дневной вызов', emoji: '📜', unit: 'points' },
+    { name: 'Эволюция героя', emoji: '✨', unit: 'points' },
+    { name: 'Героический Штурм', emoji: '🩸', unit: 'damage' },
+    { name: 'Марафон свершений', emoji: '💊', unit: 'points' },
+    { name: 'Битва отрядов', emoji: '🛡️', unit: 'points' },
+  ];
+
+  // Сведения об ивенте по названию; у своих ивентов без эмодзи результат в очках.
+  function recordEventInfo(title) {
+    const key = normName(cleanRecordName(title));
+    const known = RECORD_EVENTS.find((ev) => normName(ev.name) === key);
+    const base = known || { name: cleanRecordName(title), emoji: '', unit: 'points' };
+    return { ...base, unitInfo: RECORD_UNITS[base.unit] || RECORD_UNITS.points, known: !!known };
+  }
+
+  // Ивент из списка, упомянутый в тексте итогов. Длинные названия проверяются первыми,
+  // чтобы короткое не перехватило совпадение.
+  function detectRecordEvent(text) {
+    const hay = normName(text);
+    const found = [...RECORD_EVENTS].sort((a, b) => b.name.length - a.name.length).find((ev) => hay.includes(normName(ev.name)));
+    return found ? found.name : '';
+  }
+
   // Игрок узнаётся по Telegram ID из ссылки бота, а без ссылки по нику.
   const recordPlayerKey = (row) => (row.tgId ? `id:${row.tgId}` : `n:${normName(row.player)}`);
   const recordEventKey = (title) => normName(cleanRecordName(title));
@@ -1257,6 +1292,7 @@
   return {
     deriveHeroes, numberedHeroes, offTopHeroes, groupCacheKey, runsForGroup, hasEqualScores, offTopRow, collectGroupRows, groupError,
     packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, chunkText, hitsToKill, seasonNews,
+    RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
