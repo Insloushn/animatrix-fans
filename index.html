@@ -152,6 +152,10 @@ nav button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--
 
 /* На телефоне строки таблиц становятся карточками: главное крупно, остальное мелкой строкой ниже. */
 .mobile-only { display: none; }
+.rec-hit { background: var(--tint); }
+.rec-hit .m-main, .rec-hit td:nth-child(2) { font-weight: 700; }
+.rec-medal { font-size: 18px; line-height: 1; }
+@media (max-width: 760px) { table.m-rows tr.has-lead.rec-row { min-height: 0; padding-top: 8px; padding-bottom: 8px; } table.m-rows tr.has-lead.rec-row .m-lead { top: 8px; } }
 @media (max-width: 760px) {
   .mobile-only { display: block; }
   table.m-rows thead { display: none; }
@@ -418,6 +422,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <button role="tab" data-tab="card" aria-selected="false">Карточка героя</button>
     <button role="tab" data-tab="collection" aria-selected="false">Моя коллекция</button>
     <button role="tab" data-tab="news" aria-selected="false">Новости сезона</button>
+    <button role="tab" data-tab="records" aria-selected="false">Рекорды игроков</button>
     <button role="tab" data-tab="stats" aria-selected="false">Статистика</button>
     <button role="tab" data-tab="heroes" aria-selected="false" data-admin>Герои и скины</button>
     <button role="tab" data-tab="seasons" aria-selected="false" data-admin>Сезоны</button>
@@ -543,6 +548,30 @@ details.card summary { cursor: pointer; font-weight: 500; }
       <span class="small muted" id="newsArticleNote"></span>
     </div>
     <div id="newsOut" class="stat-grid"></div>
+  </section>
+
+  <section class="view" id="view-records" hidden>
+    <div class="card" id="recEditor" data-admin hidden>
+      <h2 id="recFormTitle">Новое событие</h2>
+      <div class="two">
+        <label class="field">Название события <input id="recTitle" placeholder="Например: ивент «Хэллоуин»"></label>
+        <label class="field">Дата <input id="recDate" type="date"></label>
+        <label class="field">Что считается <input id="recMetric" placeholder="Например: урон по боссу"></label>
+        <label class="field">Описание, по желанию <input id="recNote"></label>
+      </div>
+      <label class="field">Результаты: по строке на игрока, место и результат по желанию
+        <textarea id="recLines" placeholder="1. Ник — 12 345&#10;2. Другой ник — 11 000&#10;🥉 Третий: 9 500"></textarea>
+      </label>
+      <p class="small muted" id="recPreview">Можно вставить список прямо из сообщения бота: номер места, ник и результат через тире, двоеточие или табуляцию.</p>
+      <div class="tools">
+        <button class="btn" id="recSave">Сохранить событие</button>
+        <button class="btn ghost" id="recCancel" hidden>Отменить правку</button>
+        <button class="btn ghost mini" id="recDownload">Скачать records.json для сайта</button>
+        <span class="small muted" id="recResult"></span>
+      </div>
+    </div>
+    <div class="tools"><input id="recSearch" type="search" placeholder="Найти игрока" aria-label="Найти игрока"></div>
+    <div id="recList" class="view"></div>
   </section>
 
   <section class="view" id="view-stats" hidden>
@@ -754,6 +783,7 @@ let seasons = [];          // описания сохранённых сезон
 const seasonDocs = new Map();
 let db = null, downloads = null, canWrite = true, loaded = false, siteData = null;
 let tg = null;              // Telegram.WebApp, когда сайт открыт как мини-приложение
+let records = [];          // события с рекордами игроков, свежие сверху
 const state = {
   rank: 'SS', cls: 'Гибрид', search: '', title: '', sort: 'overall', dir: -1,
   viewSeason: '', compareWith: 'auto',
@@ -2106,6 +2136,142 @@ function renderNews() {
     </div>`).join('') || `<p class="empty">${waiting ? 'Считаю…' : 'За этот период в выбранном ранге ничего не изменилось.'}</p>`;
 }
 
+// ---------- Рекорды игроков ----------
+
+const recState = { editing: '', search: '' };
+const REC_SHOWN = 10;
+const recEditable = () => canWrite && !siteData;
+
+function setRecords(list) {
+  records = E.sortRecordEvents(list || []);
+  if (!$('view-records').hidden) renderRecords();
+}
+
+const recDate = (iso) => {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
+};
+const recPlace = (place) => ({ 1: '🥇', 2: '🥈', 3: '🥉' }[place] ? `<span class="rec-medal" title="${place} место">${{ 1: '🥇', 2: '🥈', 3: '🥉' }[place]}</span>` : String(place));
+
+function recRow(row, hit) {
+  return `<tr class="has-lead rec-row${hit ? ' rec-hit' : ''}">
+    <td class="left place m-lead">${recPlace(row.place)}</td>
+    <td class="left m-main">${esc(row.player)}</td>
+    <td class="m-side">${esc(row.value || '—')}</td>
+  </tr>`;
+}
+
+function renderRecords() {
+  if ($('view-records').hidden) return;
+  $('recEditor').hidden = !recEditable();
+  const q = E.normName(recState.search);
+  const hits = (row) => q && E.normName(row.player).includes(q);
+  const shown = q ? records.filter((ev) => (ev.rows || []).some(hits)) : records;
+  if (!records.length) {
+    $('recList').innerHTML = `<p class="empty">${recEditable() ? 'Добавь первое событие в форме выше.' : 'Скоро здесь появятся рекорды игроков в ивентах и событиях бота.'}</p>`;
+    return;
+  }
+  if (!shown.length) {
+    $('recList').innerHTML = '<p class="empty">Игрок с таким ником в рекордах не найден.</p>';
+    return;
+  }
+  const table = (rows) => `<div class="table-box"><table class="m-rows">
+      <thead><tr><th class="left">Место</th><th class="left">Игрок</th><th>Результат</th></tr></thead>
+      <tbody>${rows.map((row) => recRow(row, hits(row))).join('')}</tbody>
+    </table></div>`;
+  $('recList').innerHTML = shown.map((ev) => {
+    const rows = ev.rows || [];
+    const top = q ? rows : rows.slice(0, REC_SHOWN);
+    const rest = q ? [] : rows.slice(REC_SHOWN);
+    const meta = [recDate(ev.date), ev.metric].filter(Boolean).map(esc).join(' · ');
+    return `<article class="card">
+      <div class="card-head">
+        <div><h2>${esc(ev.title)}</h2>${meta ? `<p class="small muted">${meta}</p>` : ''}</div>
+        ${recEditable() ? `<div class="actions"><button class="btn ghost mini" data-rec-edit="${esc(ev.id)}">Изменить</button><button class="btn ghost mini" data-rec-del="${esc(ev.id)}">Удалить</button></div>` : ''}
+      </div>
+      ${ev.note ? `<p class="small">${esc(ev.note)}</p>` : ''}
+      ${table(top)}
+      ${rest.length ? `<details><summary class="small muted">Показать всех: ещё ${rest.length}</summary>${table(rest)}</details>` : ''}
+    </article>`;
+  }).join('');
+}
+
+function recPreview() {
+  const rows = E.parseRecordLines($('recLines').value);
+  $('recPreview').textContent = rows.length
+    ? `Распознано игроков: ${rows.length}. Первая строка: место ${rows[0].place}, ник «${rows[0].player}», результат «${rows[0].value || '—'}».`
+    : 'Можно вставить список прямо из сообщения бота: номер места, ник и результат через тире, двоеточие или табуляцию.';
+}
+
+function recResetForm() {
+  recState.editing = '';
+  ['recTitle', 'recDate', 'recMetric', 'recNote', 'recLines'].forEach((id) => { $(id).value = ''; });
+  $('recFormTitle').textContent = 'Новое событие';
+  $('recCancel').hidden = true;
+  recPreview();
+}
+
+async function saveRecordEvent() {
+  const title = $('recTitle').value.trim();
+  const rows = E.parseRecordLines($('recLines').value);
+  if (!title) { $('recResult').textContent = 'Укажи название события.'; return; }
+  if (!rows.length) { $('recResult').textContent = 'Вставь хотя бы одну строку с игроком.'; return; }
+  const id = recState.editing || `r-${Date.now().toString(36)}`;
+  const old = records.find((ev) => ev.id === id);
+  const doc = {
+    title,
+    date: $('recDate').value || '',
+    metric: $('recMetric').value.trim(),
+    note: $('recNote').value.trim(),
+    rows,
+    createdAt: (old && old.createdAt) || new Date().toISOString(),
+  };
+  $('recSave').disabled = true;
+  try {
+    if (db) await db.doc(`records/${id}`).set(doc);
+    else {
+      const list = records.filter((ev) => ev.id !== id).concat({ id, ...doc });
+      if (!writeStore('ani-records', list)) throw new Error('storage');
+      setRecords(list);
+    }
+    $('recResult').textContent = `Событие «${title}» сохранено: игроков ${rows.length}.`;
+    recResetForm();
+  } catch (e) {
+    $('recResult').textContent = writeError(e);
+  }
+  $('recSave').disabled = false;
+}
+
+async function deleteRecordEvent(id) {
+  try {
+    if (db) await db.doc(`records/${id}`).delete();
+    else {
+      const list = records.filter((ev) => ev.id !== id);
+      writeStore('ani-records', list);
+      setRecords(list);
+    }
+    if (recState.editing === id) recResetForm();
+  } catch (e) {
+    $('recResult').textContent = writeError(e);
+  }
+}
+
+// Файл для сайта: его можно сразу загрузить в репозиторий, пересобирать топы не нужно.
+async function downloadRecords() {
+  const data = JSON.stringify({ savedAt: new Date().toISOString(), events: records });
+  if (downloads) {
+    try { await downloads.save({ filename: 'records.json', data }); } catch (e) { return; }
+  } else {
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'records.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  $('recResult').textContent = 'Файл records.json готов: загрузи его в репозиторий сайта рядом с index.html.';
+}
+
 // ---------- Статистика ----------
 
 const statState = { rank: '', cls: '', title: '' };
@@ -2958,6 +3124,7 @@ function renderAll() {
   if (!$('view-compare').hidden) renderCompare();
   if (!$('view-heroes').hidden) renderHeroesTab();
   if (!$('view-seasons').hidden) renderSeasons();
+  if (!$('view-records').hidden) renderRecords();
   renderStats();
 }
 
@@ -2981,7 +3148,8 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
   document.querySelectorAll('nav button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   $('currentTabLabel').textContent = (TAB_INFO[tab] || {}).label || '';
   closeMenu(false);
-  ['top', 'compare', 'card', 'collection', 'news', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
+  ['top', 'compare', 'card', 'collection', 'news', 'records', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
+  if (tab === 'records') renderRecords();
   if (tab === 'card') renderCard();
   if (tab === 'collection') renderCollection();
   if (tab === 'news') renderNews();
@@ -3015,6 +3183,7 @@ const TAB_INFO = {
   card: { icon: '🃏', label: 'Карточка героя', note: 'Место, соперники и история по сезонам' },
   collection: { icon: '📚', label: 'Моя коллекция', note: 'Отметь свои карты и смотри личный топ' },
   news: { icon: '📰', label: 'Новости сезона', note: 'Новые герои, скины и кто сдвинулся' },
+  records: { icon: '🥇', label: 'Рекорды игроков', note: 'Лучшие результаты в ивентах и событиях бота' },
   stats: { icon: '📊', label: 'Статистика', note: 'Доли рангов, классов и аниме' },
   rules: { icon: '📜', label: 'Правила боя', note: 'Как считается бой и что не подтверждено' },
   heroes: { icon: '🎭', label: 'Герои и скины', note: 'Отметки скинов и ивент-карт' },
@@ -3022,7 +3191,7 @@ const TAB_INFO = {
   add: { icon: '➕', label: 'Добавить героев', note: 'Вставка из каталога бота' },
   export: { icon: '📤', label: 'Выгрузка', note: 'Топы для статей Telegram' },
 };
-const PLAYER_TABS = ['top', 'compare', 'card', 'collection', 'news', 'stats'];
+const PLAYER_TABS = ['top', 'compare', 'card', 'collection', 'news', 'records', 'stats'];
 
 function renderMenu() {
   const shown = [...document.querySelectorAll('nav [data-tab]')].filter((b) => !(b.hasAttribute('data-admin') && document.body.classList.contains('public')));
@@ -3400,6 +3569,7 @@ $('siteExport').addEventListener('click', async () => {
       savedAt: new Date().toISOString(),
       titles: titles.map(({ id, title, heroes: list2 }) => ({ id, title, heroes: list2 })),
       seasons: list,
+      records,
       settings: { maxMoves: settings.maxMoves, runs: settings.runs, formula: settings.formula },
     });
     if (downloads) await downloads.save({ filename: 'animatrix-data.json', data });
@@ -3418,6 +3588,29 @@ $('siteExport').addEventListener('click', async () => {
 });
 
 $('search').addEventListener('input', (e) => { state.search = e.target.value; renderTop(); });
+$('recSearch').addEventListener('input', (e) => { recState.search = e.target.value; renderRecords(); });
+$('recLines').addEventListener('input', recPreview);
+$('recSave').addEventListener('click', saveRecordEvent);
+$('recCancel').addEventListener('click', recResetForm);
+$('recDownload').addEventListener('click', downloadRecords);
+$('recList').addEventListener('click', (e) => {
+  const edit = e.target.closest('[data-rec-edit]');
+  const del = e.target.closest('[data-rec-del]');
+  if (edit) {
+    const ev = records.find((x) => x.id === edit.dataset.recEdit);
+    if (!ev) return;
+    recState.editing = ev.id;
+    $('recTitle').value = ev.title || '';
+    $('recDate').value = ev.date || '';
+    $('recMetric').value = ev.metric || '';
+    $('recNote').value = ev.note || '';
+    $('recLines').value = (ev.rows || []).map((r) => `${r.place}. ${r.player}${r.value ? ` — ${r.value}` : ''}`).join('\n');
+    $('recFormTitle').textContent = `Правка: ${ev.title}`;
+    $('recCancel').hidden = false;
+    recPreview();
+    $('recEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else if (del && armed(del)) deleteRecordEvent(del.dataset.recDel);
+});
 $('topSort').addEventListener('change', (e) => {
   state.sort = e.target.value;
   state.dir = state.sort === 'name' || state.sort === 'place' ? 1 : -1;
@@ -3622,6 +3815,7 @@ function startLocal(message) {
   setSaveStatus(false);
   setHeroes(readStore('ani-titles', []));
   setSeasons(readStore('ani-seasons', []).map(({ docs: _skip, ...rest }) => rest));
+  setRecords(readStore('ani-records', []));
   notify(message);
 }
 
@@ -3790,6 +3984,7 @@ function startPublic(site) {
   seasons = site.seasons.map(({ docs: _skip, ...rest }) => rest).filter((s) => s.complete).sort((a, b) => String(a.savedAt).localeCompare(String(b.savedAt)));
   $('saveStatus').className = 'saved';
   $('saveStatus').textContent = site.builtAt ? `Обновлено ${dateText(new Date(site.builtAt))}` : '';
+  setRecords(site.records || []);
   setHeroes(site.titles);
   routeHash();
   window.addEventListener('hashchange', routeHash);
@@ -3804,6 +3999,8 @@ renderAll();
   if (!claude || !claude.use) {
     const site = await loadSiteData();
     if (site) siteConfig = (await loadJson('config.json')) || {};
+    // Рекорды лежат отдельным файлом, чтобы их можно было обновлять без пересборки топов.
+    if (site) site.records = ((await loadJson('records.json')) || {}).events || site.records || [];
     if (site) startPublic(site);
     else startLocal(offline);
     return;
@@ -3836,6 +4033,9 @@ renderAll();
   });
   db.collection('seasons').onSnapshot((snap) => {
     setSeasons(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  }, () => {});
+  db.collection('records').onSnapshot((snap) => {
+    setRecords(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
   }, () => {});
 })();
 </script>

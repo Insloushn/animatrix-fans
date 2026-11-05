@@ -928,6 +928,42 @@
     return { matches, fresh, skins, changed, titles };
   }
 
+  // ---------- Рекорды игроков ----------
+
+  const MEDALS = { '🥇': 1, '🥈': 2, '🥉': 3 };
+
+  // Строки результатов из сообщения бота или таблицы: «1. Ник — 12 345», «🥇 Ник: 900», «Ник 500».
+  // Без номера место берётся по порядку строк, одинаковый номер значит общее место.
+  function parseRecordLines(text) {
+    let order = 0;
+    return String(text || '').split(/\r?\n/).map((raw) => raw.trim()).filter(Boolean).map((line) => {
+      order += 1;
+      let rest = line;
+      let place = null;
+      const medal = Object.keys(MEDALS).find((m) => rest.startsWith(m));
+      if (medal) { place = MEDALS[medal]; rest = rest.slice(medal.length).trim(); }
+      const numbered = rest.match(/^#?(\d{1,4})\s*[.)\]:-]?\s+(.+)$/);
+      if (numbered) { place = place || Number(numbered[1]); rest = numbered[2]; }
+      let player = rest;
+      let value = '';
+      const split = rest.split(/\t|\s+[—–-]\s+|\s*\|\s*|:\s+/);
+      if (split.length > 1) {
+        player = split[0];
+        value = split.slice(1).join(' — ');
+      } else {
+        const tail = rest.match(/^(.+?)\s+(\d[\d\s.,]*(?:\s*\S+)?)$/);
+        if (tail) { player = tail[1]; value = tail[2]; }
+      }
+      return { place: place || order, player: player.trim(), value: value.trim() };
+    }).filter((row) => row.player);
+  }
+
+  // Свежие события сверху; без даты в конце.
+  function sortRecordEvents(events) {
+    return [...events].sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))
+      || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }
+
   // ---------- Статистика ----------
 
   // Девять рангов в одной полосе не различить по цвету, поэтому ранги сведены в пять ступеней.
@@ -1085,6 +1121,7 @@
   return {
     deriveHeroes, numberedHeroes, offTopHeroes, groupCacheKey, runsForGroup, hasEqualScores, offTopRow, collectGroupRows, groupError,
     packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, chunkText, hitsToKill, seasonNews,
+    parseRecordLines, sortRecordEvents,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
     CLASSES, RANKS, DEFAULTS, NO_TITLE, SKIN_BONUS, fight, duel, plainFight, formulaScore,
