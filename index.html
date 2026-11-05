@@ -1,0 +1,3576 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><script async src="https://telegram.org/js/telegram-web-app.js" onload="window.onAniTelegram && window.onAniTelegram()"></script></head><body><title>AniMatrix Fans</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&display=swap">
+<script>
+/* Тема ставится до первой отрисовки, иначе страница мигает другой темой. По умолчанию тёмная. */
+(function () {
+  let saved = null;
+  try { saved = localStorage.getItem('ani-theme'); } catch (e) { /* хранилище недоступно */ }
+  document.documentElement.dataset.theme = saved === 'light' ? 'light' : 'dark';
+})();
+</script>
+<style>
+/* Макет: рабочая таблица топа. Цвет акцента меняется вместе с выбранным классом героя. */
+:root {
+  --bg: #f3f1f8; --panel: #ffffff; --line: #dcd7ea; --fg: #1d1830; --muted: #625c78;
+  --cls-dmg: #c8410f; --cls-tank: #41628a; --cls-sup: #1c7a43; --cls-hyb: #7a33b8;
+  --accent: var(--cls-hyb); --on-accent: #ffffff; --tint: rgba(122, 51, 184, .10);
+  --good: #1c7a43; --warn: #a75a00; --bad: #b3261e;
+  --chart-dmg: #c8410f; --chart-tank: #2467b5; --chart-sup: #1c7a43; --chart-hyb: #7a33b8; --chart-bar: #6b2ea8;
+  --tier-0: #471878; --tier-1: #6b2ea8; --tier-2: #8655c6; --tier-3: #a17ad6; --tier-4: #bd9ee3;
+  --display: "Unbounded", "Segoe UI", system-ui, sans-serif;
+  --body: "Golos Text", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15121f; --panel: #1f1b2e; --line: #363050; --fg: #f0edf8; --muted: #a8a2bd;
+    --cls-dmg: #ff8552; --cls-tank: #8fb3dc; --cls-sup: #5fd08f; --cls-hyb: #c592f2;
+    --on-accent: #15121f; --tint: rgba(197, 146, 242, .14); --good: #5fd08f; --warn: #f0b35a; --bad: #ff8a80;
+    --chart-dmg: #dd6830; --chart-tank: #5290d6; --chart-sup: #36a768; --chart-hyb: #a678de; --chart-bar: #bb95f0;
+    --tier-0: #e2ccff; --tier-1: #bb95f0; --tier-2: #9b7cd2; --tier-3: #7f61b5; --tier-4: #655198;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15121f; --panel: #1f1b2e; --line: #363050; --fg: #f0edf8; --muted: #a8a2bd;
+  --cls-dmg: #ff8552; --cls-tank: #8fb3dc; --cls-sup: #5fd08f; --cls-hyb: #c592f2;
+  --on-accent: #15121f; --tint: rgba(197, 146, 242, .14); --good: #5fd08f; --warn: #f0b35a; --bad: #ff8a80;
+  --chart-dmg: #dd6830; --chart-tank: #5290d6; --chart-sup: #36a768; --chart-hyb: #a678de; --chart-bar: #bb95f0;
+  --tier-0: #e2ccff; --tier-1: #bb95f0; --tier-2: #9b7cd2; --tier-3: #7f61b5; --tier-4: #655198;
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
+body[data-cls="Дамагер"] { --accent: var(--cls-dmg); --tint: color-mix(in srgb, var(--cls-dmg) 13%, transparent); }
+body[data-cls="Танк"] { --accent: var(--cls-tank); --tint: color-mix(in srgb, var(--cls-tank) 13%, transparent); }
+body[data-cls="Саппорт"] { --accent: var(--cls-sup); --tint: color-mix(in srgb, var(--cls-sup) 13%, transparent); }
+body[data-cls="Гибрид"] { --accent: var(--cls-hyb); --tint: color-mix(in srgb, var(--cls-hyb) 13%, transparent); }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--fg); font: 15px/1.5 var(--body);
+  padding-block: 20px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 16px; min-width: 0; }
+.wrap > * { min-width: 0; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+.brand { display: grid; gap: 2px; }
+.head-side { display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: baseline; }
+h1 { font: 700 24px/1.2 var(--display); margin: 0; letter-spacing: -.01em; }
+h2 { font: 500 15px/1.3 var(--display); margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.num { font-variant-numeric: tabular-nums; }
+.theme-switch {
+  all: unset; box-sizing: border-box; position: relative; width: 56px; height: 30px; border-radius: 15px; cursor: pointer; flex: none;
+  background: var(--line); border: 1px solid var(--line); align-self: center;
+}
+.theme-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme-thumb {
+  position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; border-radius: 50%; background: var(--panel);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .35); display: grid; place-items: center;
+  transition: transform .38s cubic-bezier(.3, 1.45, .55, 1);
+}
+.theme-switch[aria-checked="true"] .theme-thumb { transform: translateX(26px) rotate(360deg); }
+.theme-thumb svg { grid-area: 1 / 1; width: 16px; height: 16px; transition: opacity .25s ease, transform .38s ease; }
+.theme-thumb .sun { color: #a75a00; opacity: 1; }
+.theme-thumb .moon { color: #c592f2; opacity: 0; transform: scale(.5); }
+.theme-switch[aria-checked="true"] .sun { opacity: 0; transform: scale(.5); }
+.theme-switch[aria-checked="true"] .moon { opacity: 1; transform: none; }
+/* Цвета плавно перетекают только в момент переключения, чтобы не замедлять обычную работу со страницей. */
+html.theme-anim, html.theme-anim *:not(.theme-thumb):not(.theme-thumb *) {
+  transition: background-color .4s ease, color .4s ease, border-color .4s ease, fill .4s ease, stroke .4s ease !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-thumb, .theme-thumb svg, html.theme-anim, html.theme-anim * { transition: none !important; }
+}
+.saved { font-size: 13px; font-weight: 500; }
+.saved.on { color: var(--good); }
+.saved.off { color: var(--warn); }
+
+nav { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+nav button {
+  background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted);
+  font: 500 14px var(--body); padding: 8px 12px; cursor: pointer; white-space: nowrap;
+}
+nav button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+
+.view { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
+.view > * { min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  background: var(--panel); border: 1px solid var(--line); color: var(--fg); border-radius: 6px;
+  padding: 5px 10px; font: 500 14px var(--body); cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline;
+}
+.chip b { font-weight: 600; }
+.chip i { font-style: normal; font-size: 12px; color: var(--muted); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.chip[aria-pressed="true"] i { color: inherit; opacity: .8; }
+.filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tools > input, .tools > select { flex: 1 1 170px; min-width: 0; }
+.tools > label { flex: 1 1 170px; min-width: 0; }
+
+input, select, textarea {
+  background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 6px;
+  padding: 7px 10px; font: 14px var(--body); max-width: 100%;
+}
+textarea { width: 100%; min-height: 170px; resize: vertical; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn {
+  background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); border-radius: 6px;
+  padding: 7px 14px; font: 600 14px var(--body); cursor: pointer;
+}
+.btn.ghost { background: transparent; color: var(--fg); border-color: var(--line); }
+.btn.mini { padding: 3px 10px; font-size: 13px; font-weight: 500; }
+.btn.armed { border-color: var(--bad); color: var(--bad); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+.status { display: flex; align-items: center; gap: 10px; min-height: 22px; flex-wrap: wrap; }
+.track { flex: 1 1 120px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; max-width: 260px; }
+.track span { display: block; height: 100%; background: var(--accent); width: 0; }
+
+.table-box { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th {
+  text-align: right; font: 500 12px var(--body); color: var(--muted); padding: 9px 10px;
+  border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+th button { all: unset; cursor: pointer; }
+th button:focus-visible { outline: 2px solid var(--accent); }
+th[aria-sort] { color: var(--fg); }
+td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr[data-row] { cursor: pointer; }
+tbody tr[data-row]:hover { background: var(--tint); }
+tbody tr.skin-row { background: var(--tint); }
+.mask { font-size: 18px; line-height: 1; cursor: help; }
+th.left, td.left { text-align: left; }
+.hero { white-space: normal; min-width: 150px; }
+.hero strong { font-weight: 600; display: block; }
+.hero span { font-size: 12px; color: var(--muted); }
+.place { font: 500 14px var(--display); }
+.tie { color: var(--muted); font-size: 12px; margin-left: 3px; cursor: help; }
+.bar { display: grid; grid-template-columns: 46px 70px; align-items: center; gap: 8px; justify-content: end; font-weight: 600; }
+.bar u { display: block; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; text-decoration: none; }
+.bar u span { display: block; height: 100%; background: var(--accent); }
+.alt { display: block; font-size: 12px; color: var(--muted); }
+.move { font-weight: 600; }
+.move.up { color: var(--good); }
+.move.down { color: var(--bad); }
+.move.same { color: var(--muted); font-weight: 400; }
+.tag { font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--accent); color: var(--accent); }
+.skin-toggle { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.skin-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.two > * { min-width: 0; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.field input, .field select { color: var(--fg); width: 100%; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.row .field { flex: 1 1 90px; }
+.check { display: flex; gap: 6px; align-items: center; font-size: 13px; padding-bottom: 7px; }
+.verdict { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.verdict > div { display: grid; gap: 2px; align-content: start; }
+.big { font: 700 26px/1.15 var(--display); font-variant-numeric: tabular-nums; }
+
+.rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rules li { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: baseline; }
+.pill { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 10px; justify-self: start; }
+.pill.ok { color: var(--good); border: 1px solid var(--good); }
+.pill.guess { color: var(--warn); border: 1px solid var(--warn); }
+.notice { border: 1px solid var(--warn); border-radius: 6px; padding: 8px 12px; font-size: 14px; }
+.dupes { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; border: 1px solid var(--warn); border-radius: 6px; padding: 8px 12px; }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); white-space: normal; }
+.list { display: grid; gap: 6px; }
+.list > div { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.paste { display: grid; grid-template-columns: 30px minmax(0, 1fr); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+.gutter { overflow: hidden; padding-block: 8px 28px; border-right: 1px solid var(--line); background: var(--bg); height: 300px; }
+.gutter div { height: 20px; line-height: 20px; font-size: 14px; font-weight: 700; text-align: center; cursor: default; }
+.gutter .new, .gutter .changed { color: var(--good); }
+.gutter .known, .gutter .header { color: var(--muted); }
+.gutter .bad { color: var(--bad); }
+.gutter .dup { color: var(--warn); }
+.paste textarea {
+  border: 0; border-radius: 0; width: 100%; height: 300px; min-height: 0; resize: none;
+  padding-block: 8px; font-size: 14px; line-height: 20px; white-space: pre; overflow: auto; color: var(--fg);
+}
+.title-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.handle { cursor: grab; touch-action: none; user-select: none; color: var(--muted); font-size: 18px; line-height: 1; padding: 4px 2px; }
+.title-row.dragging { background: var(--tint); outline: 1px solid var(--accent); border-radius: 4px; }
+.title-row.dragging .handle { cursor: grabbing; }
+.date-input { padding: 3px 8px; font-size: 13px; }
+.legend { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 12px; color: var(--muted); }
+.legend b { font-weight: 700; }
+.problems { display: grid; gap: 4px; }
+.problems button {
+  all: unset; display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 8px; cursor: pointer;
+  padding: 3px 6px; border-radius: 4px; font-size: 13px;
+}
+.problems button:hover, .problems button:focus-visible { background: var(--tint); }
+.problems .where { font-weight: 600; }
+.problems .where.bad { color: var(--bad); }
+.problems .where.dup { color: var(--warn); }
+.problems .text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.problems .why { display: block; color: var(--muted); white-space: normal; }
+/* Статья показывается как в тёмной теме Telegram, независимо от темы страницы. */
+.tg-article { background: #17212b; color: #f5f5f5; color-scheme: dark; border-radius: 8px; padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.tg-article h1 { font: 600 22px/1.25 var(--body); margin: 0; }
+.tg-article p { color: #c9d3dc; font-size: 14px; }
+.tg-article details { overflow-x: auto; }
+.tg-article summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.tg-article caption { padding: 6px 0 10px; font-weight: 600; }
+.tg-article td { text-align: left; border: 1px solid #2f3f50; }
+.export-images { display: grid; gap: 16px; justify-items: start; }
+.export-image { display: grid; gap: 8px; max-width: 100%; }
+.export-image canvas { display: block; max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); }
+.export-part { display: grid; gap: 6px; }
+.export-part textarea { min-height: 150px; font-size: 13px; }
+.export-part .tools > span { flex: 1 1 auto; }
+.limits { display: grid; gap: 6px; }
+.limits > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.limits label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+.limits input { width: 76px; padding: 4px 8px; font-weight: 400; }
+body.public [data-admin] { display: none !important; }
+.own { color: var(--good); font-weight: 600; margin-left: 4px; }
+.link-btn { all: unset; cursor: pointer; font-weight: 600; white-space: normal; }
+.link-btn:hover { text-decoration: underline; }
+.link-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.card-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; align-items: start; }
+.card-head h2 { font-size: 20px; }
+.best-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 12px; }
+.best-grid > * { min-width: 0; }
+.best-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.best-list li { display: grid; gap: 0; }
+.best-list span { font-size: 12px; color: var(--muted); }
+.stat-track.full { background: var(--line); border-radius: 4px; overflow: hidden; }
+.stat-track.full i { border-radius: 4px; }
+details.card summary { cursor: pointer; font-weight: 500; }
+.stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.stat-tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: grid; gap: 2px; align-content: start; min-width: 0; }
+.stat-tile b { font: 600 24px/1.2 var(--body); }
+.stat-tile.text { grid-column: span 2; }
+.stat-tile.text b { font-size: 17px; line-height: 1.3; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 12px; align-items: start; }
+.stat-grid > * { min-width: 0; }
+.stat-card.wide { grid-column: 1 / -1; }
+.stat-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: start; }
+.stat-preview canvas { display: block; max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); }
+.stat-table summary { cursor: pointer; color: var(--muted); }
+.stat-table .table-box { margin-top: 8px; }
+.stat-pick { all: unset; cursor: pointer; box-sizing: border-box; }
+.stat-pick:hover { background: var(--tint); }
+.stat-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.stat-pick.dim { opacity: .4; }
+.stat-pick.on { font-weight: 600; }
+.stat-cols { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 2px; align-items: end; }
+.stat-col { display: grid; justify-items: center; align-content: end; height: 190px; gap: 3px; border-radius: 4px; }
+.stat-col i { display: block; width: min(24px, 70%); background: var(--chart-bar); border-radius: 4px 4px 0 0; }
+.stat-col em { font: 11px var(--body); color: var(--muted); font-variant-numeric: tabular-nums; }
+.stat-col span { width: 100%; text-align: center; border-top: 1px solid var(--line); padding-top: 3px; font-size: 13px; font-weight: 600; }
+.stat-donut { display: grid; grid-template-columns: minmax(130px, 170px) minmax(0, 1fr); gap: 14px; align-items: center; }
+.stat-donut svg { width: 100%; height: auto; display: block; }
+.stat-donut circle[data-stat-cls] { cursor: pointer; }
+.stat-donut circle.dim { opacity: .3; }
+.stat-keys { display: grid; gap: 2px; }
+.stat-key { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 4px; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.stat-rows { display: grid; gap: 1px; }
+.stat-row { display: grid; grid-template-columns: minmax(0, 170px) minmax(40px, 1fr) 96px; gap: 8px; align-items: center; padding: 3px 6px; border-radius: 4px; font-size: 14px; }
+.stat-row .num { text-align: right; font-size: 13px; color: var(--muted); }
+.stat-track { display: block; min-width: 0; }
+.stat-track i { display: block; height: 14px; min-width: 2px; background: var(--chart-bar); border-radius: 0 4px 4px 0; }
+.stat-stack { display: flex; gap: 2px; min-width: 0; }
+.stat-stack i { display: block; height: 14px; min-width: 2px; }
+.stat-stack i:first-child { border-radius: 4px 0 0 4px; }
+.stat-stack i:last-child { border-radius: 0 4px 4px 0; }
+.stat-stack i:only-child { border-radius: 4px; }
+.stat-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); align-items: center; }
+.stat-legend > span { display: inline-flex; gap: 5px; align-items: center; }
+.stat-scale { width: 90px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, color-mix(in srgb, var(--chart-bar) 6%, var(--panel)), color-mix(in srgb, var(--chart-bar) 85%, var(--panel))); }
+.stat-more summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 6px 6px 4px; }
+.stat-heat { overflow-x: auto; }
+.stat-heat table { border-collapse: separate; border-spacing: 2px; }
+.stat-heat th { border: 0; text-align: center; padding: 4px; white-space: normal; }
+.stat-heat td { border: 0; padding: 0; }
+.stat-heat td.rank { font-weight: 600; text-align: center; padding: 0 6px; }
+.stat-heat td.sum { text-align: right; padding: 0 6px; color: var(--muted); font-size: 13px; }
+.stat-cell { display: grid; justify-items: center; width: 100%; min-width: 62px; padding: 5px 4px; border-radius: 4px; line-height: 1.2; font-weight: 600; font-size: 14px; }
+.stat-cell small { font-size: 12px; font-weight: 400; }
+.stat-cell:hover { background-image: linear-gradient(rgba(127, 127, 127, .18), rgba(127, 127, 127, .18)); }
+.stat-cell.on { outline: 2px solid var(--fg); outline-offset: -2px; }
+.stat-tip { position: fixed; z-index: 20; pointer-events: none; background: var(--fg); color: var(--bg); border-radius: 6px; padding: 5px 9px; font-size: 13px; line-height: 1.3; max-width: 240px; display: grid; }
+.stat-tip b { font-weight: 600; }
+@media (max-width: 560px) {
+  .stat-row { grid-template-columns: minmax(0, 120px) minmax(30px, 1fr) 88px; }
+  .stat-donut { grid-template-columns: 110px minmax(0, 1fr); gap: 8px; }
+  .stat-col em { font-size: 10px; }
+  h1 { font-size: 20px; }
+  .rules li { grid-template-columns: 1fr; gap: 2px; }
+  .bar { grid-template-columns: 46px; }
+  .bar u { display: none; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>AniMatrix Fans</h1>
+      <p class="small muted">Неофициальный фанатский проект по боту AniMatrix</p>
+    </div>
+    <div class="head-side">
+      <span class="muted small" id="total">Загружаю героев…</span>
+      <span class="saved" id="saveStatus"></span>
+      <button class="theme-switch" id="themeSwitch" role="switch" aria-checked="true" aria-label="Тёмная тема" title="Светлая или тёмная тема">
+        <span class="theme-thumb">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg>
+        </span>
+      </button>
+    </div>
+  </header>
+
+  <nav role="tablist">
+    <button role="tab" data-tab="top" aria-selected="true">Топ</button>
+    <button role="tab" data-tab="compare" aria-selected="false">Сравнение</button>
+    <button role="tab" data-tab="card" aria-selected="false">Карточка героя</button>
+    <button role="tab" data-tab="collection" aria-selected="false">Моя коллекция</button>
+    <button role="tab" data-tab="news" aria-selected="false">Новости сезона</button>
+    <button role="tab" data-tab="stats" aria-selected="false">Статистика</button>
+    <button role="tab" data-tab="heroes" aria-selected="false" data-admin>Герои и скины</button>
+    <button role="tab" data-tab="seasons" aria-selected="false" data-admin>Сезоны</button>
+    <button role="tab" data-tab="add" aria-selected="false" data-admin>Добавить героев</button>
+    <button role="tab" data-tab="export" aria-selected="false" data-admin>Выгрузка</button>
+    <button role="tab" data-tab="rules" aria-selected="false">Правила боя</button>
+  </nav>
+
+  <p class="notice" id="notice" hidden></p>
+
+  <section class="view" id="view-top">
+    <div class="filters">
+      <div class="chips" id="rankChips" aria-label="Ранг"></div>
+      <div class="chips" id="classChips" aria-label="Класс"></div>
+      <div class="chips" id="modeChips" aria-label="Как считать"></div>
+    </div>
+    <div class="tools" id="seasonTools" hidden>
+      <label class="field">Показать
+        <select id="seasonView"></select>
+      </label>
+      <label class="field">Сравнить места с
+        <select id="seasonCompare"></select>
+      </label>
+    </div>
+    <div class="tools">
+      <input id="search" type="search" placeholder="Найти героя" aria-label="Найти героя">
+      <select id="titleFilter" aria-label="Тайтл"></select>
+      <button class="btn ghost" id="csv" hidden>Скачать CSV</button>
+    </div>
+    <div class="status small muted">
+      <span id="simText"></span>
+      <div class="track" id="simTrack" hidden><span id="simBar"></span></div>
+    </div>
+    <div class="table-box"><table id="topTable"></table></div>
+    <p class="small muted" id="topHint"></p>
+  </section>
+
+  <section class="view" id="view-compare" hidden>
+    <div class="two">
+      <div class="card" id="sideA"></div>
+      <div class="card" id="sideB"></div>
+    </div>
+    <div class="chips" id="compareModes" aria-label="Навыки в сравнении"></div>
+    <div class="card" id="verdict"></div>
+    <div class="card" id="verdictPlain"></div>
+    <datalist id="heroList"></datalist>
+  </section>
+
+  <section class="view" id="view-card" hidden>
+    <div class="tools">
+      <input id="cardSearch" list="cardList" placeholder="Начни вводить имя героя" aria-label="Герой">
+      <datalist id="cardList"></datalist>
+    </div>
+    <div class="status small muted">
+      <span id="cardStatus"></span>
+      <div class="track" id="cardTrack" hidden><span id="cardBar"></span></div>
+    </div>
+    <div id="cardOut" class="view"></div>
+  </section>
+
+  <section class="view" id="view-collection" hidden>
+    <div class="stat-tiles" id="colTiles"></div>
+    <div id="colBest" class="view"></div>
+    <div class="stat-grid" id="colProgress"></div>
+    <div class="card">
+      <h2>Отметь свои карты</h2>
+      <div class="filters">
+        <div class="chips" id="colRanks" aria-label="Ранг"></div>
+        <div class="chips" id="colClasses" aria-label="Класс"></div>
+        <div class="chips" id="colStatus" aria-label="Что показать"></div>
+        <div class="tools">
+          <input id="colSearch" placeholder="Найти героя" aria-label="Найти героя">
+          <select id="colTitle" aria-label="Аниме"></select>
+        </div>
+        <div class="tools">
+          <button class="btn ghost mini" id="colAddAll"></button>
+          <button class="btn ghost mini" id="colClearAll"></button>
+        </div>
+      </div>
+      <div class="table-box"><table id="colTable"></table></div>
+      <button class="btn ghost" id="colMore" hidden>Показать ещё</button>
+    </div>
+    <details class="card">
+      <summary>Перенести коллекцию на другое устройство</summary>
+      <p class="small muted" id="colWhere">Коллекция хранится только в этом браузере и никуда не отправляется. Если очистить данные браузера, она пропадёт, поэтому код лучше иногда сохранять.</p>
+      <div class="tools"><button class="btn ghost mini" id="colCopy">Скопировать код</button><span class="small muted" id="colCopyNote"></span></div>
+      <textarea id="colCode" placeholder="Вставь сюда код с другого устройства" aria-label="Код коллекции"></textarea>
+      <div class="tools"><button class="btn ghost mini" id="colLoad">Добавить из кода</button><span class="small muted" id="colLoadNote"></span></div>
+    </details>
+  </section>
+
+  <section class="view" id="view-news" hidden>
+    <div class="filters">
+      <div class="tools"><select id="newsView" aria-label="Какой сезон показать"></select></div>
+      <div class="chips" id="newsRanks" aria-label="Ранг"></div>
+    </div>
+    <div class="status small muted">
+      <span id="newsStatus"></span>
+      <div class="track" id="newsTrack" hidden><span id="newsBar"></span></div>
+    </div>
+    <div class="stat-tiles" id="newsTiles"></div>
+    <div class="tools" data-admin>
+      <button class="btn mini" data-news-article data-collapsible="1">Скопировать статьёй со сворачиванием</button>
+      <button class="btn ghost mini" data-news-article>Без сворачивания</button>
+      <span class="small muted" id="newsArticleNote"></span>
+    </div>
+    <div id="newsOut" class="stat-grid"></div>
+  </section>
+
+  <section class="view" id="view-stats" hidden>
+    <div class="filters">
+      <div class="chips" id="statRanks" aria-label="Ранг"></div>
+      <div class="chips" id="statClasses" aria-label="Класс"></div>
+      <div class="tools">
+        <select id="statTitle" aria-label="Аниме"></select>
+        <button class="chip" id="statEvents"></button>
+        <button class="btn ghost mini" id="statReset">Сбросить</button>
+      </div>
+    </div>
+    <div class="stat-tiles" id="statTiles"></div>
+    <div class="tools">
+      <button class="btn mini" data-stat-article data-collapsible="1">Скопировать статьёй со сворачиванием</button>
+      <button class="btn ghost mini" data-stat-article>Без сворачивания</button>
+      <span class="small muted" id="statArticleNote">Нажми на столбец, сектор или строку, чтобы посчитать остальное только для них.</span>
+    </div>
+    <div class="stat-grid" id="statCharts"></div>
+    <div class="stat-tip" id="statTip" hidden></div>
+  </section>
+
+  <section class="view" id="view-heroes" hidden>
+    <div class="dupes" id="dupeBar" hidden>
+      <span id="dupeText"></span>
+      <button class="btn ghost mini" id="dupeRemove">Убрать дубли</button>
+    </div>
+    <div class="tools">
+      <input id="hSearch" type="search" placeholder="Имя героя или тайтл" aria-label="Поиск героя">
+      <select id="hRank" aria-label="Ранг"></select>
+      <select id="hClass" aria-label="Класс"></select>
+      <select id="hFilter" aria-label="Показать">
+        <option value="all">Все герои</option>
+        <option value="skin">Только со скином</option>
+        <option value="noskin">Только без скина</option>
+        <option value="event">Только ивент-карты</option>
+        <option value="repeat">Одинаковые имена</option>
+      </select>
+    </div>
+    <p class="small muted" id="hCount"></p>
+    <div class="table-box"><table id="heroTable"></table></div>
+    <p class="small muted">Галочка 🎭 добавляет в топ отдельную строку с этой картой со скином (+15% к БМ и ЖВ), обычная версия героя и её место не меняются. Галочка 🎎 отмечает ивент-карту: она стоит в топе по силе, но без номера места.</p>
+  </section>
+
+  <section class="view" id="view-seasons" hidden>
+    <div class="card">
+      <h2>Сохранить текущий топ как сезон</h2>
+      <p class="small muted">Сезон запоминает всех героев, их статы, скины и настройки расчёта. Сохраняй его перед тем, как добавлять новые аниме и скины следующего сезона: тогда в топе будет видно, кто поднялся, а кто упал.</p>
+      <div class="tools">
+        <input id="seasonName" placeholder="Например, Хэллоуин 2026" aria-label="Название сезона">
+        <button class="btn" id="seasonSave">Сохранить сезон</button>
+      </div>
+      <p class="small muted" id="seasonResult"></p>
+    </div>
+    <div class="card">
+      <h2>Файл для сайта игроков</h2>
+      <p class="small muted">Скачивает текущую базу и все сезоны. Из этого файла собирается открытая версия сайта, как описано в инструкции.</p>
+      <div class="tools"><button class="btn ghost mini" id="siteExport">Скачать файл для сайта</button><span class="small muted" id="siteExportNote"></span></div>
+    </div>
+    <div class="card" id="seasonDiffCard" hidden>
+      <h2 id="seasonDiffTitle"></h2>
+      <p id="seasonDiff"></p>
+    </div>
+    <div class="card">
+      <h2>Сохранённые сезоны</h2>
+      <div class="list" id="seasonRows"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-add" hidden>
+    <div class="card">
+      <h2>Вставь текст из бота</h2>
+      <p class="small muted">Подойдёт сообщение каталога целиком, карта героя или лог боя. Из логов уровень и скин снимаются автоматически. Герои, которые уже есть в базе, повторно не добавляются.</p>
+      <label class="field">Тайтл для героев каталога
+        <input id="addTitle" placeholder="Например, Фейт" list="titleList">
+      </label>
+      <datalist id="titleList"></datalist>
+      <label class="check"><input id="addEvent" type="checkbox"> 🎎 Это ивент-карты</label>
+      <div class="field">
+        <label for="addText">Текст</label>
+        <div class="paste">
+          <div class="gutter" id="addGutter" aria-hidden="true"></div>
+          <textarea id="addText" wrap="off" spellcheck="false" placeholder="🃏 РАНГ SSS(8)&#10;1. ORT: 💥 БМ 55,500, ❤️ ЖВ 207,000, ☯️ Гибрид"></textarea>
+        </div>
+      </div>
+      <div class="legend">
+        <span><b style="color:var(--good)">✓</b> новый герой</span>
+        <span><b style="color:var(--good)">↻</b> обновятся статы</span>
+        <span><b>=</b> уже есть в базе</span>
+        <span><b style="color:var(--warn)">!</b> повтор в этом тексте</span>
+        <span><b style="color:var(--bad)">✗</b> не опознано</span>
+        <span><b>#</b> строка ранга или тайтла</span>
+      </div>
+      <div id="addPreview" class="small"></div>
+      <div class="problems" id="addProblems"></div>
+      <div class="tools"><button class="btn" id="addSave" disabled>Сохранить</button><span class="small muted" id="addResult"></span></div>
+    </div>
+    <div class="card">
+      <h2>Тайтлы в базе</h2>
+      <div class="chips" id="titleSort" aria-label="Сортировка тайтлов"></div>
+      <p class="small muted" id="titleSortHint" hidden></p>
+      <div class="list" id="titleRows"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-export" hidden>
+    <div class="filters">
+      <div class="chips" id="exportClasses" aria-label="Класс"></div>
+      <div class="chips" id="exportRanks" aria-label="Ранги"></div>
+      <div class="limits" id="exportLimits"></div>
+      <div class="chips" id="exportModes" aria-label="Как считать"></div>
+      <div class="chips" id="exportFormats" aria-label="Формат"></div>
+    </div>
+    <div class="status small muted">
+      <span id="exportStatus"></span>
+      <div class="track" id="exportTrack" hidden><span id="exportBar"></span></div>
+    </div>
+    <div id="exportOut" class="view"></div>
+  </section>
+
+  <section class="view" id="view-rules" hidden>
+    <div class="card" data-admin>
+      <h2>Настройки расчёта</h2>
+      <div class="row">
+        <label class="field">Ходов в бою (оба героя вместе)
+          <input id="maxMoves" type="number" min="1" max="30">
+        </label>
+        <label class="field">Точность симуляции
+          <select id="runs">
+            <option value="200">Быстро: от 200 боёв на пару</option>
+            <option value="500">Обычно: от 500 боёв на пару</option>
+            <option value="2000">Точно: от 2000 боёв на пару</option>
+          </select>
+        </label>
+      </div>
+      <h2>Быстрая оценка: множитель × БМ + множитель × ЖВ</h2>
+      <div class="two" id="formulaFields"></div>
+      <div><button class="btn ghost" id="resetSettings">Вернуть как было</button></div>
+    </div>
+    <div class="card">
+      <h2>Как считается бой</h2>
+      <ul class="rules" id="ruleList"></ul>
+    </div>
+  </section>
+</div>
+
+<script src="engine.js"></script>
+<script>
+const E = window.AniEngine;
+const ICONS = E.CLASS_ICONS;
+const $ =(id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (n) => Math.round(n).toLocaleString('en-US');
+const pct = (x) => (x * 100).toFixed(1) + '%';
+const HERO_ROW_LIMIT = 100;
+const EVENT_MARK = E.EVENT_MARK;
+
+const RULES = [
+  ['ok', 'Удар наносит ровно БМ, без разброса и защиты.'],
+  ['ok', 'Нападающий ходит первым, потом герои бьют по очереди.'],
+  ['ok', 'Дамагер: крит ×2, повторный удар 50% БМ без крита, оба могут сработать за один ход.'],
+  ['ok', 'Гибрид: усиленный удар ×1.6–1.9 и поглощение 35% урона.'],
+  ['ok', 'Отражение гибрида: 30% от урона до поглощения. Нападающий тоже может поглотить отражённый урон.'],
+  ['ok', 'Танк: поглощает 30% урона.'],
+  ['ok', 'Саппорт: лечение от максимального ЖВ перед ударом на каждом втором своём ходу.'],
+  ['ok', 'Рост за уровень: +30% от базы. Скин (🎭): +15%. Формула совпала у всех героев из логов.'],
+  ['said', 'Бой идёт максимум 10 ходов на двоих, по 5 ударов у каждого героя. Если оба живы, побеждает тот, у кого осталось больше ЖВ.'],
+  ['said', 'Без навыков: нет уклонений, критов, поглощения и ответных ударов. Саппорт всё равно лечится каждый второй ход, лечение берётся по среднему значению 10%.'],
+  ['said', 'Рейды в топе не учитываются: там важны только урон и классовый бонус. Топ показывает дуэли внутри класса.'],
+  ['said', 'Герои с одинаковыми БМ и ЖВ делят одно место, следующий герой идёт без пропуска номера.'],
+  ['said', 'Без навыков места идут по очкам формулы. Если очки равны, а статы разные, порядок решает точная симуляция с навыками.'],
+  ['said', 'Ивент-карты стоят в топе рядом по силе и не занимают места: с ними сравниваются только обычные герои.'],
+  ['said', 'Скин считается отдельной версией героя. Места считаются только среди героев без скинов, а версия со скином стоит рядом по силе и места не занимает.'],
+  ['guess', 'Контрудар танка 35% и 80% БМ: в логах его не было, считается по описанию класса.'],
+  ['guess', 'Лечение саппорта при ударе и блок 10% БМ: в логах не было, блок действует на один следующий удар.'],
+  ['guess', 'От повторного удара и контрудара можно уклониться, отражение уклонением не снимается.'],
+  ['guess', 'Случайные диапазоны выпадают заново на каждый бросок.'],
+];
+const RULE_LABELS = { ok: 'Из логов', said: 'От игрока', guess: 'Допущение' };
+
+function readStore(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (e) { return fallback; }
+}
+function writeStore(key, value) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (e) { return false; }
+}
+
+function loadSettings() {
+  const base = {
+    maxMoves: E.DEFAULTS.maxMoves, runs: 500, mode: 'skills', showSkins: true, showEvents: true, compareMode: 'both', titleSort: 'alpha', titleDir: 1, exportLimits: {},
+    formula: JSON.parse(JSON.stringify(E.DEFAULTS.formula)),
+  };
+  const saved = readStore('ani-settings', null);
+  return saved ? { ...base, ...saved, formula: { ...base.formula, ...saved.formula } } : base;
+}
+const saveSettings = () => writeStore('ani-settings', settings);
+
+let settings = loadSettings();
+let titles = [];           // документы базы: {id, title, heroes: []}
+let heroes = [];           // все герои текущего сезона, статы без скинов
+let seasons = [];          // описания сохранённых сезонов, от старых к новым
+const seasonDocs = new Map();
+let db = null, downloads = null, canWrite = true, loaded = false, siteData = null;
+let tg = null;              // Telegram.WebApp, когда сайт открыт как мини-приложение
+const state = {
+  rank: 'SS', cls: 'Гибрид', search: '', title: '', sort: 'overall', dir: -1,
+  viewSeason: '', compareWith: 'auto',
+};
+const results = new Map();
+const pairRate = E.createPairRates();
+let simToken = 0;
+let lastTop = [];
+const compare = {
+  a: { query: 'Бласт', level: 1, skin: false },
+  b: { query: 'Сатору Годжо', level: 1, skin: false },
+};
+
+const derive = E.deriveHeroes;
+const numbered = E.numberedHeroes;
+const offTopRows = E.offTopHeroes;
+const visibleOffTop = (group) => offTopRows(group).filter((h) => (h.isSkin ? settings.showSkins : true) && (h.event ? settings.showEvents : true));
+
+function setHeroes(next) {
+  titles = next;
+  heroes = derive(titles);
+  loaded = true;
+  renderAll();
+}
+
+function notify(text) {
+  $('notice').hidden = !text;
+  $('notice').textContent = text || '';
+}
+
+function setSaveStatus(online) {
+  $('saveStatus').className = 'saved ' + (online ? 'on' : 'off');
+  $('saveStatus').textContent = online ? 'Сохраняется в базу' : 'Сохраняется только в этом браузере';
+}
+
+// ---------- Запись данных ----------
+
+const writeChains = new Map();
+
+// Записи одного документа идут строго по очереди, порядок важен при быстрых нажатиях.
+function queueWrite(path, task) {
+  const next = (writeChains.get(path) || Promise.resolve()).catch(() => {}).then(task);
+  writeChains.set(path, next);
+  return next;
+}
+
+function todayText() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Меняет дату и порядок тайтлов, сами герои при этом не перезаписываются.
+async function updateTitleFields(changes) {
+  if (!changes.length) return;
+  setHeroes(titles.map((t) => {
+    const change = changes.find((c) => c.id === t.id);
+    return change ? { ...t, ...change.fields } : t;
+  }));
+  if (!db) {
+    if (!writeStore('ani-titles', titles)) notify(writeError());
+    return;
+  }
+  try {
+    for (const { id, fields } of changes) {
+      await queueWrite(`titles/${id}`, () => db.doc(`titles/${id}`).update(fields));
+    }
+  } catch (e) {
+    notify(writeError(e));
+  }
+}
+
+// Меняет сразу несколько тайтлов: страница обновляется мгновенно, база догоняет.
+async function applyDocs(writes, deletes) {
+  const changedIds = new Set([...writes, ...deletes].map((d) => d.id));
+  // Дата и порядок тайтла живут в том же документе, запись не должна их терять.
+  const bodies = writes.map((d) => {
+    const old = titles.find((t) => t.id === d.id);
+    const body = { title: d.title, heroes: d.heroes, addedAt: old ? (old.addedAt || null) : todayText() };
+    if (old && typeof old.position === 'number') body.position = old.position;
+    return { id: d.id, body };
+  });
+  const next = titles.filter((t) => !changedIds.has(t.id)).concat(bodies.map((b) => ({ id: b.id, ...b.body })));
+  setHeroes(next);
+
+  if (!db) {
+    if (!writeStore('ani-titles', titles)) throw new Error('storage');
+    return;
+  }
+  for (const { id, body } of bodies) {
+    await queueWrite(`titles/${id}`, () => db.doc(`titles/${id}`).set(body));
+  }
+  for (const d of deletes) {
+    await queueWrite(`titles/${d.id}`, () => db.doc(`titles/${d.id}`).delete());
+  }
+  if (writes.length) {
+    const check = await db.doc(`titles/${writes[0].id}`).get();
+    if (!check.exists) throw new Error('not saved');
+  }
+}
+
+function writeError(e) {
+  if (e && e.code === 'quota_exceeded') return 'База заполнена. Удали ненужные тайтлы или сезоны и попробуй снова.';
+  if (e && e.code === 'invalid_argument') return 'База отклонила запись. Проверь, что страница открыта в твоём аккаунте.';
+  return 'Не удалось сохранить. Проверь соединение и повтори действие.';
+}
+
+async function changeHero(key, change) {
+  const hero = heroes.find((h) => h.key === key);
+  if (!hero) return;
+  const doc = titles.find((t) => t.id === hero.titleId);
+  const list = doc.heroes.map((h) => ({ ...h }));
+  const index = list.findIndex((h) => h.name === hero.name && h.rank === hero.rank && h.bm === hero.baseBm && h.hp === hero.baseHp);
+  if (index < 0) return;
+  const nextHero = change(list[index]);
+  if (nextHero) list[index] = nextHero;
+  else list.splice(index, 1);
+  const target = { id: doc.id, title: doc.title, heroes: list };
+  try {
+    await applyDocs(list.length ? [target] : [], list.length ? [] : [target]);
+  } catch (e) {
+    notify(writeError(e));
+  }
+}
+
+// ---------- Сезоны ----------
+
+const seasonById = (id) => seasons.find((s) => s.id === id) || null;
+
+async function ensureSeason(id) {
+  if (seasonDocs.has(id)) return seasonDocs.get(id);
+  let docs = [];
+  if (db) {
+    const snap = await db.collection(`seasons/${id}/titles`).limit(1000).get();
+    docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } else {
+    const stored = readStore('ani-seasons', []).find((s) => s.id === id);
+    docs = (stored && stored.docs) || [];
+  }
+  seasonDocs.set(id, docs);
+  return docs;
+}
+
+function requestSeason(id) {
+  if (seasonDocs.has(id) || requestSeason.pending.has(id)) return;
+  requestSeason.pending.add(id);
+  ensureSeason(id).then(() => {
+    requestSeason.pending.delete(id);
+    renderRanking();
+    renderSeasons();
+  }).catch(() => {
+    requestSeason.pending.delete(id);
+    notify('Не удалось загрузить сезон. Обнови страницу и попробуй снова.');
+  });
+}
+requestSeason.pending = new Set();
+
+async function saveSeason() {
+  const name = $('seasonName').value.trim() || `Сезон ${seasons.length + 1}`;
+  const id = 's-' + Date.now().toString(36);
+  const docs = titles.map((t) => ({ id: t.id, title: t.title, heroes: t.heroes }));
+  const meta = {
+    name,
+    savedAt: new Date().toISOString(),
+    heroCount: heroes.length,
+    titleCount: docs.length,
+    maxMoves: settings.maxMoves,
+    formula: settings.formula,
+    complete: true,
+  };
+  $('seasonSave').disabled = true;
+  try {
+    if (db) {
+      let done = 0;
+      for (const d of docs) {
+        await db.doc(`seasons/${id}/titles/${d.id}`).set({ title: d.title, heroes: d.heroes });
+        done += 1;
+        $('seasonResult').textContent = `Сохраняю тайтлы: ${done} из ${docs.length}`;
+      }
+      // Описание пишется последним: незавершённый сезон не появится в списке.
+      await db.doc(`seasons/${id}`).set(meta);
+    } else {
+      const stored = readStore('ani-seasons', []);
+      stored.push({ id, ...meta, docs });
+      if (!writeStore('ani-seasons', stored)) throw new Error('storage');
+      setSeasons(stored.map(({ docs: _skip, ...rest }) => rest));
+    }
+    seasonDocs.set(id, docs);
+    $('seasonName').value = '';
+    $('seasonResult').textContent = `Сезон «${name}» сохранён: героев ${fmt(heroes.length)}.`;
+  } catch (e) {
+    $('seasonResult').textContent = writeError(e);
+  }
+  $('seasonSave').disabled = !canWrite;
+}
+
+async function deleteSeason(id) {
+  try {
+    if (db) {
+      const parts = await db.collection(`seasons/${id}/titles`).limit(1000).get();
+      await db.doc(`seasons/${id}`).delete();
+      for (const part of parts.docs) await db.doc(`seasons/${id}/titles/${part.id}`).delete();
+    } else {
+      const stored = readStore('ani-seasons', []).filter((s) => s.id !== id);
+      writeStore('ani-seasons', stored);
+      setSeasons(stored.map(({ docs: _skip, ...rest }) => rest));
+    }
+    seasonDocs.delete(id);
+    if (state.viewSeason === id) state.viewSeason = '';
+    if (state.compareWith === id) state.compareWith = 'auto';
+    renderAll();
+  } catch (e) {
+    notify(writeError(e));
+  }
+}
+
+function setSeasons(list) {
+  seasons = list.filter((s) => s.complete).sort((a, b) => String(a.savedAt).localeCompare(String(b.savedAt)));
+  if (state.viewSeason && !seasonById(state.viewSeason)) state.viewSeason = '';
+  if (state.compareWith !== 'auto' && state.compareWith !== '' && !seasonById(state.compareWith)) state.compareWith = 'auto';
+  if (loaded) renderAll();
+}
+
+// С каким сезоном сравниваются места: по умолчанию с предыдущим по времени.
+function compareSeasonId() {
+  if (state.compareWith === '') return '';
+  if (state.compareWith !== 'auto') return state.compareWith === state.viewSeason ? '' : state.compareWith;
+  if (!seasons.length) return '';
+  if (!state.viewSeason) return seasons[seasons.length - 1].id;
+  const index = seasons.findIndex((s) => s.id === state.viewSeason);
+  return index > 0 ? seasons[index - 1].id : '';
+}
+
+const calcFor = (season) => ({
+  maxMoves: (season && season.maxMoves) || settings.maxMoves,
+  formula: (season && season.formula) || settings.formula,
+});
+
+// ---------- Расчёт топа ----------
+
+const groupKey = (group, calc, mode, runs) => E.groupCacheKey(group, calc.maxMoves, mode, runs);
+const skinRow = E.offTopRow;
+const collectRows = E.collectGroupRows;
+
+function computePlain(group, calc) {
+  const pool = numbered(group);
+  const n = pool.length;
+  const atk = new Array(n).fill(0);
+  const def = new Array(n).fill(0);
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (i === j) continue;
+      const r = E.plainFight(pool[i], pool[j], calc.maxMoves).result;
+      atk[i] += r;
+      def[j] += 1 - r;
+    }
+  }
+  const rows = collectRows(pool, atk, def);
+  const rate = (x, y) => E.plainFight(x, y, calc.maxMoves).result;
+  offTopRows(group).forEach((version) => {
+    const row = skinRow(version, pool, rate);
+    if (row) rows.set(version.key, row);
+  });
+  return { rows, se: 0, plain: true };
+}
+
+function runSimulation(group, calc, key, label, runs) {
+  const token = ++simToken;
+  const pool = numbered(group);
+  const n = pool.length;
+  const atk = new Array(n).fill(0);
+  const def = new Array(n).fill(0);
+  const versions = offTopRows(group);
+  const rate = (x, y) => pairRate(x, y, runs, calc.maxMoves);
+  const skinRows = new Map();
+  const total = n + versions.length;
+  let i = 0;
+  $('simTrack').hidden = false;
+  $('simBar').style.width = '0';
+  $('simText').textContent = label;
+  const step = () => {
+    if (token !== simToken) return;
+    const started = performance.now();
+    while (i < total && performance.now() - started < 40) {
+      if (i < n) {
+        for (let j = 0; j < n; j++) {
+          if (j === i) continue;
+          const r = rate(pool[i], pool[j]);
+          atk[i] += r;
+          def[j] += 1 - r;
+        }
+      } else {
+        const version = versions[i - n];
+        const row = skinRow(version, pool, rate);
+        if (row) skinRows.set(version.key, row);
+      }
+      i += 1;
+    }
+    $('simBar').style.width = (i / total * 100) + '%';
+    ['exportBar', 'cardBar', 'newsBar'].forEach((id) => { $(id).style.width = (i / total * 100) + '%'; });
+    if (i < total) { setTimeout(step, 0); return; }
+    const rows = collectRows(pool, atk, def);
+    skinRows.forEach((row, k) => rows.set(k, row));
+    results.set(key, { rows, se: E.groupError(n, runs), runs });
+    renderRanking();
+  };
+  setTimeout(step, 0);
+}
+
+// Результат группы или null, если симуляция ещё идёт. Без навыков считается сразу.
+function resultFor(group, calc, label, mode, size) {
+  const runs = mode === 'plain' ? 0 : runsFor(size, mode);
+  const key = groupKey(group, calc, mode, runs);
+  if (results.has(key)) return results.get(key);
+  const packed = siteResult(key);
+  if (packed) {
+    results.set(key, E.unpackGroupResult(group, packed));
+    return results.get(key);
+  }
+  if (mode === 'plain') {
+    results.set(key, computePlain(group, calc));
+    return results.get(key);
+  }
+  runSimulation(group, calc, key, label, runs);
+  return null;
+}
+
+const runsFor = (size, mode) => E.runsForGroup(size, mode, settings.runs);
+
+// На сайте для игроков топы посчитаны заранее, поэтому телефону не приходится их симулировать.
+const siteResult = (key) => (siteData && siteData.results && siteData.results[E.cacheHash(key)]) || null;
+
+const sameStats = (a, b) => a.bm === b.bm && a.hp === b.hp;
+
+const PLAIN_WINS_NOTE = 'Победы посчитаны по одному точному бою на пару и сторону: случайностей нет, поэтому проценты идут шагами. 100% в нападении значит, что, ударив первым, герой побеждает всех в группе. Часто это решает сам первый удар, а не большой перевес в силе.';
+
+// Сравнение идёт по округлённым числам: сумма дробей у равных героев может отличаться в последних знаках.
+const wins = (result, h) => {
+  const s = result && result.rows.get(h.key);
+  return s ? Math.round(s.overall * 1e9) : 0;
+};
+const points = (h, calc) => Math.round(E.formulaScore(h, calc.formula) * 1e3);
+
+// Без навыков порядок идёт по очкам формулы, а при равных очках решают навыки. Герои с равными
+// статами стоят подряд, поэтому они всегда получают общее место.
+function orderByPoints(group, calc, tiebreak) {
+  return [...group].sort((a, b) => (points(b, calc) - points(a, calc))
+    || (wins(tiebreak, b) - wins(tiebreak, a))
+    || (b.bm - a.bm)
+    || (b.hp - a.hp));
+}
+
+// С навыками порядок идёт по победам. Герои в пределах погрешности симуляции неразличимы,
+// поэтому внутри такой группы порядок задают очки формулы, иначе места решал бы случайный шум.
+function orderGroup(group, result, calc, tiebreak) {
+  if (!result || result.plain) return orderByPoints(group, calc, tiebreak);
+  const overall = (h) => {
+    const s = result.rows.get(h.key);
+    return s ? s.overall : 0;
+  };
+  const gap = 2 * result.se * Math.SQRT2;
+  const byWins = [...group].sort((a, b) => wins(result, b) - wins(result, a));
+  const ordered = [];
+  let cluster = [];
+  byWins.forEach((h) => {
+    if (cluster.length && overall(cluster[0]) - overall(h) > gap) {
+      ordered.push(...orderByPoints(cluster, calc, result));
+      cluster = [];
+    }
+    cluster.push(h);
+  });
+  ordered.push(...orderByPoints(cluster, calc, result));
+  return ordered;
+}
+
+// Вставляет строки вне нумерации рядом по силе. Порядок обычных героев при этом не меняется,
+// поэтому номера мест всегда идут подряд.
+function mergeOffTop(order, extras, result, calc, tiebreak) {
+  const plain = !result || result.plain;
+  const gap = plain ? 0 : 2 * result.se * Math.SQRT2;
+  const overall = (h) => {
+    const s = result && result.rows.get(h.key);
+    return s ? s.overall : 0;
+  };
+  const stronger = (extra, hero) => {
+    const byPoints = points(extra, calc) - points(hero, calc);
+    if (plain) return byPoints > 0 || (byPoints === 0 && wins(tiebreak, extra) > wins(tiebreak, hero));
+    const byWins = overall(extra) - overall(hero);
+    if (Math.abs(byWins) > gap) return byWins > 0;
+    return byPoints > 0 || (byPoints === 0 && byWins > 0);
+  };
+  const slotOf = (extra) => {
+    const index = order.findIndex((h) => stronger(extra, h));
+    return index < 0 ? order.length : index;
+  };
+  return E.seatOffTop(order, orderGroup(extras, result, calc, tiebreak), slotOf);
+}
+
+const hasEqualPoints = (group, calc) => E.hasEqualScores(group, calc.formula);
+
+// Порядок группы. pending = true: считается симуляция, порядок пока предварительный.
+// size задаёт число боёв: прошлый сезон считается так же, как текущий, чтобы места сравнивались честно.
+function rankGroup(group, calc, label, size) {
+  if (!group.length) return { result: { rows: new Map(), se: 0 }, tiebreak: null, order: [], pending: false };
+  const result = resultFor(group, calc, label, settings.mode, size);
+  const pool = numbered(group);
+  if (!result) return { result: null, tiebreak: null, order: orderGroup(pool, null, calc, null), pending: true };
+  let tiebreak = null;
+  if (result.plain && pool.length > 1 && hasEqualPoints(pool, calc)) {
+    tiebreak = resultFor(group, calc, 'Симулирую навыки для героев с равными очками…', 'tiebreak', size);
+    if (!tiebreak) return { result, tiebreak: null, order: orderGroup(pool, result, calc, null), pending: true };
+  }
+  return { result, tiebreak, order: orderGroup(pool, result, calc, tiebreak), pending: false };
+}
+
+// ---------- Отрисовка ----------
+
+function modeChipsHtml() {
+  return `
+    <button class="chip" data-mode="skills" aria-pressed="${settings.mode === 'skills'}">С навыками</button>
+    <button class="chip" data-mode="plain" aria-pressed="${settings.mode === 'plain'}">Без навыков</button>
+    <button class="chip" data-skins aria-pressed="${settings.showSkins}">🎭 Показывать скины</button>
+    <button class="chip" data-events aria-pressed="${settings.showEvents}">${EVENT_MARK} Показывать ивент-карты</button>`;
+}
+
+function renderChips(active) {
+  const ranks =E.RANKS.filter((r) => active.some((h) => h.rank === r));
+  if (ranks.length && !ranks.includes(state.rank)) state.rank = ranks[0];
+  $('rankChips').innerHTML = ranks.map((r) => {
+    const count = active.filter((h) => h.rank === r).length;
+    return `<button class="chip" data-rank="${r}" aria-pressed="${r === state.rank}"><b>${r}</b><i>${count}</i></button>`;
+  }).join('');
+  $('classChips').innerHTML = E.CLASSES.map((c) => {
+    const count = active.filter((h) => h.rank === state.rank && h.cls === c).length;
+    return `<button class="chip" data-cls="${c}" aria-pressed="${c === state.cls}">${ICONS[c]} ${c}<i>${count}</i></button>`;
+  }).join('');
+  document.body.dataset.cls = state.cls;
+  $('modeChips').innerHTML = modeChipsHtml();
+
+  const names = [...new Set(active.map((h) => h.title).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru'));
+  if (state.title && !names.includes(state.title)) state.title = '';
+  $('titleFilter').innerHTML = '<option value="">Все тайтлы</option>' +
+    names.map((t) => `<option value="${esc(t)}"${t === state.title ? ' selected' : ''}>${esc(t)}</option>`).join('');
+}
+
+function renderSeasonSelects() {
+  $('seasonTools').hidden = !seasons.length;
+  if (!seasons.length) return;
+  const newestFirst = [...seasons].reverse();
+  $('seasonView').innerHTML = `<option value="">Текущий сезон</option>` +
+    newestFirst.map((s) => `<option value="${esc(s.id)}"${s.id === state.viewSeason ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
+  const options = newestFirst.filter((s) => s.id !== state.viewSeason);
+  $('seasonCompare').innerHTML =
+    `<option value="auto"${state.compareWith === 'auto' ? ' selected' : ''}>Предыдущим сезоном</option>
+     <option value=""${state.compareWith === '' ? ' selected' : ''}>Не сравнивать</option>` +
+    options.map((s) => `<option value="${esc(s.id)}"${s.id === state.compareWith ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
+}
+
+function moveCell(change) {
+  if (!change) return '<span class="move same">—</span>';
+  if (change.fresh) return '<span class="tag">новый</span>';
+  if (change.offTop) return '<span class="move same">—</span>';
+  if (change.delta > 0) return `<span class="move up" title="Было место ${change.before}">▲${change.delta}</span>`;
+  if (change.delta < 0) return `<span class="move down" title="Было место ${change.before}">▼${-change.delta}</span>`;
+  return '<span class="move same">=</span>';
+}
+
+// Изменение места относительно выбранного сезона, герои сопоставляются по тайтлу и имени.
+function placeChanges(order, place, extraRows, prevOrder, prevPlaces, prevAll) {
+  const changes = new Map();
+  const matches = E.matchSeason(order, prevOrder);
+  order.forEach((h) => {
+    const old = matches.get(h);
+    if (!old) { changes.set(h.key, { fresh: true, delta: 0 }); return; }
+    const before = prevPlaces.get(old.key);
+    changes.set(h.key, { before, delta: before - place.get(h.key) });
+  });
+  extraRows.forEach((row) => {
+    const named = prevAll.filter((p) => E.sameName(p.name, row.name));
+    const before = named.find((p) => E.normName(p.title) === E.normName(row.title)) || named[0];
+    changes.set(row.key, { offTop: true, fresh: !before || (row.isSkin && !before.skin), delta: 0 });
+  });
+  return changes;
+}
+
+function renderTop() {
+  const season = seasonById(state.viewSeason);
+  const docs = season ? seasonDocs.get(season.id) : titles;
+  if (season && !docs) {
+    requestSeason(season.id);
+    $('simText').textContent = `Загружаю сезон «${season.name}»…`;
+    return;
+  }
+  const active = derive(docs);
+  renderChips(active);
+  renderSeasonSelects();
+
+  const calc = calcFor(season);
+  const group = active.filter((h) => h.rank === state.rank && h.cls === state.cls);
+  const ranked = rankGroup(group, calc, 'Симулирую бои…', group.length);
+  const { result, tiebreak, order } = ranked;
+
+  // Прошлый сезон считается после текущего, симуляция идёт только одна за раз.
+  const prevId = compareSeasonId();
+  const prevSeason = seasonById(prevId);
+  let prevOrder = null;
+  let prevPlaces = null;
+  let prevAll = null;
+  let waiting = ranked.pending;
+  if (prevSeason && !waiting) {
+    const prevDocs = seasonDocs.get(prevSeason.id);
+    if (!prevDocs) requestSeason(prevSeason.id);
+    else {
+      const prevCalc = calcFor(prevSeason);
+      const prevGroup = derive(prevDocs).filter((h) => h.rank === state.rank && h.cls === state.cls);
+      const prevRanked = rankGroup(prevGroup, prevCalc, `Считаю сезон «${prevSeason.name}»…`, group.length);
+      if (prevRanked.pending) waiting = true;
+      else {
+        prevOrder = prevRanked.order;
+        prevAll = prevGroup;
+        prevPlaces = E.sharedPlaces(prevOrder, sameStats);
+      }
+    }
+  }
+
+  if (!waiting) {
+    simToken += 1;
+    $('simTrack').hidden = true;
+    if (!group.length) $('simText').textContent = '';
+    else if (order.length < 2) $('simText').textContent = 'Для расчёта в группе нужно минимум два обычных героя';
+    else if (result.plain) $('simText').textContent = tiebreak
+      ? `Без навыков: места по очкам формулы. Равные очки решены симуляцией с навыками, по ${fmt(tiebreak.runs)} боёв на пару и сторону. ${PLAIN_WINS_NOTE}`
+      : `Без навыков: места по очкам формулы. ${PLAIN_WINS_NOTE}`;
+    else $('simText').textContent = `Симуляция: по ${fmt(result.runs)} боёв на пару и сторону, погрешность места около ${(result.se * 200).toFixed(1)}%`;
+  }
+
+  // Номера мест только у обычных героев. Ивент-карты и версии со скином встают рядом по силе.
+  const place = E.sharedPlaces(order, sameStats);
+  const extraRows = visibleOffTop(group);
+  const merged = mergeOffTop(order, extraRows, result, calc, tiebreak);
+  const position = new Map(merged.map((h, i) => [h.key, i]));
+  // Равные очки формула не различает, поэтому такие герои идут в порядке топа,
+  // и подпись «по формуле» появляется только при настоящем расхождении.
+  const byFormula = [...order].sort((a, b) => (points(b, calc) - points(a, calc)) || (place.get(a.key) - place.get(b.key)));
+  const formulaPlace = E.sharedPlaces(byFormula, sameStats);
+  const stat = (h) => (result && result.rows.get(h.key)) || null;
+
+  // Сколько героев делят каждое место и почему соседние герои стоят именно так.
+  const sharers = new Map();
+  order.forEach((h) => sharers.set(place.get(h.key), (sharers.get(place.get(h.key)) || 0) + 1));
+  const closeNote = new Map();
+  if (result && order.length > 1) {
+    const gap = 2 * result.se * Math.SQRT2;
+    order.forEach((h, i) => {
+      if (!i || sameStats(order[i - 1], h)) return;
+      const prev = order[i - 1];
+      if (result.plain) {
+        if (points(prev, calc) === points(h, calc)) closeNote.set(h.key, 'Столько же очков, порядок решили навыки');
+      } else if (stat(prev).overall - stat(h).overall < gap) {
+        closeNote.set(h.key, 'Отрыв от героя выше меньше погрешности, порядок по очкам формулы');
+      }
+    });
+  }
+
+  const changes = prevOrder ? placeChanges(order, place, extraRows, prevOrder, prevPlaces, prevAll) : new Map();
+
+  const value = {
+    place: (h) => position.get(h.key),
+    change: (h) => {
+      const c = changes.get(h.key);
+      if (!c) return -Infinity;
+      return c.fresh ? Infinity : c.delta;
+    },
+    name: (h) => h.name,
+    bm: (h) => h.bm,
+    hp: (h) => h.hp,
+    score: (h) => E.formulaScore(h, calc.formula),
+    atk: (h) => (stat(h) ? stat(h).atk : 0),
+    def: (h) => (stat(h) ? stat(h).def : 0),
+    overall: (h) => -position.get(h.key),
+  };
+  const q = E.normName(state.search);
+  const shown = merged
+    .filter((h) => (!q || E.normName(h.name).includes(q)) && (!state.title || h.title === state.title))
+    .sort((a, b) => {
+      const x = value[state.sort](a);
+      const y = value[state.sort](b);
+      if (typeof x === 'string') return x.localeCompare(y, 'ru') * state.dir;
+      return x === y ? 0 : (x - y) * state.dir;
+    });
+
+  const hasMine = group.some((h) => h.myPlace);
+  const hasChange = !!prevOrder;
+  const head = [
+    ['place', 'Место', 'left'],
+    ...(hasChange ? [['change', 'Сдвиг', 'left']] : []),
+    ['name', 'Герой', 'left'], ['bm', 'БМ'], ['hp', 'ЖВ'], ['score', 'Очки формулы'],
+    ['atk', 'Нападение'], ['def', 'Защита'], ['overall', 'Побед всего'],
+  ];
+  const headHtml = head.map(([k, label, cls]) => {
+    const sorted = state.sort === k ? ` aria-sort="${state.dir < 0 ? 'descending' : 'ascending'}"` : '';
+    const arrow = state.sort === k ? (state.dir < 0 ? ' ↓' : ' ↑') : '';
+    return `<th class="${cls || ''}"${sorted}><button data-sort="${k}">${label}${arrow}</button></th>`;
+  }).join('') + (hasMine ? '<th>В твоей таблице</th>' : '');
+
+  const cols = head.length + (hasMine ? 1 : 0);
+  let body;
+  if (!loaded) {
+    body = `<tr><td colspan="${cols}" class="empty">Загружаю героев…</td></tr>`;
+  } else if (!active.length) {
+    body = `<tr><td colspan="${cols}" class="empty">Героев пока нет. Открой вкладку «Добавить героев» и вставь текст из каталога бота.</td></tr>`;
+  } else if (!shown.length) {
+    body = `<tr><td colspan="${cols}" class="empty">В этой группе нет подходящих героев. Выбери другой ранг или класс, либо сними фильтр.</td></tr>`;
+  } else {
+    body = shown.map((h) => {
+      const s = stat(h);
+      const fp = formulaPlace.get(h.key);
+      const offTop = h.isSkin || h.event;
+      const formulaNote = s && !result.plain && !offTop && fp !== place.get(h.key) ? `<span class="alt">по формуле №${fp}</span>` : '';
+      let baseNote = '';
+      if (h.event) baseNote = h.isSkin ? ' · ивент-карта со скином' : ' · ивент-карта';
+      else if (h.isSkin) baseNote = ` · без скина №${place.get(h.baseKey)}`;
+      let placeCell = place.get(h.key);
+      if (h.isSkin) placeCell = '<span class="mask" title="Версия со скином: стоит рядом по силе и не занимает место в топе">🎭</span>';
+      else if (h.event) placeCell = `<span class="mask" title="Ивент-карта: стоит рядом по силе и не занимает место в топе">${EVENT_MARK}</span>`;
+      const shareCount = offTop ? 0 : sharers.get(place.get(h.key));
+      let tie = '';
+      if (shareCount > 1) tie = `<span class="tie" title="Одинаковые БМ и ЖВ: ${shareCount} героя делят это место">×${shareCount}</span>`;
+      else if (closeNote.has(h.key)) tie = `<span class="tie" title="${closeNote.get(h.key)}">≈</span>`;
+      const overall = s
+        ? `<div class="bar"><span>${pct(s.overall)}</span><u><span style="width:${s.overall * 100}%"></span></u></div>`
+        : '—';
+      return `<tr data-row="${esc(E.heroId(h))}"${offTop ? ' class="skin-row"' : ''}>
+        <td class="left place">${placeCell}${tie}</td>
+        ${hasChange ? `<td class="left">${moveCell(changes.get(h.key))}</td>` : ''}
+        <td class="left hero"><strong>${esc(h.name)}${isOwned(h) ? '<span class="own" title="Есть в коллекции">✓</span>' : ''}</strong><span>${esc(h.title || 'Тайтл не указан')}${baseNote}</span></td>
+        <td>${fmt(h.bm)}</td><td>${fmt(h.hp)}</td>
+        <td>${fmt(value.score(h))}${formulaNote}</td>
+        <td>${s ? pct(s.atk) : '—'}</td><td>${s ? pct(s.def) : '—'}</td><td>${overall}</td>
+        ${hasMine ? `<td>${(!offTop && h.myPlace) || '—'}</td>` : ''}
+      </tr>`;
+    }).join('');
+  }
+  $('topTable').innerHTML = `<thead><tr>${headHtml}</tr></thead><tbody>${body}</tbody>`;
+  $('csv').hidden = !downloads || !shown.length;
+  lastTop = merged.map((h) => ({
+    h,
+    place: (h.isSkin && '🎭') || (h.event && EVENT_MARK) || place.get(h.key),
+    s: stat(h),
+    change: changes.get(h.key),
+    score: value.score(h),
+  }));
+
+  const hints = [];
+  hints.push(`Места считаются по базовым статам. Строка с 🎭 вместо места — та же карта со скином (+15%), строка с ${EVENT_MARK} — ивент-карта. Они стоят рядом по силе и не сдвигают номера других героев. Строки с 🎭 идут между собой в порядке тех же героев без скина, а их процент посчитан против героев без скина, поэтому он может идти не по убыванию. Герои с одинаковыми БМ и ЖВ делят место, знак ×2 показывает, сколько их.`);
+  hints.push('Рост +30% от базы за уровень одинаков у всех, поэтому при равном уровне места не меняются.');
+  if (season) hints.push(`Показан сохранённый сезон «${season.name}» с его настройками расчёта.`);
+  if (hasChange) hints.push(`Сдвиг: изменение места относительно сезона «${prevSeason.name}» внутри этого ранга и класса.`);
+  else if (!seasons.length) hints.push('Сохрани сезон на вкладке «Сезоны», и здесь появится изменение мест.');
+  hints.push('Нажми на героя, чтобы открыть его карточку.');
+  $('topHint').textContent = hints.join(' ');
+}
+
+// ---------- Выгрузка для Telegram ----------
+
+const FORMATS = [['table', 'Статья Telegram'], ['images', 'Картинки'], ['text', 'Текст для сообщений']];
+const exportState = { ranks: null, format: 'table' };
+let exportData = null;
+
+// Симуляция идёт одна за раз, поэтому считает та вкладка, которая сейчас открыта.
+function renderRanking() {
+  if (!$('view-export').hidden) renderExport();
+  else if (!$('view-card').hidden) renderCard();
+  else if (!$('view-news').hidden) renderNews();
+  else if (!$('view-collection').hidden) renderCollection();
+  else renderTop();
+}
+
+// Строки группы в порядке вкладки «Топ». null: идёт симуляция.
+function exportRows(group, calc) {
+  const ranked = rankGroup(group, calc, 'Симулирую бои…', group.length);
+  if (ranked.pending) return null;
+  const place = E.sharedPlaces(ranked.order, sameStats);
+  const extras = visibleOffTop(group);
+
+  let changes = new Map();
+  const prevSeason = seasonById(compareSeasonId());
+  if (prevSeason) {
+    const prevDocs = seasonDocs.get(prevSeason.id);
+    if (!prevDocs) { requestSeason(prevSeason.id); return null; }
+    const prevGroup = derive(prevDocs).filter((h) => h.rank === group[0].rank && h.cls === group[0].cls);
+    const prevRanked = rankGroup(prevGroup, calcFor(prevSeason), `Считаю сезон «${prevSeason.name}»…`, group.length);
+    if (prevRanked.pending) return null;
+    changes = placeChanges(ranked.order, place, extras, prevRanked.order, E.sharedPlaces(prevRanked.order, sameStats), prevGroup);
+  }
+
+  return mergeOffTop(ranked.order, extras, ranked.result, calc, ranked.tiebreak).map((h) => {
+    const stat = ranked.result.rows.get(h.key);
+    return {
+      place: (h.isSkin && E.SKIN_MARK) || (h.event && EVENT_MARK) || place.get(h.key),
+      shift: shiftMark(changes.get(h.key)),
+      wins: stat ? stat.overall : null,
+      name: h.name, bm: h.bm, hp: h.hp, title: h.title,
+    };
+  });
+}
+
+// У строк без номера места сдвига нет, а без изменений значок не нужен.
+function shiftMark(change) {
+  if (!change || change.offTop) return '';
+  if (change.fresh) return '🆕';
+  if (change.delta > 0) return `▲${change.delta}`;
+  if (change.delta < 0) return `▼${-change.delta}`;
+  return '';
+}
+
+const dateText = (date) => `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
+
+function renderExport() {
+  if ($('view-export').hidden) return;
+  const season = seasonById(state.viewSeason);
+  const docs = season ? seasonDocs.get(season.id) : titles;
+  if (season && !docs) {
+    requestSeason(season.id);
+    $('exportStatus').textContent = `Загружаю сезон «${season.name}»…`;
+    return;
+  }
+  const active = derive(docs);
+  const calc = calcFor(season);
+  document.body.dataset.cls = state.cls;
+  if (!exportState.ranks) exportState.ranks = new Set([state.rank]);
+  const available = E.RANKS.filter((r) => active.some((h) => h.rank === r));
+  const selected = available.filter((r) => exportState.ranks.has(r));
+
+  $('exportClasses').innerHTML = E.CLASSES.map((c) => `<button class="chip" data-cls="${c}" aria-pressed="${c === state.cls}">${ICONS[c]} ${c}</button>`).join('');
+  $('exportRanks').innerHTML = available.map((r) => {
+    const count = active.filter((h) => h.rank === r && h.cls === state.cls).length;
+    return `<button class="chip" data-rank="${r}" aria-pressed="${selected.includes(r)}"><b>${r}</b><i>${count}</i></button>`;
+  }).join('') + `<button class="chip" data-all-ranks aria-pressed="${available.length > 0 && selected.length === available.length}">Все ранги</button>`;
+  // Поля пересоздаются только при смене рангов, иначе ввод числа сбивал бы фокус.
+  const limitsKey = selected.join(',');
+  if ($('exportLimits').dataset.key !== limitsKey) {
+    $('exportLimits').dataset.key = limitsKey;
+    $('exportLimits').innerHTML = selected.length ? `
+      <span class="small muted">Сколько мест выгружать. Пустое поле: все места.</span>
+      <div>${selected.map((r) => `<label>${r}<input type="number" min="1" step="1" placeholder="все" data-limit-rank="${r}" aria-label="Мест в ${r}-ранге" value="${settings.exportLimits[r] || ''}"></label>`).join('')}</div>` : '';
+  }
+  $('exportModes').innerHTML = modeChipsHtml();
+  $('exportFormats').innerHTML = FORMATS.map(([f, label]) => `<button class="chip" data-format="${f}" aria-pressed="${f === exportState.format}">${label}</button>`).join('');
+
+  const sections = [];
+  let total = 0;
+  const groups = selected
+    .map((rank) => ({ rank, group: active.filter((h) => h.rank === rank && h.cls === state.cls) }))
+    .filter((g) => g.group.length);
+  for (let i = 0; i < groups.length; i++) {
+    const rows = exportRows(groups[i].group, calc);
+    if (!rows) {
+      $('exportTrack').hidden = false;
+      $('exportStatus').textContent = `Считаю ${groups[i].rank}-ранг: ${i + 1} из ${groups.length}`;
+      $('exportOut').innerHTML = '';
+      exportData = null;
+      return;
+    }
+    total += rows.length;
+    sections.push({ rank: groups[i].rank, rows: E.limitPlaces(rows, settings.exportLimits[groups[i].rank]) });
+  }
+  simToken += 1;
+  $('exportTrack').hidden = true;
+
+  if (!sections.length) {
+    $('exportStatus').textContent = '';
+    $('exportOut').innerHTML = `<p class="muted">${selected.length ? 'В выбранных рангах нет героев этого класса.' : 'Выбери хотя бы один ранг.'}</p>`;
+    exportData = null;
+    return;
+  }
+  const heroCount = sections.reduce((sum, s) => sum + s.rows.length, 0);
+  const modeText = settings.mode === 'plain' ? 'без навыков' : 'с навыками';
+  const countText = heroCount === total ? fmt(heroCount) : `${fmt(heroCount)} из ${fmt(total)}`;
+  $('exportStatus').textContent = `Строк: ${countText}. Порядок как во вкладке «Топ», ${modeText}${season ? `, сезон «${season.name}»` : ''}.`;
+  const prevSeason = seasonById(compareSeasonId());
+  renderExportOutput(sections, E.exportNote(sections, {
+    seasonName: season ? season.name : '',
+    date: dateText(season ? new Date(season.savedAt) : new Date()),
+    plain: settings.mode === 'plain',
+    compareName: prevSeason ? prevSeason.name : '',
+  }));
+}
+
+function renderExportOutput(sections, note) {
+  const cls = state.cls;
+  const parts = E.exportMessages(cls, sections, { note });
+  const articles = E.exportArticles(cls, sections);
+  exportData = { cls, sections, parts, articles, note, canvases: [] };
+  const out = $('exportOut');
+  if (exportState.format === 'table') {
+    const split = articles.length > 1 ? ` Сообщение вмещает 32 768 знаков, поэтому топ разбит на статьи: ${articles.length}.` : '';
+    out.innerHTML = `<p class="small muted">В Telegram: 📎 → «Статья» → Ctrl+V, для публикации нужен Premium. Черновик редактор не хранит, поэтому не закрывай его до отправки.${split}</p>` + articles.map((part, i) => `
+      <div class="export-part">
+        <div class="tools">
+          <button class="btn mini" data-copy-article="${i}" data-collapsible="1">Скопировать со сворачиванием</button>
+          <button class="btn ghost mini" data-copy-article="${i}">Без сворачивания</button>
+          <span class="small muted" data-copy-note>${articles.length > 1 ? `Статья ${i + 1} из ${articles.length}` : ''}</span>
+        </div>
+        <div class="tg-article">${E.exportHtml(cls, part, note, true)}</div>
+      </div>`).join('');
+    out.querySelectorAll('.tg-article').forEach((article) => { article.querySelector('details').open = true; });
+    return;
+  }
+  if (exportState.format === 'text') {
+    const count = parts.length > 1 ? `Сообщение Telegram вмещает 4096 знаков, поэтому топ разбит на части: ${parts.length}.` : 'Топ помещается в одно сообщение.';
+    out.innerHTML = `<p class="small muted">${count}</p>` + parts.map((part, i) => `
+      <div class="export-part">
+        <div class="tools"><button class="btn mini" data-copy-part="${i}">Скопировать</button><span class="small muted" data-copy-note>Часть ${i + 1} из ${parts.length}</span></div>
+        <textarea readonly aria-label="Часть ${i + 1}">${esc(part)}</textarea>
+      </div>`).join('');
+    return;
+  }
+  const pages = sections.flatMap((section) => exportPages(cls, section, note));
+  exportData.canvases = pages;
+  out.innerHTML = `<p class="small muted">Отправляй как фото. Длинные топы разбиты на несколько картинок, чтобы Telegram не сжал текст до нечитаемого. Если кнопка не сработает, нажми по картинке правой кнопкой и выбери «Копировать изображение».</p><div class="export-images"></div>`;
+  const list = out.querySelector('.export-images');
+  pages.forEach(({ canvas, name }, i) => {
+    const box = document.createElement('div');
+    box.className = 'export-image';
+    box.innerHTML = `<div class="tools"><button class="btn mini" data-copy-image="${i}">Скопировать</button>${downloads ? `<button class="btn ghost mini" data-save-image="${i}">Скачать</button>` : ''}<span class="small muted" data-copy-note>${esc(name)}</span></div>`;
+    box.append(canvas);
+    list.append(box);
+  });
+}
+
+function wrapWords(ctx, text, max) {
+  const lines = [];
+  let line = '';
+  String(text).split(' ').forEach((word) => {
+    const next = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(next).width > max) {
+      lines.push(line);
+      line = word;
+    } else line = next;
+  });
+  lines.push(line);
+  return lines;
+}
+
+// Картинки в тёмной теме Telegram. Выше 2560 точек Telegram сжимает фото, поэтому топ делится на страницы.
+const IMAGE = {
+  scale: 2, pad: 16, cell: 12, line: 21, noteLine: 18, rowPad: 19, maxHeight: 1250, nameMax: 240, titleMax: 200,
+  bg: '#17212b', grid: '#2f3f50', fg: '#f5f5f5', muted: '#a9b6c2', font: '"Segoe UI", system-ui, sans-serif',
+};
+
+function exportPages(cls, section, note) {
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = `15px ${IMAGE.font}`;
+  const rows = section.rows.map((row) => {
+    const [place, name, bm, hp, wins, title] = E.exportCells(row);
+    const nameLines = wrapWords(measure, name, IMAGE.nameMax);
+    const titleLines = wrapWords(measure, title, IMAGE.titleMax);
+    return { cells: [[place], nameLines, [bm], [hp], [wins], titleLines], height: Math.max(nameLines.length, titleLines.length) * IMAGE.line + IMAGE.rowPad };
+  });
+  const widths = [0, 1, 2, 3, 4, 5].map((col) => Math.ceil(Math.max(...rows.map((r) => Math.max(...r.cells[col].map((t) => measure.measureText(t).width))))) + IMAGE.cell * 2);
+  widths[0] = Math.max(widths[0], 46);
+  const tableWidth = widths.reduce((a, b) => a + b, 0);
+  const width = Math.max(tableWidth, 420) + IMAGE.pad * 2;
+  measure.font = `13px ${IMAGE.font}`;
+  const noteLines = wrapWords(measure, note, width - IMAGE.pad * 2);
+  const noteTop = 48;
+  const headHeight = noteTop + noteLines.length * IMAGE.noteLine + 50;
+
+  const pages = [];
+  let page = [];
+  let used = headHeight + IMAGE.pad;
+  rows.forEach((row) => {
+    if (page.length && used + row.height > IMAGE.maxHeight) {
+      pages.push(page);
+      page = [];
+      used = headHeight + IMAGE.pad;
+    }
+    page.push(row);
+    used += row.height;
+  });
+  pages.push(page);
+
+  return pages.map((list, index) => {
+    const height = headHeight + list.reduce((sum, r) => sum + r.height, 0) + IMAGE.pad;
+    const canvas = document.createElement('canvas');
+    canvas.width = width * IMAGE.scale;
+    canvas.height = height * IMAGE.scale;
+    canvas.style.width = `${width}px`;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(IMAGE.scale, IMAGE.scale);
+    ctx.fillStyle = IMAGE.bg;
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = IMAGE.fg;
+    ctx.textBaseline = 'middle';
+    const counter = pages.length > 1 ? ` (${index + 1}/${pages.length})` : '';
+    ctx.font = `600 20px ${IMAGE.font}`;
+    ctx.fillText(E.exportTitle(cls, [section.rank]) + counter, IMAGE.pad, 28);
+    ctx.font = `13px ${IMAGE.font}`;
+    ctx.fillStyle = IMAGE.muted;
+    noteLines.forEach((text, l) => ctx.fillText(text, IMAGE.pad, noteTop + (l + 0.5) * IMAGE.noteLine));
+    ctx.fillStyle = IMAGE.fg;
+    ctx.font = `600 15px ${IMAGE.font}`;
+    const caption = E.exportCaption(cls, section.rank);
+    ctx.fillText(caption, (width - ctx.measureText(caption).width) / 2, headHeight - 22);
+
+    ctx.font = `15px ${IMAGE.font}`;
+    ctx.strokeStyle = IMAGE.grid;
+    ctx.lineWidth = 1;
+    const left = (width - tableWidth) / 2;
+    let y = headHeight;
+    list.forEach((row) => {
+      let x = left;
+      row.cells.forEach((lines, col) => {
+        ctx.strokeRect(x + 0.5, y + 0.5, widths[col], row.height);
+        lines.forEach((text, l) => {
+          const textY = y + row.height / 2 + (l - (lines.length - 1) / 2) * IMAGE.line;
+          const textX = col === 0 ? x + (widths[0] - ctx.measureText(text).width) / 2 : x + IMAGE.cell;
+          ctx.fillText(text, textX, textY);
+        });
+        x += widths[col];
+      });
+      y += row.height;
+    });
+    return { canvas, name: `top-${cls}-${section.rank}${pages.length > 1 ? `-${index + 1}` : ''}.png` };
+  });
+}
+
+// Копирование через событие copy работает и там, где страница не имеет доступа к буферу напрямую.
+function copyRich(text, html) {
+  let done = false;
+  const onCopy = (e) => {
+    e.clipboardData.setData('text/plain', text);
+    if (html) e.clipboardData.setData('text/html', html);
+    e.preventDefault();
+    done = true;
+  };
+  document.addEventListener('copy', onCopy);
+  try { document.execCommand('copy'); } catch (e) { done = false; }
+  document.removeEventListener('copy', onCopy);
+  return done;
+}
+
+async function copyImage(canvas) {
+  const blob = new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+}
+
+// ---------- Карточка героя ----------
+
+const cardState = { id: '' };
+let cardOptions = new Map();
+let cardListFor = null;
+const cardLabel = (h) => `${h.name} · ${h.rank} · ${h.title || E.NO_TITLE}`;
+const openLink = (h) => `<button class="link-btn" data-open-card="${esc(E.heroId(h))}">${esc(h.name)}</button>`;
+
+function openCard(id) {
+  const before = { tab: currentTab(), card: cardState.id };
+  cardState.id = id;
+  $('cardSearch').value = '';
+  const hero = heroes.find((h) => E.heroId(h) === id);
+  // В Telegram адрес хранит данные запуска, поэтому его не трогаем.
+  if (siteData && !tg && hero) history.replaceState(null, '', `#hero=${E.heroCode(hero)}`);
+  showTab('card', before);
+  window.scrollTo(0, 0);
+}
+
+function fillCardList() {
+  if (cardListFor === heroes) return;
+  cardListFor = heroes;
+  cardOptions = new Map(heroes.map((h) => [cardLabel(h), E.heroId(h)]));
+  $('cardList').innerHTML = [...cardOptions.keys()].map((label) => `<option value="${esc(label)}">`).join('');
+}
+
+// Точность шанса против каждого соперника: большие группы считаются грубее, чтобы карточка не зависала.
+const cardRuns = (size) => (size <= 30 ? 5000 : size <= 100 ? 2000 : 1000);
+
+function cardOpponents(hero, pool, calc) {
+  const rivals = pool.filter((h) => h.key !== hero.key);
+  const runs = cardRuns(pool.length);
+  const rate = settings.mode === 'plain'
+    ? (x, y) => E.plainFight(x, y, calc.maxMoves).result
+    : (x, y) => pairRate(x, y, runs, calc.maxMoves);
+  return rivals.map((rival) => ({
+    rival,
+    wins: (rate(hero, rival) + 1 - rate(rival, hero)) / 2,
+    kills: E.hitsToKill(hero, rival),
+    dies: E.hitsToKill(rival, hero),
+  })).sort((a, b) => a.wins - b.wins);
+}
+
+// Места героя по сезонам. Сезоны считаются по одному, поэтому pending значит, что часть ещё впереди.
+function cardHistory(hero) {
+  const rows = [];
+  let pending = false;
+  const views = [...seasons.map((s) => ({ name: s.name, season: s })), { name: 'Сейчас', season: null }];
+  views.forEach((view) => {
+    if (pending) return;
+    const docs = view.season ? seasonDocs.get(view.season.id) : titles;
+    if (!docs) { requestSeason(view.season.id); pending = true; return; }
+    const group = derive(docs).filter((h) => h.rank === hero.rank && h.cls === hero.cls);
+    const own = E.matchSeason([hero], group).get(hero);
+    if (!own) { rows.push({ name: view.name, missing: true }); return; }
+    const ranked = rankGroup(group, calcFor(view.season), `Считаю ${view.name}…`, group.length);
+    if (ranked.pending) { pending = true; return; }
+    const stat = ranked.result.rows.get(own.key);
+    rows.push({
+      name: view.name, bm: own.bm, hp: own.hp, wins: stat ? stat.overall : null,
+      place: own.event ? null : E.sharedPlaces(ranked.order, sameStats).get(own.key),
+    });
+  });
+  return { rows, pending };
+}
+
+function renderCard() {
+  if ($('view-card').hidden) return;
+  fillCardList();
+  const done = () => { $('cardTrack').hidden = true; $('cardStatus').textContent = ''; };
+  const hero = heroes.find((h) => E.heroId(h) === cardState.id);
+  if (!hero) {
+    done();
+    $('cardOut').innerHTML = `<p class="empty">${cardState.id ? 'Такого героя нет. Найди его по имени в поле выше.' : 'Найди героя в поле выше или нажми на него в топе.'}</p>`;
+    return;
+  }
+  const calc = calcFor(null);
+  const group = heroes.filter((h) => h.rank === hero.rank && h.cls === hero.cls);
+  const pool = numbered(group);
+  const ranked = rankGroup(group, calc, 'Считаю топ…', group.length);
+  if (ranked.pending) {
+    $('cardTrack').hidden = false;
+    $('cardStatus').textContent = 'Считаю топ группы…';
+    return;
+  }
+  const stat = ranked.result.rows.get(hero.key);
+  const place = hero.event ? null : E.sharedPlaces(ranked.order, sameStats).get(hero.key);
+  const version = hero.skin ? E.skinVersion(hero) : null;
+  const skinStat = version ? ranked.result.rows.get(version.key) : null;
+  const history = cardHistory(hero);
+  if (history.pending) {
+    $('cardTrack').hidden = false;
+    $('cardStatus').textContent = 'Считаю прошлые сезоны…';
+  } else done();
+
+  const tile = (label, value, note) => `<div class="stat-tile"><span class="small muted">${label}</span><b>${value}</b>${note ? `<span class="small muted">${note}</span>` : ''}</div>`;
+  const placeTiles = place
+    ? tile('Место', `№${place}`, `из ${fmt(E.sharedPlaces(ranked.order, sameStats).get(ranked.order[ranked.order.length - 1].key))} мест`)
+    : tile('Место', EVENT_MARK, 'Ивент-карта, без номера места');
+  const tiles = placeTiles
+    + (stat ? tile('Победы', pct(stat.overall)) + tile('В нападении', pct(stat.atk)) + tile('В защите', pct(stat.def)) : '')
+    + tile('💥 БМ', fmt(hero.bm)) + tile('❤️ ЖВ', fmt(hero.hp));
+  const owned = isOwned(hero);
+  const ownedSkin = owned && ownEntry(hero).skin;
+  const skinBlock = version ? `<div class="card">
+      <h2>🎭 Со скином (+15%)</h2>
+      <div class="stat-tiles">${tile('💥 БМ', fmt(version.bm))}${tile('❤️ ЖВ', fmt(version.hp))}${skinStat ? tile('Победы', pct(skinStat.overall), `без скина ${stat ? pct(stat.overall) : '—'}`) : ''}</div>
+      <p class="small muted">Процент посчитан против героев без скина, поэтому прирост такой большой. Если скин есть у обоих, расклад почти такой же, как и без скинов.</p>
+    </div>` : '';
+
+  const hitsText = (n) => (n > 5 ? 'больше 5' : String(n));
+  const opponents = cardOpponents(hero, pool, calc);
+  const opponentRows = (list) => list.map((o) => `<tr>
+      <td class="left">${openLink(o.rival)}<div class="small muted">${fmt(o.rival.bm)} / ${fmt(o.rival.hp)}</div></td>
+      <td>${pct(o.wins)}</td><td>${hitsText(o.kills)}</td><td>${hitsText(o.dies)}</td>
+    </tr>`).join('');
+  const opponentTable = (title, list) => `<div class="card">
+      <h2>${title}</h2>
+      <div class="table-box"><table>
+        <thead><tr><th class="left">Соперник, БМ / ЖВ</th><th>Шанс победы</th><th title="Сколько ударов нужно этому герою, чтобы убить соперника">Убьёт за</th><th title="Сколько ударов нужно сопернику, чтобы убить этого героя">Умрёт за</th></tr></thead>
+        <tbody>${opponentRows(list)}</tbody>
+      </table></div>
+    </div>`;
+  const hardest = opponents.slice(0, 5);
+  const easiest = [...opponents].reverse().slice(0, 5);
+  const modeText = settings.mode === 'plain' ? 'Без навыков: один точный бой за каждую сторону.' : `С навыками: ${fmt(cardRuns(pool.length))} боёв за каждую сторону.`;
+
+  const historyRows = history.rows.map((row, i) => {
+    if (row.missing) return `<tr><td class="left">${esc(row.name)}</td><td colspan="4" class="left muted">Героя ещё не было</td></tr>`;
+    const prev = history.rows[i - 1];
+    let move = '';
+    if (prev && prev.place && row.place && prev.place !== row.place) {
+      const delta = prev.place - row.place;
+      move = ` <span class="move ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '▲' : '▼'}${Math.abs(delta)}</span>`;
+    }
+    return `<tr><td class="left">${esc(row.name)}</td><td>${row.place ? `№${row.place}${move}` : EVENT_MARK}</td><td>${row.wins === null ? '—' : pct(row.wins)}</td><td>${fmt(row.bm)}</td><td>${fmt(row.hp)}</td></tr>`;
+  }).join('');
+  const historyBlock = seasons.length ? `<div class="card">
+      <h2>По сезонам</h2>
+      <div class="table-box"><table>
+        <thead><tr><th class="left">Сезон</th><th>Место</th><th>Победы</th><th>БМ</th><th>ЖВ</th></tr></thead>
+        <tbody>${historyRows}</tbody>
+      </table></div>
+    </div>` : '';
+
+  $('cardOut').innerHTML = `
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>${esc(hero.name)}${owned ? '<span class="own" title="Есть в коллекции">✓</span>' : ''}</h2>
+          <p class="muted">${esc(hero.title || E.NO_TITLE)} · ${hero.rank}-ранг · ${ICONS[hero.cls]} ${esc(hero.cls)}</p>
+        </div>
+        <div class="actions">
+          <button class="btn ghost mini" data-card-own>${owned ? 'Убрать из коллекции' : 'В коллекцию'}</button>
+          ${version && owned ? `<button class="btn ghost mini" data-card-skin>${ownedSkin ? 'Скина нет' : 'Скин есть'}</button>` : ''}
+          <button class="btn ghost mini" data-card-compare>Сравнить</button>
+          ${siteData ? `<button class="btn ghost mini" data-card-link>${tg && siteConfig.telegramLink ? 'Поделиться' : 'Скопировать ссылку'}</button>` : ''}
+        </div>
+      </div>
+      <div class="stat-tiles">${tiles}</div>
+      <p class="small muted" id="cardNote">${settings.mode === 'plain' ? 'Без навыков, как выбрано в топе.' : 'С навыками, как выбрано в топе.'} Статы на 1 уровне, соперники из того же ранга и класса.</p>
+    </div>
+    ${skinBlock}
+    ${pool.length > 1 ? `<div class="stat-grid">
+      ${opponentTable('Самые неудобные соперники', hardest)}
+      ${opponentTable('Самые удобные соперники', easiest)}
+    </div>
+    <p class="small muted">${modeText} Удары считаются без навыков. За бой у каждого только 5 ударов, поэтому «больше 5» значит, что обычными ударами соперника не убить.</p>` : ''}
+    ${historyBlock}`;
+}
+
+// ---------- Моя коллекция ----------
+
+let collection = readStore('ani-collection', {}) || {};
+const colState = { rank: '', cls: '', title: '', search: '', status: 'all', limit: HERO_ROW_LIMIT, clearArmed: false };
+const ownEntry = (h) => collection[E.heroId(h)];
+const isOwned = (h) => !!ownEntry(h);
+
+function saveCollection() {
+  if (!writeStore('ani-collection', collection) && !tg) notify('Браузер не дал сохранить коллекцию. Проверь, не запрещены ли данные сайтов.');
+  cloudSave();
+}
+
+function colFiltered() {
+  const q = E.normName(colState.search);
+  return heroes.filter((h) => (!colState.rank || h.rank === colState.rank)
+    && (!colState.cls || h.cls === colState.cls)
+    && (!colState.title || h.title === colState.title)
+    && (!q || E.normName(h.name).includes(q))
+    && (colState.status === 'all' || (colState.status === 'own') === isOwned(h)));
+}
+
+// Место показывается, только если топ уже посчитан: коллекция не должна запускать симуляцию.
+function knownPlace(hero) {
+  const group = heroes.filter((h) => h.rank === hero.rank && h.cls === hero.cls);
+  const calc = calcFor(null);
+  const has = (mode) => {
+    const key = groupKey(group, calc, mode, runsFor(group.length, mode));
+    return results.has(key) || !!siteResult(key);
+  };
+  if (settings.mode === 'plain' ? hasEqualPoints(numbered(group), calc) && !has('tiebreak') : !has('skills')) return null;
+  const ranked = rankGroup(group, calc, '', group.length);
+  return ranked.pending ? null : E.sharedPlaces(ranked.order, sameStats).get(hero.key);
+}
+
+function renderCollection() {
+  if ($('view-collection').hidden) return;
+  const owned = heroes.filter(isOwned);
+  const skins = owned.filter((h) => h.skin && ownEntry(h).skin).length;
+  const titleNames = [...new Set(heroes.map((h) => h.title || E.NO_TITLE))];
+  const byTitle = titleNames.map((key) => {
+    const list = heroes.filter((h) => (h.title || E.NO_TITLE) === key);
+    return { key, total: list.length, count: list.filter(isOwned).length };
+  }).sort((a, b) => (b.count / b.total - a.count / a.total) || (b.total - a.total));
+  const tile = (label, value, note) => `<div class="stat-tile"><span class="small muted">${label}</span><b>${value}</b>${note ? `<span class="small muted">${note}</span>` : ''}</div>`;
+  $('colTiles').innerHTML = tile('Карт собрано', fmt(owned.length), `из ${fmt(heroes.length)}, ${pct(heroes.length ? owned.length / heroes.length : 0)}`)
+    + tile('Скинов', fmt(skins))
+    + tile('Аниме собрано целиком', fmt(byTitle.filter((t) => t.count === t.total).length), `из ${fmt(byTitle.length)}`);
+
+  // Личный топ: сильнее считается версия со скином, если он есть у игрока.
+  const score = (h) => E.formulaScore(h.skin && ownEntry(h).skin ? E.skinVersion(h) : h, settings.formula);
+  const bestLists = E.CLASSES.map((cls) => ({ cls, list: owned.filter((h) => h.cls === cls).sort((a, b) => score(b) - score(a)).slice(0, 5) }));
+  const line = (h) => {
+    const place = knownPlace(h);
+    const hasSkin = h.skin && ownEntry(h).skin;
+    return `<li>${openLink(h)}<span>${h.rank}-ранг${place ? `, №${place}` : ''}${hasSkin ? ' · 🎭' : ''} · ${esc(h.title || E.NO_TITLE)}</span></li>`;
+  };
+  $('colBest').innerHTML = owned.length ? `<div class="card">
+      <h2>Лучшие в твоей коллекции</h2>
+      <p class="small muted">Первый в каждом столбце вместе с остальными первыми дают лучший состав из разных классов. Порядок идёт по очкам формулы с учётом твоих скинов, поэтому среди близких героев он может отличаться от топа с навыками.</p>
+      <div class="best-grid">${bestLists.map(({ cls, list }) => `<div><h2>${ICONS[cls]} ${esc(cls)}</h2>${list.length ? `<ol class="best-list">${list.map(line).join('')}</ol>` : '<p class="small muted">Пока нет карт этого класса.</p>'}</div>`).join('')}</div>
+    </div>` : '<p class="muted">Отметь свои карты ниже, и здесь появится личный топ по классам и прогресс сбора.</p>';
+
+  const progressRows = (list) => `<div class="stat-rows">${list.map((row) => `
+    <div class="stat-row"><span>${esc(row.key)}</span><span class="stat-track full"><i style="width:${row.total ? row.count / row.total * 100 : 0}%"></i></span><span class="num">${fmt(row.count)} из ${fmt(row.total)}</span></div>`).join('')}</div>`;
+  const byRank = E.RANKS.map((key) => {
+    const list = heroes.filter((h) => h.rank === key);
+    return { key, total: list.length, count: list.filter(isOwned).length };
+  });
+  $('colProgress').innerHTML = `<div class="card"><h2>По рангам</h2>${progressRows(byRank)}</div><div class="card"><h2>По аниме</h2>${progressRows(byTitle)}</div>`;
+
+  $('colRanks').innerHTML = [['', 'Все ранги'], ...E.RANKS.map((r) => [r, r])].map(([value, label]) => `<button class="chip" data-col-rank="${value}" aria-pressed="${colState.rank === value}">${label}</button>`).join('');
+  $('colClasses').innerHTML = [['', 'Все классы'], ...E.CLASSES.map((c) => [c, `${ICONS[c]} ${c}`])].map(([value, label]) => `<button class="chip" data-col-cls="${esc(value)}" aria-pressed="${colState.cls === value}">${esc(label)}</button>`).join('');
+  $('colStatus').innerHTML = [['all', 'Все карты'], ['own', 'Есть у меня'], ['miss', 'Не хватает']].map(([value, label]) => `<button class="chip" data-col-status="${value}" aria-pressed="${colState.status === value}">${label}</button>`).join('');
+  const names = [...titleNames].sort((a, b) => a.localeCompare(b, 'ru'));
+  $('colTitle').innerHTML = '<option value="">Все аниме</option>' + names.map((t) => `<option value="${esc(t)}"${t === colState.title ? ' selected' : ''}>${esc(t)}</option>`).join('');
+
+  const shown = colFiltered();
+  $('colAddAll').textContent = `Отметить всех показанных: ${fmt(shown.length)}`;
+  $('colClearAll').textContent = colState.clearArmed ? 'Точно снять отметки?' : 'Снять отметки с показанных';
+  $('colClearAll').classList.toggle('armed', colState.clearArmed);
+  const rows = shown.slice(0, colState.limit).map((h) => {
+    const id = esc(E.heroId(h));
+    const entry = ownEntry(h);
+    return `<tr>
+      <td class="left"><label class="skin-toggle"><input type="checkbox" data-own="${id}"${entry ? ' checked' : ''} aria-label="Есть в коллекции"></label></td>
+      <td class="left">${h.skin ? `<label class="skin-toggle"><input type="checkbox" data-own-skin="${id}"${entry && entry.skin ? ' checked' : ''}${entry ? '' : ' disabled'} aria-label="Есть скин"> 🎭</label>` : ''}</td>
+      <td class="left hero">${openLink(h)}<span>${esc(h.title || E.NO_TITLE)}</span></td>
+      <td class="left"><b>${h.rank}</b></td>
+      <td class="left">${ICONS[h.cls]} ${esc(h.cls)}</td>
+      <td>${fmt(h.bm)}</td><td>${fmt(h.hp)}</td>
+    </tr>`;
+  }).join('');
+  $('colTable').innerHTML = `<thead><tr><th class="left">Есть</th><th class="left">Скин</th><th class="left">Герой</th><th class="left">Ранг</th><th class="left">Класс</th><th>БМ</th><th>ЖВ</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="7" class="empty">Таких карт нет.</td></tr>'}</tbody>`;
+  $('colMore').hidden = shown.length <= colState.limit;
+  $('colMore').textContent = `Показать ещё, осталось ${fmt(shown.length - colState.limit)}`;
+}
+
+// ---------- Новости сезона ----------
+
+const newsState = { view: 'auto', rank: '' };
+let newsData = null;
+
+function newsViews() {
+  const views = seasons.map((s, i) => ({ id: s.id, name: s.name, season: s, prev: seasons[i - 1] || null })).filter((v) => v.prev);
+  if (seasons.length) views.push({ id: 'now', name: 'Сейчас', season: null, prev: seasons[seasons.length - 1] });
+  return views.reverse();
+}
+
+function renderNews() {
+  if ($('view-news').hidden) return;
+  const empty = (text) => {
+    $('newsTrack').hidden = true;
+    $('newsStatus').textContent = text;
+    $('newsTiles').innerHTML = '';
+    $('newsOut').innerHTML = '';
+    newsData = null;
+  };
+  const views = newsViews();
+  if (!views.length) { $('newsView').innerHTML = ''; empty('Новости появятся, когда будет хотя бы один сохранённый сезон.'); return; }
+  const docsOf = (season) => (season ? seasonDocs.get(season.id) : titles);
+  const missing = views.flatMap((v) => [v.season, v.prev]).filter((s) => s && !seasonDocs.has(s.id));
+  if (missing.length) { missing.forEach((s) => requestSeason(s.id)); empty('Загружаю сезоны…'); return; }
+
+  // Сразу после сохранения сезона текущая база с ним совпадает, поэтому показывается прошлый переход.
+  let view = views.find((v) => v.id === newsState.view);
+  if (!view) {
+    const fresh = E.seasonNews(derive(titles), derive(seasonDocs.get(views[0].prev.id)));
+    const nothing = !fresh.fresh.length && !fresh.skins.length && !fresh.changed.length;
+    view = nothing && views[1] ? views[1] : views[0];
+  }
+  $('newsView').innerHTML = views.map((v) => `<option value="${esc(v.id)}"${v === view ? ' selected' : ''}>${esc(v.season ? `${v.name}: что изменилось после сезона «${v.prev.name}»` : `Сейчас: что изменилось после сезона «${v.prev.name}»`)}</option>`).join('');
+  $('newsRanks').innerHTML = [['', 'Все ранги'], ...E.RANKS.map((r) => [r, r])].map(([value, label]) => `<button class="chip" data-news-rank="${value}" aria-pressed="${newsState.rank === value}">${label}</button>`).join('');
+
+  const current = derive(docsOf(view.season));
+  const previous = derive(docsOf(view.prev));
+  const news = E.seasonNews(current, previous);
+  const tile = (label, value) => `<div class="stat-tile"><span class="small muted">${label}</span><b>${fmt(value)}</b></div>`;
+  $('newsTiles').innerHTML = tile('Новых аниме', news.titles.length) + tile('Новых героев', news.fresh.length) + tile('Новых скинов', news.skins.length) + tile('Героев с другими статами', news.changed.length);
+
+  const calc = calcFor(view.season);
+  const prevCalc = calcFor(view.prev);
+  const groups = E.RANKS.flatMap((rank) => E.CLASSES.map((cls) => ({ rank, cls })));
+  const newcomers = [];
+  const moved = [];
+  let progress = -1;
+  for (let i = 0; i < groups.length; i += 1) {
+    const { rank, cls } = groups[i];
+    const inGroup = (h) => h.rank === rank && h.cls === cls;
+    const group = current.filter(inGroup);
+    const prevGroup = previous.filter(inGroup);
+    if (!group.length) continue;
+    const ranked = rankGroup(group, calc, 'Считаю новости…', group.length);
+    const prevRanked = ranked.pending ? null : rankGroup(prevGroup, prevCalc, 'Считаю новости…', group.length);
+    if (ranked.pending || prevRanked.pending) { progress = i; break; }
+    const places = E.sharedPlaces(ranked.order, sameStats);
+    const prevPlaces = E.sharedPlaces(prevRanked.order, sameStats);
+    const matches = E.matchSeason(ranked.order, prevRanked.order);
+    let above = 0;
+    ranked.order.forEach((h) => {
+      const old = matches.get(h);
+      if (!old) { newcomers.push({ hero: h, place: places.get(h.key), size: ranked.order.length }); above += 1; return; }
+      const delta = prevPlaces.get(old.key) - places.get(h.key);
+      if (delta) moved.push({ hero: h, before: prevPlaces.get(old.key), place: places.get(h.key), delta, share: Math.abs(delta) / ranked.order.length, newAbove: above });
+    });
+  }
+  const waiting = progress >= 0;
+  $('newsTrack').hidden = !waiting;
+  const formulaChanged = JSON.stringify(calc.formula) !== JSON.stringify(prevCalc.formula);
+  const noteParts = ['Места сравниваются внутри ранга и класса. Падение чаще всего значит, что выше появились новые герои.'];
+  if (formulaChanged) noteParts.push('Между этими сезонами менялась формула, поэтому места близких героев могли сдвинуться и без новых статов.');
+  const note = noteParts.join(' ');
+  $('newsStatus').textContent = waiting ? `Считаю места: группа ${progress + 1} из ${groups.length}` : note;
+
+  const byRank = (list) => (newsState.rank ? list.filter((row) => (row.hero || row).rank === newsState.rank) : list);
+  const where = (h) => `${h.rank} ${h.cls}`;
+  const rankOrder = (h) => E.RANKS.indexOf(h.rank);
+  // Последнее место в группе из пяти героев новостью не считается, поэтому нужна ещё верхняя половина группы.
+  const strong = byRank(newcomers).filter((row) => row.place <= 10 && row.place <= Math.ceil(row.size / 2)).sort((a, b) => (rankOrder(a.hero) - rankOrder(b.hero)) || (a.place - b.place)).slice(0, 15);
+  const ups = byRank(moved).filter((row) => row.delta > 0).sort((a, b) => b.share - a.share).slice(0, 10);
+  const downs = byRank(moved).filter((row) => row.delta < 0).sort((a, b) => b.share - a.share).slice(0, 10);
+  const skinsList = byRank(news.skins).sort((a, b) => rankOrder(a) - rankOrder(b));
+  const changedList = byRank(news.changed);
+  const moveRow = (row) => [row.hero.name, where(row.hero), `№${row.before} → №${row.place}`, `${row.delta > 0 ? '▲' : '▼'}${Math.abs(row.delta)}`, String(row.newAbove)];
+  const sections = [
+    { id: 'titles', title: 'Новые аниме', head: ['Аниме', 'Карт', 'Лучший ранг'], rows: news.titles.map((t) => [t.title, fmt(t.count), t.bestRank]) },
+    { id: 'strong', title: 'Новички в верхушке топа', head: ['Герой', 'Группа', 'Место', 'Аниме'], rows: strong.map((row) => [row.hero.name, where(row.hero), `№${row.place} из ${row.size}`, row.hero.title || E.NO_TITLE]), ids: strong.map((row) => row.hero) },
+    { id: 'ups', title: 'Кто вырос', head: ['Герой', 'Группа', 'Место', 'Сдвиг', 'Новых выше'], rows: ups.map(moveRow), ids: ups.map((row) => row.hero) },
+    { id: 'downs', title: 'Кто упал', head: ['Герой', 'Группа', 'Место', 'Сдвиг', 'Новых выше'], rows: downs.map(moveRow), ids: downs.map((row) => row.hero) },
+    { id: 'skins', title: 'Новые скины', head: ['Герой', 'Группа', 'Аниме'], rows: skinsList.map((h) => [h.name, where(h), h.title || E.NO_TITLE]), ids: skinsList },
+    { id: 'changed', title: 'Изменились статы', head: ['Герой', 'Группа', 'Было', 'Стало'], rows: changedList.map((c) => [c.hero.name, where(c.hero), `${fmt(c.before.bm)} / ${fmt(c.before.hp)}`, `${fmt(c.hero.bm)} / ${fmt(c.hero.hp)}`]), ids: changedList.map((c) => c.hero) },
+  ].filter((s) => s.rows.length);
+  newsData = { sections, note, title: `Новости сезона: ${view.season ? view.name : 'сейчас'}` };
+  $('newsOut').innerHTML = sections.map((s) => `<div class="card${s.id === 'ups' || s.id === 'downs' || s.id === 'strong' ? ' stat-card wide' : ''}">
+      <h2>${esc(s.title)}</h2>
+      <div class="table-box"><table>
+        <thead><tr>${s.head.map((c, i) => `<th${i ? '' : ' class="left"'}>${esc(c)}</th>`).join('')}</tr></thead>
+        <tbody>${s.rows.map((r, n) => `<tr>${r.map((c, i) => `<td${i ? '' : ' class="left"'}>${i === 0 && s.ids ? openLink(s.ids[n]) : esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table></div>
+    </div>`).join('') || `<p class="empty">${waiting ? 'Считаю…' : 'За этот период в выбранном ранге ничего не изменилось.'}</p>`;
+}
+
+// ---------- Статистика ----------
+
+const statState = { rank: '', cls: '', title: '' };
+let statData = null;
+const CHART_CLS = { 'Дамагер': 'dmg', 'Танк': 'tank', 'Саппорт': 'sup', 'Гибрид': 'hyb' };
+const TOP_LISTED = 5;
+
+// Подсказка читает текст из атрибутов: имена задаёт игрок, поэтому они выводятся через textContent.
+const tipAttrs = (value, label) => `data-tip-value="${esc(value)}" data-tip-label="${esc(label)}"`;
+const pickClass = (selected, value) => (!selected ? '' : selected === value ? ' on' : ' dim');
+
+function statCard(id, title, body, wide) {
+  const section = statData.sections.find((s) => s.id === id);
+  const table = section && id !== 'records' ? `
+    <details class="stat-table"><summary class="small">Таблицей</summary><div class="table-box"><table>
+      <thead><tr>${section.head.map((c, i) => `<th${i ? '' : ' class="left"'}>${esc(c)}</th>`).join('')}</tr></thead>
+      <tbody>${section.rows.map((r) => `<tr>${r.map((c, i) => `<td${i ? '' : ' class="left"'}>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div></details>` : '';
+  return `<article class="card stat-card${wide ? ' wide' : ''}">
+    <div class="stat-head">
+      <div><h2>${esc(title)}</h2><p class="small muted">${esc(statData.stats.scopes[id])}</p></div>
+      ${section ? `<div class="actions">
+        <button class="btn ghost mini" data-stat-image="${id}">Картинка</button>
+        ${downloads ? `<button class="btn ghost mini" data-stat-save="${id}">Скачать</button>` : ''}
+        <button class="btn ghost mini" data-stat-copy="${id}">Таблица</button>
+      </div>` : ''}
+    </div>
+    ${body}
+    <p class="small muted" data-stat-note></p>
+    <div class="stat-preview"></div>
+    ${table}
+  </article>`;
+}
+
+function statRanksBody(stats) {
+  const max = Math.max(1, ...stats.ranks.map((r) => r.count));
+  return `<div class="stat-cols">${[...stats.ranks].reverse().map((r) => `
+    <button class="stat-pick stat-col${pickClass(stats.filter.rank, r.key)}" data-stat-rank="${r.key}" aria-pressed="${stats.filter.rank === r.key}" aria-label="${r.key}-ранг: ${fmt(r.count)}, ${pct(r.share)}" ${tipAttrs(`${fmt(r.count)} · ${pct(r.share)}`, `${r.key}-ранг`)}>
+      <em>${pct(r.share)}</em>
+      <i style="height:${r.count ? Math.max(2, r.count / max * 130) : 0}px"></i>
+      <span>${r.key}</span>
+    </button>`).join('')}</div>`;
+}
+
+function statClassesBody(stats) {
+  const r = 46;
+  const length = 2 * Math.PI * r;
+  const sum = stats.classes.reduce((a, c) => a + c.count, 0);
+  let offset = 0;
+  const arcs = stats.classes.filter((c) => c.count).map((c) => {
+    const size = c.share * length;
+    const dim = stats.filter.cls && stats.filter.cls !== c.key ? ' class="dim"' : '';
+    const gap = stats.classes.filter((x) => x.count).length > 1 ? 1.4 : 0;
+    const arc = `<circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--chart-${CHART_CLS[c.key]})" stroke-width="17" stroke-dasharray="${Math.max(0.5, size - gap)} ${length}" stroke-dashoffset="${-offset}" transform="rotate(-90 60 60)" data-stat-cls="${esc(c.key)}"${dim} ${tipAttrs(`${fmt(c.count)} · ${pct(c.share)}`, c.key)}></circle>`;
+    offset += size;
+    return arc;
+  });
+  const keys = stats.classes.map((c) => `
+    <button class="stat-pick stat-key${pickClass(stats.filter.cls, c.key)}" data-stat-cls="${esc(c.key)}" aria-pressed="${stats.filter.cls === c.key}">
+      <span class="swatch" style="background:var(--chart-${CHART_CLS[c.key]})"></span>
+      <span>${ICONS[c.key]} ${esc(c.key)}</span>
+      <span class="num small">${fmt(c.count)} · ${pct(c.share)}</span>
+    </button>`).join('');
+  return `<div class="stat-donut">
+    <svg viewBox="0 0 120 120" role="img" aria-label="Доли классов">
+      ${arcs.join('')}
+      <text x="60" y="60" text-anchor="middle" font-size="17" font-weight="600" fill="var(--fg)">${fmt(sum)}</text>
+      <text x="60" y="74" text-anchor="middle" font-size="9" fill="var(--muted)">карт</text>
+    </svg>
+    <div class="stat-keys">${keys}</div>
+  </div>`;
+}
+
+function statGridBody(stats) {
+  const scale = (share) => (stats.gridMax ? share / stats.gridMax * 85 : 0);
+  const { rank, cls } = stats.filter;
+  const rows = stats.grid.map((row) => `<tr>
+    <td class="rank">${row.rank}</td>
+    ${row.cells.map((c) => {
+      const mix = c.count ? Math.max(6, scale(c.share)) : 0;
+      const ink = mix >= 75 ? 'var(--on-accent)' : 'var(--fg)';
+      const on = (rank || cls) && (!rank || rank === row.rank) && (!cls || cls === c.cls);
+      return `<td><button class="stat-pick stat-cell${on ? ' on' : ''}" style="background-color:color-mix(in srgb, var(--chart-bar) ${mix}%, var(--panel));color:${ink}" data-stat-rank="${row.rank}" data-stat-cls="${esc(c.cls)}" aria-label="${row.rank}-ранг, ${esc(c.cls)}: ${fmt(c.count)}, ${pct(c.share)}" ${tipAttrs(`${fmt(c.count)} · ${pct(c.share)}`, `${row.rank}-ранг, ${c.cls}`)}>${fmt(c.count)}<small>${pct(c.share)}</small></button></td>`;
+    }).join('')}
+    <td class="sum">${fmt(row.total)}</td>
+  </tr>`).join('');
+  return `<div class="stat-heat"><table>
+    <thead><tr><th>Ранг</th>${E.CLASSES.map((c) => `<th>${ICONS[c]} ${esc(c)}</th>`).join('')}<th>Всего</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>
+  <div class="stat-legend"><span>Доля класса внутри ранга: 0%</span><span class="stat-scale"></span><span>${pct(stats.gridMax)}</span></div>`;
+}
+
+function statRows(list, selected) {
+  const max = Math.max(1, ...list.map((r) => r.count));
+  return `<div class="stat-rows">${list.map((r) => `
+    <button class="stat-pick stat-row${pickClass(selected, r.key)}" data-stat-title="${esc(r.key)}" aria-pressed="${selected === r.key}" ${tipAttrs(`${fmt(r.count)} · ${pct(r.share)}`, r.key)}>
+      <span>${esc(r.key)}</span>
+      <span class="stat-track"><i style="width:${r.count / max * 100}%"></i></span>
+      <span class="num">${fmt(r.count)} · ${pct(r.share)}</span>
+    </button>`).join('')}</div>`;
+}
+
+function statTierRow(t, selected) {
+  const segments = t.counts.map((count, i) => (count
+    ? `<i style="flex:${count} 0 0;background:var(--tier-${i})" ${tipAttrs(`${fmt(count)} · ${pct(count / t.total)}`, `${t.title}, ${E.STAT_TIERS[i].label}`)}></i>`
+    : '')).join('');
+  return `<button class="stat-pick stat-row${pickClass(selected, t.title)}" data-stat-title="${esc(t.title)}" aria-pressed="${selected === t.title}" aria-label="${esc(t.title)}: ${fmt(t.total)} карт, S и выше ${pct(t.elite)}">
+    <span>${esc(t.title)}</span>
+    <span class="stat-stack">${segments}</span>
+    <span class="num">S+ ${pct(t.elite)}</span>
+  </button>`;
+}
+
+function statTiersBody(stats) {
+  const selected = stats.filter.title;
+  const big = stats.tiers.filter((t) => !t.small);
+  const small = stats.tiers.filter((t) => t.small);
+  const legend = E.STAT_TIERS.map((tier, i) => `<span><span class="swatch" style="background:var(--tier-${i})"></span>${tier.label}</span>`).join('');
+  const open = small.some((t) => t.title === selected) || !big.length ? ' open' : '';
+  return `<div class="stat-legend">${legend}</div>
+    <div class="stat-rows">${big.map((t) => statTierRow(t, selected)).join('')}</div>
+    ${small.length ? `<details class="stat-more"${open}><summary>Маленькие аниме, меньше 20 карт: ${small.length}</summary><div class="stat-rows">${small.map((t) => statTierRow(t, selected)).join('')}</div></details>` : ''}`;
+}
+
+function statRecordsBody(stats) {
+  if (!stats.records.length) return '<p class="small muted">Нет карт с таким сочетанием.</p>';
+  const who = (names) => esc(names[0]) + (names.length > 1 ? ` <span class="muted" title="${esc(names.join(', '))}">+${names.length - 1}</span>` : '');
+  return `<div class="table-box"><table>
+    <thead><tr><th class="left">Ранг</th><th>💥 БМ</th><th class="left">Герой</th><th>❤️ ЖВ</th><th class="left">Герой</th></tr></thead>
+    <tbody>${stats.records.map((r) => `<tr><td class="left"><b>${r.rank}</b></td><td>${fmt(r.bm.value)}</td><td class="left">${who(r.bm.names)}</td><td>${fmt(r.hp.value)}</td><td class="left">${who(r.hp.names)}</td></tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function statTopBody(list, selected, empty) {
+  if (!list.length) return `<p class="small muted">${empty}</p>`;
+  const rest = list.length - TOP_LISTED;
+  return statRows(list.slice(0, TOP_LISTED), selected) + (rest > 0 ? `<p class="small muted">И ещё аниме: ${rest}. Все есть в таблице ниже.</p>` : '');
+}
+
+function renderStats() {
+  if ($('view-stats').hidden) return;
+  const names = [...new Set(heroes.map((h) => h.title || E.NO_TITLE))].sort((a, b) => a.localeCompare(b, 'ru'));
+  if (statState.title && !names.includes(statState.title)) statState.title = '';
+  const stats = E.statsFor(heroes, { ...statState, events: settings.showEvents });
+  statData = { stats, sections: E.statsSections(stats), note: E.statsNote(stats, dateText(new Date())) };
+
+  $('statRanks').innerHTML = [`<button class="chip" data-stat-rank="" aria-pressed="${!statState.rank}">Все ранги</button>`,
+    ...E.RANKS.map((r) => `<button class="chip" data-stat-rank="${r}" aria-pressed="${statState.rank === r}"><b>${r}</b></button>`)].join('');
+  $('statClasses').innerHTML = [`<button class="chip" data-stat-cls="" aria-pressed="${!statState.cls}">Все классы</button>`,
+    ...E.CLASSES.map((c) => `<button class="chip" data-stat-cls="${esc(c)}" aria-pressed="${statState.cls === c}">${ICONS[c]} ${esc(c)}</button>`)].join('');
+  $('statTitle').innerHTML = '<option value="">Все аниме</option>' + names.map((t) => `<option value="${esc(t)}"${t === statState.title ? ' selected' : ''}>${esc(t)}</option>`).join('');
+  $('statEvents').setAttribute('aria-pressed', String(settings.showEvents));
+  $('statEvents').textContent = `${EVENT_MARK} Считать ивент-карты`;
+  $('statReset').hidden = !statState.rank && !statState.cls && !statState.title;
+
+  const tile = (label, value) => `<div class="stat-tile"><span class="small muted">${label}</span><b>${fmt(value)}</b></div>`;
+  const best = stats.best
+    ? `<div class="stat-tile text"><span class="small muted" title="Больше всего карт S-ранга и выше среди аниме от 20 карт">Самое элитное аниме</span><b>${esc(stats.best.title)}</b><span class="small muted">S и выше: ${pct(stats.best.elite)}, ${fmt(stats.best.eliteCount)} из ${fmt(stats.best.total)}</span></div>`
+    : '';
+  $('statTiles').innerHTML = tile('Карт', stats.total) + tile('Аниме', stats.titleCount) + tile('Скинов', stats.skins) + tile('Ивент-карт', stats.events) + best;
+
+  if (!heroes.length) {
+    $('statCharts').innerHTML = `<p class="empty">${loaded ? 'Героев пока нет.' : 'Загружаю героев…'}</p>`;
+    return;
+  }
+  $('statCharts').innerHTML = [
+    statCard('ranks', 'Карты по рангам', statRanksBody(stats)),
+    statCard('classes', 'Карты по классам', statClassesBody(stats)),
+    statCard('grid', 'Классы внутри рангов', statGridBody(stats), true),
+    statCard('titles', 'Карты по аниме', statRows(stats.titles, stats.filter.title)),
+    statCard('tiers', 'Ранги внутри аниме', statTiersBody(stats)),
+    statCard('records', 'Рекорды рангов', statRecordsBody(stats), true),
+    statCard('skins', 'Скины по аниме', statTopBody(stats.skinTitles, stats.filter.title, 'Скинов нет.')),
+    statCard('events', 'Ивент-карты по аниме', statTopBody(stats.eventTitles, stats.filter.title, settings.showEvents ? 'Ивент-карт нет.' : 'Ивент-карты сейчас не считаются.')),
+  ].join('');
+}
+
+// Картинки статистики в тёмной теме Telegram, с теми же проверенными цветами, что и на странице.
+const STAT_IMAGE = {
+  cls: { 'Дамагер': '#dd6830', 'Танк': '#5290d6', 'Саппорт': '#36a768', 'Гибрид': '#a678de' },
+  bar: '#bb95f0',
+  tiers: ['#e2ccff', '#bb95f0', '#9b7cd2', '#7f61b5', '#655198'],
+};
+
+function statFrame(section, width, height, draw) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width * IMAGE.scale;
+  canvas.height = height * IMAGE.scale;
+  canvas.style.width = `${width}px`;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(IMAGE.scale, IMAGE.scale);
+  ctx.fillStyle = IMAGE.bg;
+  ctx.fillRect(0, 0, width, height);
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = IMAGE.fg;
+  ctx.font = `600 20px ${IMAGE.font}`;
+  ctx.fillText(section.title, IMAGE.pad, 28);
+  ctx.fillStyle = IMAGE.muted;
+  ctx.font = `13px ${IMAGE.font}`;
+  ctx.fillText(section.scope, IMAGE.pad, 50);
+  draw(ctx);
+  return canvas;
+}
+
+function statBar(ctx, x, y, w, h, radii, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, radii);
+  else ctx.rect(x, y, w, h);
+  ctx.fill();
+}
+
+const textWidth = (list, font) => {
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.font = font;
+  return Math.ceil(Math.max(0, ...list.map((t) => ctx.measureText(t).width)));
+};
+
+function statRanksImage(section, stats) {
+  const width = 620;
+  const top = 76;
+  const plot = 210;
+  const list = [...stats.ranks].reverse();
+  const max = Math.max(1, ...list.map((r) => r.count));
+  const band = (width - IMAGE.pad * 2) / list.length;
+  return statFrame(section, width, top + plot + 50, (ctx) => {
+    ctx.textAlign = 'center';
+    const base = top + plot;
+    list.forEach((r, i) => {
+      const x = IMAGE.pad + band * i + band / 2;
+      const h = r.count ? Math.max(2, r.count / max * (plot - 26)) : 0;
+      statBar(ctx, x - 12, base - h, 24, h, [4, 4, 0, 0], STAT_IMAGE.bar);
+      ctx.fillStyle = IMAGE.muted;
+      ctx.font = `12px ${IMAGE.font}`;
+      ctx.fillText(pct(r.share), x, base - h - 11);
+      ctx.fillStyle = IMAGE.fg;
+      ctx.font = `600 15px ${IMAGE.font}`;
+      ctx.fillText(r.key, x, base + 18);
+    });
+    ctx.fillStyle = IMAGE.grid;
+    ctx.fillRect(IMAGE.pad, base, width - IMAGE.pad * 2, 1);
+    ctx.textAlign = 'left';
+  });
+}
+
+function statClassesImage(section, stats) {
+  const width = 560;
+  const size = 200;
+  const top = 76;
+  return statFrame(section, width, top + size + 20, (ctx) => {
+    const cx = IMAGE.pad + size / 2;
+    const cy = top + size / 2;
+    const live = stats.classes.filter((c) => c.count);
+    const gap = live.length > 1 ? 0.03 : 0;
+    let angle = -Math.PI / 2;
+    ctx.lineWidth = 30;
+    live.forEach((c) => {
+      const sweep = c.share * Math.PI * 2;
+      ctx.strokeStyle = STAT_IMAGE.cls[c.key];
+      ctx.beginPath();
+      ctx.arc(cx, cy, size / 2 - 16, angle + gap / 2, angle + sweep - gap / 2);
+      ctx.stroke();
+      angle += sweep;
+    });
+    ctx.textAlign = 'center';
+    ctx.fillStyle = IMAGE.fg;
+    ctx.font = `600 24px ${IMAGE.font}`;
+    ctx.fillText(fmt(stats.classes.reduce((a, c) => a + c.count, 0)), cx, cy - 6);
+    ctx.fillStyle = IMAGE.muted;
+    ctx.font = `13px ${IMAGE.font}`;
+    ctx.fillText('карт', cx, cy + 16);
+    ctx.textAlign = 'left';
+    const x = IMAGE.pad + size + 28;
+    stats.classes.forEach((c, i) => {
+      const y = top + 42 + i * 36;
+      statBar(ctx, x, y - 7, 14, 14, 3, STAT_IMAGE.cls[c.key]);
+      ctx.fillStyle = IMAGE.fg;
+      ctx.font = `15px ${IMAGE.font}`;
+      ctx.fillText(`${ICONS[c.key]} ${c.key}`, x + 22, y);
+      ctx.fillStyle = IMAGE.muted;
+      ctx.font = `14px ${IMAGE.font}`;
+      ctx.textAlign = 'right';
+      ctx.fillText(`${fmt(c.count)} · ${pct(c.share)}`, width - IMAGE.pad, y);
+      ctx.textAlign = 'left';
+    });
+  });
+}
+
+// Смешение цвета с фоном картинки: то же, что color-mix на странице.
+function mixHex(hex, base, share) {
+  const part = (s, i) => parseInt(s.slice(i, i + 2), 16);
+  const channel = (i) => Math.round(part(hex, i) * share + part(base, i) * (1 - share)).toString(16).padStart(2, '0');
+  return `#${channel(1)}${channel(3)}${channel(5)}`;
+}
+
+function statGridImage(section, stats) {
+  const cell = 104;
+  const left = 56;
+  const rowH = 44;
+  const top = 106;
+  const width = IMAGE.pad * 2 + left + cell * 4 + 70;
+  const height = top + rowH * stats.grid.length + 44;
+  return statFrame(section, width, height, (ctx) => {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = IMAGE.muted;
+    ctx.font = `13px ${IMAGE.font}`;
+    E.CLASSES.forEach((c, i) => ctx.fillText(`${ICONS[c]} ${c}`, IMAGE.pad + left + cell * i + cell / 2, top - 16));
+    ctx.fillText('Всего', IMAGE.pad + left + cell * 4 + 35, top - 16);
+    stats.grid.forEach((row, r) => {
+      const y = top + rowH * r;
+      ctx.fillStyle = IMAGE.fg;
+      ctx.font = `600 15px ${IMAGE.font}`;
+      ctx.fillText(row.rank, IMAGE.pad + left / 2, y + rowH / 2);
+      row.cells.forEach((c, i) => {
+        const x = IMAGE.pad + left + cell * i;
+        const mix = c.count && stats.gridMax ? Math.max(0.06, c.share / stats.gridMax * 0.85) : 0;
+        statBar(ctx, x + 1, y + 1, cell - 2, rowH - 2, 4, mixHex(STAT_IMAGE.bar, IMAGE.bg, mix));
+        ctx.fillStyle = mix >= 0.6 ? '#15121f' : IMAGE.fg;
+        ctx.font = `600 15px ${IMAGE.font}`;
+        ctx.fillText(fmt(c.count), x + cell / 2, y + 15);
+        ctx.font = `12px ${IMAGE.font}`;
+        ctx.fillText(pct(c.share), x + cell / 2, y + 31);
+      });
+      ctx.fillStyle = IMAGE.muted;
+      ctx.font = `14px ${IMAGE.font}`;
+      ctx.fillText(fmt(row.total), IMAGE.pad + left + cell * 4 + 35, y + rowH / 2);
+    });
+    ctx.textAlign = 'left';
+    ctx.fillStyle = IMAGE.muted;
+    ctx.font = `12px ${IMAGE.font}`;
+    ctx.fillText(`Цвет: доля класса внутри ранга, самая большая ${pct(stats.gridMax)}`, IMAGE.pad, height - 22);
+  });
+}
+
+function statRowsImage(section, list) {
+  const labelFont = `15px ${IMAGE.font}`;
+  const valueFont = `13px ${IMAGE.font}`;
+  const labelW = textWidth(list.map((r) => r.key), labelFont);
+  const values = list.map((r) => `${fmt(r.count)} · ${pct(r.share)}`);
+  const valueW = textWidth(values, valueFont);
+  const width = Math.max(560, IMAGE.pad * 2 + labelW + 12 + 240 + 12 + valueW);
+  const rowH = 28;
+  const top = 76;
+  const max = Math.max(1, ...list.map((r) => r.count));
+  const barW = width - IMAGE.pad * 2 - labelW - valueW - 24;
+  return statFrame(section, width, top + rowH * list.length + 12, (ctx) => {
+    list.forEach((r, i) => {
+      const y = top + rowH * i + rowH / 2;
+      ctx.fillStyle = IMAGE.fg;
+      ctx.font = labelFont;
+      ctx.fillText(r.key, IMAGE.pad, y);
+      statBar(ctx, IMAGE.pad + labelW + 12, y - 8, Math.max(2, r.count / max * barW), 16, [0, 4, 4, 0], STAT_IMAGE.bar);
+      ctx.fillStyle = IMAGE.muted;
+      ctx.font = valueFont;
+      ctx.textAlign = 'right';
+      ctx.fillText(values[i], width - IMAGE.pad, y);
+      ctx.textAlign = 'left';
+    });
+  });
+}
+
+function statTiersImage(section, stats) {
+  const labelFont = `15px ${IMAGE.font}`;
+  const list = stats.tiers.filter((t) => !t.small);
+  const rows = list.length ? list : stats.tiers;
+  const labelW = textWidth(rows.map((t) => t.title), labelFont);
+  const width = Math.max(620, IMAGE.pad * 2 + labelW + 12 + 300 + 12 + 70);
+  const rowH = 28;
+  const top = 104;
+  const left = IMAGE.pad + labelW + 12;
+  const barW = width - left - IMAGE.pad - 82;
+  return statFrame(section, width, top + rowH * rows.length + 12, (ctx) => {
+    let legend = IMAGE.pad;
+    E.STAT_TIERS.forEach((tier, i) => {
+      statBar(ctx, legend, 70, 12, 12, 3, STAT_IMAGE.tiers[i]);
+      ctx.fillStyle = IMAGE.muted;
+      ctx.font = `13px ${IMAGE.font}`;
+      ctx.fillText(tier.label, legend + 17, 76);
+      legend += 17 + ctx.measureText(tier.label).width + 16;
+    });
+    rows.forEach((t, r) => {
+      const y = top + rowH * r + rowH / 2;
+      ctx.fillStyle = IMAGE.fg;
+      ctx.font = labelFont;
+      ctx.fillText(t.title, IMAGE.pad, y);
+      let x = left;
+      const live = t.counts.filter(Boolean).length;
+      const room = barW - 2 * (live - 1);
+      let drawn = 0;
+      t.counts.forEach((count, i) => {
+        if (!count) return;
+        drawn += 1;
+        const w = Math.max(2, count / t.total * room);
+        const radii = [drawn === 1 ? 4 : 0, drawn === live ? 4 : 0, drawn === live ? 4 : 0, drawn === 1 ? 4 : 0];
+        statBar(ctx, x, y - 8, w, 16, radii, STAT_IMAGE.tiers[i]);
+        x += w + 2;
+      });
+      ctx.fillStyle = IMAGE.muted;
+      ctx.font = `13px ${IMAGE.font}`;
+      ctx.textAlign = 'right';
+      ctx.fillText(`S+ ${pct(t.elite)}`, width - IMAGE.pad, y);
+      ctx.textAlign = 'left';
+    });
+  });
+}
+
+function statRecordsImage(section) {
+  const font = `15px ${IMAGE.font}`;
+  const rows = [section.head, ...section.rows];
+  const widths = section.head.map((_, col) => textWidth(rows.map((r) => r[col]), font) + IMAGE.cell * 2);
+  const tableW = widths.reduce((a, b) => a + b, 0);
+  const rowH = 34;
+  const top = 72;
+  const width = Math.max(tableW + IMAGE.pad * 2, 420);
+  return statFrame(section, width, top + rowH * rows.length + IMAGE.pad, (ctx) => {
+    ctx.strokeStyle = IMAGE.grid;
+    ctx.lineWidth = 1;
+    rows.forEach((row, r) => {
+      let x = IMAGE.pad;
+      row.forEach((text, col) => {
+        ctx.strokeRect(x + 0.5, top + rowH * r + 0.5, widths[col], rowH);
+        ctx.fillStyle = r ? IMAGE.fg : IMAGE.muted;
+        ctx.font = font;
+        ctx.fillText(text, x + IMAGE.cell, top + rowH * r + rowH / 2);
+        x += widths[col];
+      });
+    });
+  });
+}
+
+function statImage(id) {
+  const { stats, sections } = statData;
+  const section = sections.find((s) => s.id === id);
+  if (id === 'ranks') return statRanksImage(section, stats);
+  if (id === 'classes') return statClassesImage(section, stats);
+  if (id === 'grid') return statGridImage(section, stats);
+  if (id === 'titles') return statRowsImage(section, stats.titles);
+  if (id === 'tiers') return statTiersImage(section, stats);
+  if (id === 'skins') return statRowsImage(section, stats.skinTitles);
+  if (id === 'events') return statRowsImage(section, stats.eventTitles);
+  return statRecordsImage(section);
+}
+
+function renderSide(side, label) {
+  const c = compare[side];
+  $(side === 'a' ? 'sideA' : 'sideB').innerHTML = `
+    <h2>${label}</h2>
+    <label class="field">Герой
+      <input id="${side}-query" list="heroList" value="${esc(c.query)}" placeholder="Начни вводить имя">
+    </label>
+    <div class="row">
+      <label class="field">Уровень <input id="${side}-level" type="number" min="1" max="200" value="${c.level}"></label>
+      <label class="check"><input id="${side}-skin" type="checkbox"${c.skin ? ' checked' : ''}> Скин 🎭</label>
+    </div>
+    <div class="small muted" id="${side}-info"></div>`;
+}
+
+function findHero(query) {
+  const q = E.normName(query);
+  if (!q) return null;
+  return heroes.find((h) => E.normName(h.name) === q) || heroes.find((h) => E.normName(h.name).includes(q)) || null;
+}
+
+function pickHero(side) {
+  const c = compare[side];
+  const hero = findHero(c.query);
+  if (!hero) return null;
+  const factor = E.levelFactor(c.level || 1, c.skin);
+  return { ...hero, bm: hero.baseBm * factor, hp: hero.baseHp * factor };
+}
+
+function plainLine(att, def) {
+  const r = E.plainFight(att, def, settings.maxMoves);
+  const winner = r.result === 0.5 ? 'Ничья' : `Побеждает ${r.result === 1 ? att.name : def.name}`;
+  const finish = r.hpA > 0 && r.hpB > 0 ? `дошли до лимита в ${r.moves} ходов` : `бой закончился на ${r.moves}-м ходу`;
+  return `<tr>
+    <td class="left">${esc(att.name)}</td>
+    <td class="left">${esc(winner)}</td>
+    <td class="left">${esc(finish)}</td>
+    <td>${fmt(r.hpA)}</td><td>${fmt(r.hpB)}</td>
+  </tr>`;
+}
+
+function renderVerdict() {
+  const a = pickHero('a');
+  const b = pickHero('b');
+  ['a', 'b'].forEach((side) => {
+    const h = side === 'a' ? a : b;
+    const info = $(`${side}-info`);
+    if (!info) return;
+    info.textContent = h
+      ? `${h.rank} · ${ICONS[h.cls]} ${h.cls} · БМ ${fmt(h.bm)} · ЖВ ${fmt(h.hp)}`
+      : 'Такого героя нет в базе';
+  });
+  $('compareModes').innerHTML = [['skills', 'С навыками'], ['plain', 'Без навыков'], ['both', 'Оба варианта']]
+    .map(([mode, label]) => `<button class="chip" data-compare-mode="${mode}" aria-pressed="${settings.compareMode === mode}">${label}</button>`)
+    .join('');
+  if (!a || !b) {
+    $('verdict').hidden = false;
+    $('verdict').innerHTML = '<p class="muted">Выбери двух героев из базы.</p>';
+    $('verdictPlain').hidden = true;
+    return;
+  }
+  const showSkills = settings.compareMode !== 'plain';
+  const showPlain = settings.compareMode !== 'skills';
+  $('verdict').hidden = !showSkills;
+  $('verdictPlain').hidden = !showPlain;
+  if (showPlain) renderPlainVerdict(a, b);
+  if (!showSkills) return;
+  const runs = 100000;
+  const aFirst = pairRate(a, b, runs, settings.maxMoves);
+  const bFirst = pairRate(b, a, runs, settings.maxMoves);
+  const overallA = (aFirst + (1 - bFirst)) / 2;
+  $('verdict').innerHTML = `
+    <h2>С навыками</h2>
+    <div class="verdict">
+      <div><span class="small muted">Нападает: ${esc(a.name)}</span><span class="big">${pct(aFirst)}</span><span class="small muted">Шанс победы: ${esc(a.name)}</span></div>
+      <div><span class="small muted">Нападает: ${esc(b.name)}</span><span class="big">${pct(bFirst)}</span><span class="small muted">Шанс победы: ${esc(b.name)}</span></div>
+      <div><span class="small muted">В среднем за обе стороны</span><span class="big">${pct(overallA)}</span><span class="small muted">Шанс победы: ${esc(a.name)}</span></div>
+    </div>
+    <p class="small muted">Каждая сторона считается по ${fmt(runs)} боёв.</p>`;
+}
+
+function renderPlainVerdict(a, b) {
+  $('verdictPlain').innerHTML = `
+    <h2>Без навыков</h2>
+    <div class="table-box"><table>
+      <thead><tr>
+        <th class="left">Нападает</th><th class="left">Итог</th><th class="left">Как закончился</th>
+        <th>ЖВ: нападающий</th><th>ЖВ: защитник</th>
+      </tr></thead>
+      <tbody>${plainLine(a, b)}${plainLine(b, a)}</tbody>
+    </table></div>
+    <p class="small muted">Только обычные удары без уклонений. Саппорт лечит 10% ЖВ каждый второй свой ход.</p>`;
+}
+
+function renderCompare() {
+  $('heroList').innerHTML = heroes.map((h) => `<option value="${esc(h.name)}">${h.rank} · ${h.cls}</option>`).join('');
+  renderSide('a', 'Первый герой');
+  renderSide('b', 'Второй герой');
+  renderVerdict();
+}
+
+function renderHeroesTab() {
+  const rankOptions = E.RANKS.filter((r) => heroes.some((h) => h.rank === r));
+  const rankValue = $('hRank').value;
+  $('hRank').innerHTML = '<option value="">Все ранги</option>' +
+    rankOptions.map((r) => `<option value="${r}"${r === rankValue ? ' selected' : ''}>${r}</option>`).join('');
+  const classValue = $('hClass').value;
+  $('hClass').innerHTML = '<option value="">Все классы</option>' +
+    E.CLASSES.map((c) => `<option value="${c}"${c === classValue ? ' selected' : ''}>${c}</option>`).join('');
+
+  const dup = E.removeDuplicates(titles);
+  $('dupeBar').hidden = !dup.removed;
+  $('dupeText').textContent = `Найдено точных копий героев: ${dup.removed}. Копии удалятся, скины и места сохранятся.`;
+  $('dupeRemove').disabled = !canWrite;
+
+  const q = E.normName($('hSearch').value);
+  const filter = $('hFilter').value;
+  const nameCounts = new Map();
+  heroes.forEach((h) => {
+    const k = `${h.rank}|${E.normName(h.name)}`;
+    nameCounts.set(k, (nameCounts.get(k) || 0) + 1);
+  });
+  const rankOrder = (r) => E.RANKS.indexOf(r);
+  const found = heroes
+    .filter((h) => !q || E.normName(h.name).includes(q) || E.normName(h.title).includes(q))
+    .filter((h) => !$('hRank').value || h.rank === $('hRank').value)
+    .filter((h) => !$('hClass').value || h.cls === $('hClass').value)
+    .filter((h) => {
+      if (filter === 'skin') return !!h.skin;
+      if (filter === 'noskin') return !h.skin;
+      if (filter === 'event') return !!h.event;
+      if (filter === 'repeat') return nameCounts.get(`${h.rank}|${E.normName(h.name)}`) > 1;
+      return true;
+    })
+    .sort((a, b) => (rankOrder(a.rank) - rankOrder(b.rank)) || a.name.localeCompare(b.name, 'ru'));
+
+  const skins = heroes.filter((h) => h.skin).length;
+  const events = heroes.filter((h) => h.event).length;
+  $('hCount').textContent = `Найдено: ${fmt(found.length)}. Со скином в базе: ${fmt(skins)}. Ивент-карт: ${fmt(events)}.` +
+    (found.length > HERO_ROW_LIMIT ? ` Показаны первые ${HERO_ROW_LIMIT}, уточни поиск.` : '');
+
+  const rows = found.slice(0, HERO_ROW_LIMIT).map((h) => `<tr>
+    <td class="left hero"><strong>${esc(h.name)}</strong><span>${esc(h.title)}</span></td>
+    <td class="left">${h.rank}</td>
+    <td class="left">${ICONS[h.cls]} ${h.cls}</td>
+    <td>${fmt(h.baseBm)}</td><td>${fmt(h.baseHp)}</td>
+    <td class="left"><label class="skin-toggle"><input type="checkbox" data-skin="${esc(h.key)}"${h.skin ? ' checked' : ''}${canWrite ? '' : ' disabled'}> 🎭</label></td>
+    <td class="left"><label class="skin-toggle"><input type="checkbox" data-event="${esc(h.key)}"${h.event ? ' checked' : ''}${canWrite ? '' : ' disabled'}> ${EVENT_MARK}</label></td>
+    <td>${canWrite ? `<button class="btn ghost mini" data-remove="${esc(h.key)}">Удалить</button>` : ''}</td>
+  </tr>`).join('');
+  $('heroTable').innerHTML = `<thead><tr>
+    <th class="left">Герой</th><th class="left">Ранг</th><th class="left">Класс</th>
+    <th>БМ</th><th>ЖВ</th><th class="left">Скин</th><th class="left">Ивент</th><th></th>
+  </tr></thead><tbody>${rows || '<tr><td colspan="8" class="empty">Никого не нашлось. Измени поиск или фильтры.</td></tr>'}</tbody>`;
+}
+
+function renderSeasons() {
+  $('seasonSave').disabled = !canWrite || !heroes.length;
+  const latest = seasons[seasons.length - 1];
+  if (latest) {
+    const docs = seasonDocs.get(latest.id);
+    $('seasonDiffCard').hidden = false;
+    $('seasonDiffTitle').textContent = `Что изменилось после сезона «${latest.name}»`;
+    if (!docs) {
+      requestSeason(latest.id);
+      $('seasonDiff').textContent = 'Загружаю…';
+    } else {
+      const old = docs.flatMap((t) => (t.heroes || []).map((h) => ({ ...h, title: t.title })));
+      const matches = E.matchSeason(heroes, old);
+      let fresh = 0, skinsAdded = 0, changed = 0;
+      heroes.forEach((h) => {
+        const o = matches.get(h);
+        if (!o) { fresh += 1; return; }
+        if (h.skin && !o.skin) skinsAdded += 1;
+        if (o.bm !== h.baseBm || o.hp !== h.baseHp) changed += 1;
+      });
+      const oldTitles = new Set(docs.map((t) => E.normName(t.title)));
+      const newTitles = titles.filter((t) => !oldTitles.has(E.normName(t.title))).length;
+      $('seasonDiff').textContent = `Новых тайтлов: ${newTitles}. Новых героев: ${fmt(fresh)}. Новых скинов: ${skinsAdded}. Героев с другими статами: ${changed}.`;
+    }
+  } else {
+    $('seasonDiffCard').hidden = true;
+  }
+  const dateText = (iso) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('ru-RU');
+  };
+  $('seasonRows').innerHTML = seasons.length
+    ? [...seasons].reverse().map((s) => `<div>
+        <span>${esc(s.name)} <span class="muted small num">${dateText(s.savedAt)} · героев: ${fmt(s.heroCount || 0)}</span></span>
+        <span class="actions">
+          <button class="btn ghost mini" data-season-show="${esc(s.id)}">Показать топ</button>
+          ${canWrite ? `<button class="btn ghost mini" data-season-del="${esc(s.id)}">Удалить</button>` : ''}
+        </span>
+      </div>`).join('')
+    : '<p class="muted">Сезонов пока нет. Сохрани первый, и он станет точкой отсчёта для изменений мест.</p>';
+}
+
+// К какому рангу относится строка: ближайший заголовок ранга выше неё.
+function rankOfLine(marks, index) {
+  for (let i = index; i >= 0; i--) {
+    if (marks[i].status === 'header') return marks[i].reason.replace('Ранг ', '');
+  }
+  return '';
+}
+
+// Метка строки: новый герой, обновление статов или уже есть в базе.
+function heroMark(hero) {
+  const twins = heroes.filter((h) => h.rank === hero.rank && E.sameName(h.name, hero.name));
+  if (twins.some((h) => h.baseBm === hero.bm && h.baseHp === hero.hp)) {
+    return { cls: 'known', glyph: '=', title: 'Уже есть в базе, повторно не добавится' };
+  }
+  const sameTitle = twins.find((h) => E.normName(h.title) === E.normName(hero.title || E.NO_TITLE) || h.title === E.NO_TITLE);
+  if (sameTitle) return { cls: 'changed', glyph: '↻', title: `Статы обновятся: было БМ ${fmt(sameTitle.baseBm)}, ЖВ ${fmt(sameTitle.baseHp)}` };
+  return { cls: 'new', glyph: '✓', title: `Опознан: ${hero.name}, ${hero.rank}, ${hero.cls}, БМ ${fmt(hero.bm)}, ЖВ ${fmt(hero.hp)}` };
+}
+
+function renderAddMarks(rows, marks) {
+  $('addGutter').innerHTML = rows.map((_, i) => {
+    const mark = marks[i];
+    let cell = { cls: '', glyph: '', title: '' };
+    if (mark.status === 'ok') cell = heroMark(mark.hero);
+    if (mark.status === 'bad') cell = { cls: 'bad', glyph: '✗', title: mark.reason };
+    if (mark.status === 'dup') cell = { cls: 'dup', glyph: '!', title: mark.reason };
+    if (mark.status === 'header' || mark.status === 'title') cell = { cls: 'header', glyph: '#', title: mark.reason };
+    return `<div class="${cell.cls}" title="${esc(cell.title)}">${cell.glyph}</div>`;
+  }).join('');
+  $('addGutter').scrollTop = $('addText').scrollTop;
+
+  const problems = marks
+    .map((mark, i) => ({ ...mark, line: i, text: rows[i].trim() }))
+    .filter((p) => p.status === 'bad' || p.status === 'dup');
+  $('addProblems').innerHTML = problems.map((p) => `
+    <button data-line="${p.line}">
+      <span class="where ${p.status}">${p.status === 'bad' ? '✗' : '!'} строка ${p.line + 1}</span>
+      <span><span class="text" style="display:block">${esc(p.text)}</span><span class="why">${esc(p.reason)}</span></span>
+    </button>`).join('');
+}
+
+// Галочка «ивент-карты» ставит отметку на всех героев из вставленного текста.
+function withEventFlag(parsed) {
+  return $('addEvent').checked ? parsed.map((h) => ({ ...h, event: true })) : parsed;
+}
+
+function renderAddPreview() {
+  const text = $('addText').value;
+  const detailed = E.parseDetailed(text, $('addTitle').value.trim());
+  const parsed = withEventFlag(detailed.heroes);
+  const counts = E.catalogCounts(text);
+  const plan = E.planImport(titles, parsed);
+  const rows = text.split(/\r?\n/);
+  renderAddMarks(rows, detailed.lines);
+  const countOf = (status) => detailed.lines.filter((l) => l.status === status).length;
+  const lines = [];
+  if (text.trim()) {
+    const bad = countOf('bad');
+    const dup = countOf('dup');
+    lines.push(`<p>Опознано героев: <b>${parsed.length}</b>. Не опознано строк: <b${bad ? ' style="color:var(--bad)"' : ''}>${bad}</b>. Повторов в тексте: <b>${dup}</b>.</p>`);
+    lines.push(`<p>Новых: <b>${plan.added}</b>. Обновятся статы: <b>${plan.updated}</b>. Уже есть в базе и не добавятся: <b>${plan.skipped}</b>.</p>`);
+    if (plan.moved) lines.push(`<p>Получат тайтл: ${plan.moved}.</p>`);
+    if ($('addEvent').checked && parsed.length) lines.push(`<p>${EVENT_MARK} Все опознанные герои будут отмечены как ивент-карты: ${parsed.length}.</p>`);
+    if (!$('addEvent').checked && detailed.listedCount) lines.push(`<p style="color:var(--warn)">Похоже на список ивент-тайтла. Если это ивент-карты, включи галочку ${EVENT_MARK} выше.</p>`);
+    const targets = [...new Set(parsed.map((h) => h.title || E.NO_TITLE))];
+    if (targets.length) lines.push(`<p>Попадут в тайтл: <b>${targets.map(esc).join(', ')}</b>.</p>`);
+    Object.entries(counts).forEach(([rank, n]) => {
+      const got = parsed.filter((h) => h.rank === rank).length;
+      const dupInRank = detailed.lines.filter((l, i) => l.status === 'dup' && rankOfLine(detailed.lines, i) === rank).length;
+      if (got === n) return;
+      const explain = dupInRank && got + dupInRank === n
+        ? `Разница из-за повторов: одинаковые строки считаются одним героем (${dupInRank}).`
+        : 'Посмотри строки с ✗ и нумерацию ниже.';
+      lines.push(`<p style="color:var(--warn)">Ранг ${esc(rank)}: каталог обещает ${n}, опознано ${got}. ${explain}</p>`);
+    });
+    detailed.gaps.forEach((gap) => {
+      const numbers = gap.from === gap.to ? `№${gap.from}` : `№${gap.from}–${gap.to}`;
+      lines.push(`<p style="color:var(--warn)">Ранг ${esc(gap.rank)}: в нумерации нет ${numbers}. Такой строки нет в вставленном тексте.</p>`);
+    });
+    const noTitle = parsed.filter((h) => !h.title).length;
+    if (noTitle) lines.push(`<p style="color:var(--warn)">У героев без тайтла: ${noTitle}. Укажи его в поле выше, иначе они попадут в «${E.NO_TITLE}».</p>`);
+    if (!parsed.length) lines.push('<p style="color:var(--warn)">Героев не нашёл. Нужен текст из бота со статами, рангом и классом.</p>');
+    else if (!plan.writes.length && !plan.deletes.length) lines.push('<p>Все эти герои уже есть, сохранять нечего.</p>');
+  }
+  $('addPreview').innerHTML = lines.join('');
+  $('addSave').disabled = !canWrite || !(plan.writes.length || plan.deletes.length);
+}
+
+async function saveAdded() {
+  const parsed = withEventFlag(E.parseMessages($('addText').value, $('addTitle').value.trim()));
+  const plan = E.planImport(titles, parsed);
+  $('addSave').disabled = true;
+  $('addResult').textContent = 'Сохраняю…';
+  try {
+    await applyDocs(plan.writes, plan.deletes);
+    const place = db ? 'в базе' : 'в этом браузере';
+    $('addResult').textContent = `Сохранено ${place}. Новых: ${plan.added}, обновлено: ${plan.updated}, повторы пропущены: ${plan.skipped}.`;
+    // Тайтл очищается, чтобы следующий список случайно не попал под старое название.
+    $('addText').value = '';
+    $('addTitle').value = '';
+    $('addEvent').checked = false;
+    renderAddPreview();
+  } catch (e) {
+    $('addResult').textContent = writeError(e);
+    $('addSave').disabled = false;
+  }
+}
+
+const sortedTitles = () => E.sortTitles(titles, settings.titleSort, settings.titleDir);
+let titleDrag = null;
+
+function renderTitles() {
+  if (titleDrag) return;
+  const byDate = settings.titleSort === 'date';
+  const arrow = (mode, up, down) => (settings.titleSort === mode ? (settings.titleDir === 1 ? up : down) : '');
+  $('titleSort').innerHTML = [
+    ['alpha', `По алфавиту ${arrow('alpha', 'А–Я', 'Я–А')}`],
+    ['date', `По дате ${arrow('date', '(новые сверху)', '(старые сверху)')}`],
+    ['count', `По числу героев ${arrow('count', '↓', '↑')}`],
+  ].map(([mode, label]) => `<button class="chip" data-title-sort="${mode}" aria-pressed="${settings.titleSort === mode}">${label.trim()}</button>`).join('');
+  $('titleSortHint').hidden = !byDate;
+  $('titleSortHint').textContent = `${settings.titleDir === 1 ? 'Новые сверху' : 'Старые сверху'}, тайтлы без даты в конце. Нажми на кнопку ещё раз, чтобы поменять порядок.` +
+    (canWrite ? ' Укажи дату в строке или перетащи тайтл за ⠿. Если перетащить его к другой дате, он получит дату соседа.' : '');
+
+  const sorted = sortedTitles();
+  $('titleRows').innerHTML = sorted.length
+    ? sorted.map((t, i) => {
+      const list = t.heroes || [];
+      const eventCount = list.filter((h) => h.event).length;
+      const allEvents = list.length > 0 && eventCount === list.length;
+      const handle = byDate && canWrite ? '<span class="handle" data-drag title="Перетащи, чтобы поменять порядок">⠿</span>' : '';
+      const dateCell = byDate
+        ? (canWrite
+          ? `<input class="date-input" type="date" data-title-date="${esc(t.id)}" value="${esc(t.addedAt || '')}" aria-label="Дата добавления: ${esc(t.title)}">`
+          : `<span class="muted small num">${esc(t.addedAt || 'без даты')}</span>`)
+        : '';
+      const moves = byDate && canWrite
+        ? `<button class="btn ghost mini" data-move="-1" aria-label="Выше: ${esc(t.title)}"${i === 0 ? ' disabled' : ''}>↑</button>
+           <button class="btn ghost mini" data-move="1" aria-label="Ниже: ${esc(t.title)}"${i === sorted.length - 1 ? ' disabled' : ''}>↓</button>`
+        : '';
+      return `<div class="title-row" data-title-id="${esc(t.id)}">
+        <span class="title-main">${handle}<span>${esc(t.title)} <span class="muted small num">${list.length}${eventCount ? ` · ${EVENT_MARK} ${eventCount}` : ''}</span></span></span>
+        <span class="actions">
+          ${dateCell}${moves}
+          ${canWrite ? `<button class="btn ghost mini" data-events-all="${esc(t.id)}" data-on="${allEvents ? '0' : '1'}">${allEvents ? 'Снять ивент со всех' : `${EVENT_MARK} Отметить всех`}</button>
+          <button class="btn ghost mini" data-del="${esc(t.id)}">Удалить</button>` : ''}
+        </span></div>`;
+    }).join('')
+    : '<p class="muted">Пока пусто.</p>';
+  const byName = E.sortTitles(titles, 'alpha', 1);
+  $('titleList').innerHTML = byName.map((t) => `<option value="${esc(t.title)}">`).join('');
+}
+
+function moveTitle(id, toIndex) {
+  updateTitleFields(E.planTitleMove(sortedTitles(), id, toIndex, settings.titleDir));
+}
+
+function renderRules() {
+  $('maxMoves').value = settings.maxMoves;
+  $('runs').value = String(settings.runs);
+  $('formulaFields').innerHTML = E.CLASSES.map((c) => `
+    <div class="row">
+      <label class="field">${ICONS[c]} ${c}: × БМ <input type="number" step="0.5" min="0" data-f="${c}" data-k="bm" value="${settings.formula[c].bm}"></label>
+      <label class="field">× ЖВ <input type="number" step="0.05" min="0" data-f="${c}" data-k="hp" value="${settings.formula[c].hp}"></label>
+    </div>`).join('');
+  $('ruleList').innerHTML = RULES.map(([kind, text]) => `<li><span class="pill ${kind === 'guess' ? 'guess' : 'ok'}">${RULE_LABELS[kind]}</span><span>${esc(text)}</span></li>`).join('');
+}
+
+function renderAll() {
+  const count = titles.length;
+  $('total').textContent = loaded ? `${fmt(heroes.length)} героев · тайтлов: ${count}` : 'Загружаю героев…';
+  renderRanking();
+  renderTitles();
+  renderAddPreview();
+  if (!$('view-compare').hidden) renderCompare();
+  if (!$('view-heroes').hidden) renderHeroesTab();
+  if (!$('view-seasons').hidden) renderSeasons();
+  renderStats();
+}
+
+const currentTab = () => {
+  const selected = document.querySelector('nav [aria-selected="true"]');
+  return selected ? selected.dataset.tab : 'top';
+};
+
+// Шаги назад для кнопки «Назад» в Telegram: вкладка и открытая карточка.
+const tabTrail = [];
+let goingBack = false;
+function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
+  if (!goingBack && (before.tab !== tab || (tab === 'card' && before.card !== cardState.id))) {
+    tabTrail.push(before);
+    if (tabTrail.length > 30) tabTrail.shift();
+  }
+  if (tg) {
+    if (tabTrail.length) tg.BackButton.show();
+    else tg.BackButton.hide();
+  }
+  document.querySelectorAll('nav button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  ['top', 'compare', 'card', 'collection', 'news', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
+  if (tab === 'card') renderCard();
+  if (tab === 'collection') renderCollection();
+  if (tab === 'news') renderNews();
+  if (tab === 'stats') renderStats();
+  if (tab === 'export') renderExport();
+  if (tab === 'compare') renderCompare();
+  if (tab === 'rules') renderRules();
+  if (tab === 'top') renderTop();
+  if (tab === 'heroes') renderHeroesTab();
+  if (tab === 'seasons') renderSeasons();
+}
+
+// Удаление в два нажатия: диалоги подтверждения на странице недоступны.
+function armed(button) {
+  if (button.dataset.armed === '1') return true;
+  button.dataset.armed = '1';
+  button.classList.add('armed');
+  button.textContent = 'Точно удалить?';
+  return false;
+}
+
+document.querySelector('nav').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tab]');
+  if (b) showTab(b.dataset.tab);
+});
+$('rankChips').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-rank]');
+  if (b) { state.rank = b.dataset.rank; renderTop(); }
+});
+$('classChips').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cls]');
+  if (b) { state.cls = b.dataset.cls; renderTop(); }
+});
+function onModeChip(e) {
+  const mode = e.target.closest('[data-mode]');
+  const skins = e.target.closest('[data-skins]');
+  const events = e.target.closest('[data-events]');
+  if (mode) settings.mode = mode.dataset.mode;
+  else if (skins) settings.showSkins = !settings.showSkins;
+  else if (events) settings.showEvents = !settings.showEvents;
+  else return;
+  saveSettings();
+  renderRanking();
+}
+$('modeChips').addEventListener('click', onModeChip);
+$('exportModes').addEventListener('click', onModeChip);
+$('exportClasses').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cls]');
+  if (b) { state.cls = b.dataset.cls; renderExport(); }
+});
+$('exportRanks').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-rank]');
+  if (b) {
+    if (exportState.ranks.has(b.dataset.rank)) exportState.ranks.delete(b.dataset.rank);
+    else exportState.ranks.add(b.dataset.rank);
+  } else if (e.target.closest('[data-all-ranks]')) {
+    const all = e.target.closest('[data-all-ranks]').getAttribute('aria-pressed') === 'true';
+    exportState.ranks = new Set(all ? [] : E.RANKS);
+  } else return;
+  renderExport();
+});
+$('exportLimits').addEventListener('change', (e) => {
+  const rank = e.target.dataset.limitRank;
+  if (!rank) return;
+  const count = parseInt(e.target.value, 10);
+  if (count >= 1) settings.exportLimits[rank] = count;
+  else delete settings.exportLimits[rank];
+  e.target.value = settings.exportLimits[rank] || '';
+  saveSettings();
+  renderExport();
+});
+$('exportFormats').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-format]');
+  if (b) { exportState.format = b.dataset.format; renderExport(); }
+});
+$('exportOut').addEventListener('click', async (e) => {
+  if (!exportData) return;
+  const note = (text) => {
+    const box = e.target.closest('.tools');
+    if (box) box.querySelector('[data-copy-note]').textContent = text;
+  };
+  const article = e.target.closest('[data-copy-article]');
+  const part = e.target.closest('[data-copy-part]');
+  const image = e.target.closest('[data-copy-image]');
+  const save = e.target.closest('[data-save-image]');
+  if (article) {
+    const sections = exportData.articles[Number(article.dataset.copyArticle)];
+    const ok = copyRich(
+      E.exportMessages(exportData.cls, sections, { limit: Infinity, note: exportData.note })[0],
+      E.exportHtml(exportData.cls, sections, exportData.note, !!article.dataset.collapsible),
+    );
+    note(ok ? 'Скопировано' : 'Не вышло. Выдели статью мышью и нажми Ctrl+C.');
+  } else if (part) {
+    const ok = copyRich(exportData.parts[Number(part.dataset.copyPart)]);
+    note(ok ? 'Скопировано' : 'Не вышло. Выдели текст мышью и нажми Ctrl+C.');
+  } else if (image) {
+    try {
+      await copyImage(exportData.canvases[Number(image.dataset.copyImage)].canvas);
+      note('Скопировано');
+    } catch (err) {
+      note('Браузер не дал скопировать. Нажми по картинке правой кнопкой и выбери «Копировать изображение».');
+    }
+  } else if (save) {
+    const { canvas, name } = exportData.canvases[Number(save.dataset.saveImage)];
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    try { await downloads.save({ filename: name, data: blob }); } catch (err) { /* зритель отказался от сохранения */ }
+  }
+});
+// Просмотрщик может сам менять data-theme, но выбор игрока на ползунке важнее.
+const pageRoot = document.documentElement;
+let pageTheme = pageRoot.dataset.theme === 'light' ? 'light' : 'dark';
+let themeTimer = 0;
+function showTheme() {
+  const dark = pageTheme === 'dark';
+  $('themeSwitch').setAttribute('aria-checked', String(dark));
+  if (pageRoot.dataset.theme !== pageTheme) pageRoot.dataset.theme = pageTheme;
+}
+new MutationObserver(showTheme).observe(pageRoot, { attributes: true, attributeFilter: ['data-theme'] });
+$('themeSwitch').addEventListener('click', () => {
+  pageTheme = pageTheme === 'dark' ? 'light' : 'dark';
+  try { localStorage.setItem('ani-theme', pageTheme); } catch (e) { /* выбор просто не запомнится */ }
+  pageRoot.classList.add('theme-anim');
+  clearTimeout(themeTimer);
+  themeTimer = setTimeout(() => pageRoot.classList.remove('theme-anim'), 450);
+  showTheme();
+  paintTelegram();
+});
+showTheme();
+
+// Повторное нажатие снимает выбор. Перерисовка заменяет кнопки, поэтому фокус возвращается на такую же.
+function pickStat(target) {
+  const { statRank: rank, statCls: cls, statTitle: title } = target.dataset;
+  const both = rank !== undefined && cls !== undefined;
+  const same = both && statState.rank === rank && statState.cls === cls;
+  if (both) { statState.rank = same ? '' : rank; statState.cls = same ? '' : cls; }
+  else if (rank !== undefined) statState.rank = statState.rank === rank ? '' : rank;
+  else if (cls !== undefined) statState.cls = statState.cls === cls ? '' : cls;
+  else if (title !== undefined) statState.title = statState.title === title ? '' : title;
+  $('statTip').hidden = true;
+  const box = target.closest('#statRanks, #statClasses, #statCharts');
+  renderStats();
+  const twin = [...box.querySelectorAll('button[data-stat-rank], button[data-stat-cls], button[data-stat-title]')]
+    .find((b) => b.dataset.statRank === rank && b.dataset.statCls === cls && b.dataset.statTitle === title);
+  if (twin && target.tagName === 'BUTTON') twin.focus({ preventScroll: true });
+}
+const statPickSelector = '[data-stat-rank], [data-stat-cls], [data-stat-title]';
+['statRanks', 'statClasses', 'statCharts'].forEach((id) => {
+  $(id).addEventListener('click', (e) => {
+    if (e.target.closest('.stat-table, .stat-preview')) return;
+    const pick = e.target.closest(statPickSelector);
+    if (pick) pickStat(pick);
+  });
+});
+$('statTitle').addEventListener('change', (e) => { statState.title = e.target.value; renderStats(); });
+$('statEvents').addEventListener('click', () => {
+  settings.showEvents = !settings.showEvents;
+  saveSettings();
+  renderStats();
+});
+$('statReset').addEventListener('click', () => {
+  Object.assign(statState, { rank: '', cls: '', title: '' });
+  renderStats();
+});
+$('view-stats').addEventListener('click', (e) => {
+  const article = e.target.closest('[data-stat-article]');
+  if (!article || !statData) return;
+  const ok = copyRich(E.statsText(statData.sections, statData.note), E.statsHtml(statData.sections, statData.note, !!article.dataset.collapsible));
+  $('statArticleNote').textContent = ok ? 'Скопировано. В Telegram: 📎 → «Статья» → Ctrl+V.' : 'Не вышло скопировать. Выдели таблицы мышью и нажми Ctrl+C.';
+});
+$('statCharts').addEventListener('click', async (e) => {
+  const card = e.target.closest('.stat-card');
+  if (!card || !statData) return;
+  const note = (text) => { card.querySelector('[data-stat-note]').textContent = text; };
+  const copy = e.target.closest('[data-stat-copy]');
+  const image = e.target.closest('[data-stat-image]');
+  const save = e.target.closest('[data-stat-save]');
+  if (copy) {
+    const section = statData.sections.find((s) => s.id === copy.dataset.statCopy);
+    const ok = copyRich(E.statsText([section], ''), E.statsTableHtml(section));
+    note(ok ? 'Таблица скопирована' : 'Не вышло. Открой «Таблицей», выдели её мышью и нажми Ctrl+C.');
+  } else if (image) {
+    const canvas = statImage(image.dataset.statImage);
+    const preview = card.querySelector('.stat-preview');
+    preview.replaceChildren(canvas);
+    try {
+      await copyImage(canvas);
+      note('Картинка скопирована, отправляй как фото');
+    } catch (err) {
+      note('Браузер не дал скопировать. Нажми по картинке правой кнопкой и выбери «Копировать изображение».');
+    }
+  } else if (save) {
+    const canvas = statImage(save.dataset.statSave);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    try { await downloads.save({ filename: `stat-${save.dataset.statSave}.png`, data: blob }); } catch (err) { /* зритель отказался от сохранения */ }
+  }
+});
+function moveStatTip(e, mark) {
+  const tip = $('statTip');
+  if (!mark) { tip.hidden = true; return; }
+  const value = document.createElement('b');
+  value.textContent = mark.dataset.tipValue;
+  const label = document.createElement('span');
+  label.textContent = mark.dataset.tipLabel;
+  tip.replaceChildren(value, label);
+  tip.hidden = false;
+  const box = mark.getBoundingClientRect();
+  const x = e.clientX || box.left + box.width / 2;
+  const y = e.clientY || box.top;
+  tip.style.left = `${Math.min(x + 12, window.innerWidth - tip.offsetWidth - 8)}px`;
+  tip.style.top = `${Math.max(8, y - tip.offsetHeight - 10)}px`;
+}
+$('view-stats').addEventListener('pointermove', (e) => moveStatTip(e, e.target.closest('[data-tip-value]')));
+$('view-stats').addEventListener('focusin', (e) => moveStatTip(e, e.target.closest('[data-tip-value]')));
+$('view-stats').addEventListener('focusout', () => { $('statTip').hidden = true; });
+$('view-stats').addEventListener('pointerleave', () => { $('statTip').hidden = true; });
+// Ссылка на героя работает из любой вкладки.
+document.querySelector('.wrap').addEventListener('click', (e) => {
+  const link = e.target.closest('[data-open-card]');
+  if (link) openCard(link.dataset.openCard);
+});
+$('cardSearch').addEventListener('input', (e) => {
+  const id = cardOptions.get(e.target.value);
+  if (id) openCard(id);
+});
+$('cardSearch').addEventListener('change', (e) => {
+  const value = e.target.value.trim();
+  if (!value || cardOptions.has(value)) return;
+  const hero = findHero(value);
+  if (hero) openCard(E.heroId(hero));
+  else $('cardStatus').textContent = 'Такого героя нет. Проверь написание имени.';
+});
+$('cardOut').addEventListener('click', async (e) => {
+  const hero = heroes.find((h) => E.heroId(h) === cardState.id);
+  if (!hero) return;
+  const id = E.heroId(hero);
+  if (e.target.closest('[data-card-own]')) {
+    if (collection[id]) delete collection[id];
+    else collection[id] = { skin: false };
+    saveCollection();
+    renderCard();
+  } else if (e.target.closest('[data-card-skin]')) {
+    collection[id] = { skin: !collection[id].skin };
+    saveCollection();
+    renderCard();
+  } else if (e.target.closest('[data-card-compare]')) {
+    compare.b = { ...compare.a };
+    compare.a = { query: hero.name, level: 1, skin: false };
+    showTab('compare');
+  } else if (e.target.closest('[data-card-link]')) {
+    const link = heroLink(hero);
+    if (tg && link.startsWith('https://t.me/')) {
+      tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(`${hero.name}: карточка героя AniMatrix`)}`);
+      return;
+    }
+    const ok = copyRich(link);
+    $('cardNote').textContent = ok ? 'Ссылка скопирована.' : `Не вышло скопировать. Ссылка: ${link}`;
+  }
+});
+
+$('colRanks').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-col-rank]');
+  if (b) { colState.rank = b.dataset.colRank; colState.limit = HERO_ROW_LIMIT; colState.clearArmed = false; renderCollection(); }
+});
+$('colClasses').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-col-cls]');
+  if (b) { colState.cls = b.dataset.colCls; colState.limit = HERO_ROW_LIMIT; colState.clearArmed = false; renderCollection(); }
+});
+$('colStatus').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-col-status]');
+  if (b) { colState.status = b.dataset.colStatus; colState.limit = HERO_ROW_LIMIT; colState.clearArmed = false; renderCollection(); }
+});
+$('colTitle').addEventListener('change', (e) => { colState.title = e.target.value; colState.limit = HERO_ROW_LIMIT; colState.clearArmed = false; renderCollection(); });
+$('colSearch').addEventListener('input', (e) => { colState.search = e.target.value; colState.limit = HERO_ROW_LIMIT; colState.clearArmed = false; renderCollection(); });
+$('colMore').addEventListener('click', () => { colState.limit += HERO_ROW_LIMIT; renderCollection(); });
+$('colTable').addEventListener('change', (e) => {
+  const own = e.target.dataset.own;
+  const skin = e.target.dataset.ownSkin;
+  if (own) {
+    if (e.target.checked) collection[own] = collection[own] || { skin: false };
+    else delete collection[own];
+  } else if (skin && collection[skin]) collection[skin].skin = e.target.checked;
+  else return;
+  saveCollection();
+  renderCollection();
+});
+$('colAddAll').addEventListener('click', () => {
+  colFiltered().forEach((h) => { const id = E.heroId(h); collection[id] = collection[id] || { skin: false }; });
+  colState.clearArmed = false;
+  saveCollection();
+  renderCollection();
+});
+$('colClearAll').addEventListener('click', () => {
+  if (!colState.clearArmed) { colState.clearArmed = true; renderCollection(); return; }
+  colFiltered().forEach((h) => { delete collection[E.heroId(h)]; });
+  colState.clearArmed = false;
+  saveCollection();
+  renderCollection();
+});
+$('colCopy').addEventListener('click', () => {
+  const code = JSON.stringify(collection);
+  if (copyRich(code)) { $('colCopyNote').textContent = 'Код скопирован'; return; }
+  // Внутри Telegram копирование часто запрещено, поэтому код остаётся в поле для ручного копирования.
+  $('colCode').value = code;
+  $('colCode').select();
+  $('colCopyNote').textContent = 'Не вышло скопировать сразу. Код в поле ниже: выдели его и скопируй.';
+});
+$('colLoad').addEventListener('click', () => {
+  let code = null;
+  try { code = JSON.parse($('colCode').value); } catch (err) { /* ниже покажем подсказку */ }
+  const valid = code && typeof code === 'object' && !Array.isArray(code);
+  if (!valid) { $('colLoadNote').textContent = 'Это не похоже на код коллекции.'; return; }
+  const known = new Set(heroes.map(E.heroId));
+  let added = 0;
+  Object.entries(code).forEach(([id, entry]) => {
+    if (!known.has(id)) return;
+    collection[id] = { skin: !!(entry && entry.skin) };
+    added += 1;
+  });
+  saveCollection();
+  $('colCode').value = '';
+  $('colLoadNote').textContent = `Добавлено карт: ${fmt(added)}`;
+  renderCollection();
+});
+
+$('newsView').addEventListener('change', (e) => { newsState.view = e.target.value; renderNews(); });
+$('newsRanks').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-news-rank]');
+  if (b) { newsState.rank = b.dataset.newsRank; renderNews(); }
+});
+$('view-news').addEventListener('click', (e) => {
+  const article = e.target.closest('[data-news-article]');
+  if (!article || !newsData) return;
+  const ok = copyRich(E.statsText(newsData.sections, newsData.note, newsData.title), E.statsHtml(newsData.sections, newsData.note, !!article.dataset.collapsible, newsData.title));
+  $('newsArticleNote').textContent = ok ? 'Скопировано. В Telegram: 📎 → «Статья» → Ctrl+V.' : 'Не вышло скопировать. Выдели таблицы мышью и нажми Ctrl+C.';
+});
+
+$('siteExport').addEventListener('click', async () => {
+  const note = $('siteExportNote');
+  note.textContent = 'Собираю…';
+  try {
+    const list = [];
+    for (const season of seasons) list.push({ ...season, docs: await ensureSeason(season.id) });
+    const data = JSON.stringify({
+      savedAt: new Date().toISOString(),
+      titles: titles.map(({ id, title, heroes: list2 }) => ({ id, title, heroes: list2 })),
+      seasons: list,
+      settings: { maxMoves: settings.maxMoves, runs: settings.runs, formula: settings.formula },
+    });
+    if (downloads) await downloads.save({ filename: 'animatrix-data.json', data });
+    else {
+      const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'animatrix-data.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    note.textContent = 'Файл animatrix-data.json готов';
+  } catch (err) {
+    note.textContent = 'Не вышло собрать файл. Попробуй ещё раз.';
+  }
+});
+
+$('search').addEventListener('input', (e) => { state.search = e.target.value; renderTop(); });
+$('titleFilter').addEventListener('change', (e) => { state.title = e.target.value; renderTop(); });
+$('seasonView').addEventListener('change', (e) => { state.viewSeason = e.target.value; renderTop(); });
+$('seasonCompare').addEventListener('change', (e) => { state.compareWith = e.target.value; renderTop(); });
+$('topTable').addEventListener('click', (e) => {
+  const sort = e.target.closest('[data-sort]');
+  if (sort) {
+    const k = sort.dataset.sort;
+    if (state.sort === k) state.dir = -state.dir;
+    else { state.sort = k; state.dir = k === 'name' || k === 'place' ? 1 : -1; }
+    renderTop();
+    return;
+  }
+  const row = e.target.closest('[data-row]');
+  if (row) openCard(row.dataset.row);
+});
+$('compareModes').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-compare-mode]');
+  if (!b) return;
+  settings.compareMode = b.dataset.compareMode;
+  saveSettings();
+  renderVerdict();
+});
+$('view-compare').addEventListener('change', (e) => {
+  const m = e.target.id.match(/^([ab])-(query|level|skin)$/);
+  if (!m) return;
+  const c = compare[m[1]];
+  if (m[2] === 'query') { c.query = e.target.value; c.skin = false; renderCompare(); return; }
+  if (m[2] === 'level') c.level = Math.max(1, parseInt(e.target.value, 10) || 1);
+  if (m[2] === 'skin') c.skin = e.target.checked;
+  renderVerdict();
+});
+['hSearch', 'hRank', 'hClass', 'hFilter'].forEach((id) => {
+  $(id).addEventListener(id === 'hSearch' ? 'input' : 'change', renderHeroesTab);
+});
+$('heroTable').addEventListener('change', (e) => {
+  const field = (e.target.dataset.skin && 'skin') || (e.target.dataset.event && 'event');
+  if (!field) return;
+  const on = e.target.checked;
+  changeHero(e.target.dataset[field], (h) => {
+    const next = { ...h };
+    if (on) next[field] = true;
+    else delete next[field];
+    return next;
+  });
+});
+$('heroTable').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-remove]');
+  if (b && armed(b)) changeHero(b.dataset.remove, () => null);
+});
+$('dupeRemove').addEventListener('click', async () => {
+  const plan = E.removeDuplicates(titles);
+  try {
+    await applyDocs(plan.writes, plan.deletes);
+    notify('');
+  } catch (e) {
+    notify(writeError(e));
+  }
+});
+$('addText').addEventListener('input', renderAddPreview);
+$('addText').addEventListener('scroll', () => { $('addGutter').scrollTop = $('addText').scrollTop; });
+$('addProblems').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-line]');
+  if (!b) return;
+  const line = parseInt(b.dataset.line, 10);
+  const area = $('addText');
+  const rows = area.value.split('\n');
+  const start = rows.slice(0, line).reduce((sum, row) => sum + row.length + 1, 0);
+  area.focus();
+  area.setSelectionRange(start, start + rows[line].length);
+  area.scrollTop = Math.max(0, (line - 2) * 20);
+  area.scrollLeft = 0;
+  $('addGutter').scrollTop = area.scrollTop;
+});
+$('addTitle').addEventListener('input', renderAddPreview);
+$('addEvent').addEventListener('change', renderAddPreview);
+$('addSave').addEventListener('click', saveAdded);
+$('titleSort').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-title-sort]');
+  if (!b) return;
+  const mode = b.dataset.titleSort;
+  if (settings.titleSort === mode) settings.titleDir = -settings.titleDir;
+  else { settings.titleSort = mode; settings.titleDir = 1; }
+  saveSettings();
+  renderTitles();
+});
+$('titleRows').addEventListener('change', (e) => {
+  const id = e.target.dataset.titleDate;
+  if (id) updateTitleFields([{ id, fields: { addedAt: e.target.value || null } }]);
+});
+// Перетаскивание указателем работает и мышью, и пальцем на телефоне.
+$('titleRows').addEventListener('pointerdown', (e) => {
+  if (!e.target.closest('[data-drag]')) return;
+  const row = e.target.closest('[data-title-id]');
+  e.preventDefault();
+  row.classList.add('dragging');
+  e.target.setPointerCapture(e.pointerId);
+  titleDrag = { row, start: [...row.parentNode.children].indexOf(row) };
+});
+$('titleRows').addEventListener('pointermove', (e) => {
+  if (!titleDrag) return;
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const target = under && under.closest('[data-title-id]');
+  if (!target || target === titleDrag.row) return;
+  const box = target.getBoundingClientRect();
+  const before = e.clientY < box.top + box.height / 2;
+  target.parentNode.insertBefore(titleDrag.row, before ? target : target.nextSibling);
+});
+const finishTitleDrag = (e) => {
+  if (!titleDrag) return;
+  const { row, start } = titleDrag;
+  titleDrag = null;
+  row.classList.remove('dragging');
+  const end = [...row.parentNode.children].indexOf(row);
+  if (e.type === 'pointerup' && end !== start) moveTitle(row.dataset.titleId, end);
+  else renderTitles();
+};
+$('titleRows').addEventListener('pointerup', finishTitleDrag);
+$('titleRows').addEventListener('pointercancel', finishTitleDrag);
+$('titleRows').addEventListener('click', async (e) => {
+  const move = e.target.closest('[data-move]');
+  if (move) {
+    const id = move.closest('[data-title-id]').dataset.titleId;
+    const index = sortedTitles().findIndex((t) => t.id === id);
+    moveTitle(id, index + parseInt(move.dataset.move, 10));
+    return;
+  }
+  const bulk = e.target.closest('[data-events-all]');
+  if (bulk) {
+    const doc = titles.find((t) => t.id === bulk.dataset.eventsAll);
+    if (!doc) return;
+    const on = bulk.dataset.on === '1';
+    const list = doc.heroes.map((h) => {
+      const next = { ...h };
+      if (on) next.event = true;
+      else delete next.event;
+      return next;
+    });
+    try {
+      await applyDocs([{ id: doc.id, title: doc.title, heroes: list }], []);
+    } catch (err) {
+      notify(writeError(err));
+    }
+    return;
+  }
+  const b = e.target.closest('[data-del]');
+  if (!b || !armed(b)) return;
+  const doc = titles.find((t) => t.id === b.dataset.del);
+  if (!doc) return;
+  try {
+    await applyDocs([], [doc]);
+  } catch (err) {
+    notify(writeError(err));
+  }
+});
+$('seasonSave').addEventListener('click', saveSeason);
+$('seasonRows').addEventListener('click', (e) => {
+  const show = e.target.closest('[data-season-show]');
+  if (show) {
+    state.viewSeason = show.dataset.seasonShow;
+    showTab('top');
+    return;
+  }
+  const del = e.target.closest('[data-season-del]');
+  if (del && armed(del)) deleteSeason(del.dataset.seasonDel);
+});
+$('view-rules').addEventListener('change', (e) => {
+  if (e.target.id === 'maxMoves') settings.maxMoves = Math.min(30, Math.max(1, parseInt(e.target.value, 10) || E.DEFAULTS.maxMoves));
+  if (e.target.id === 'runs') settings.runs = parseInt(e.target.value, 10);
+  if (e.target.dataset.f) settings.formula[e.target.dataset.f][e.target.dataset.k] = parseFloat(e.target.value) || 0;
+  saveSettings();
+});
+$('resetSettings').addEventListener('click', () => {
+  writeStore('ani-settings', null);
+  settings = loadSettings();
+  $('exportLimits').dataset.key = '';
+  renderRules();
+});
+$('csv').addEventListener('click', async () => {
+  const lines = [['Место', 'Сдвиг', 'Герой', 'Тайтл', 'Скин', 'Ивент', 'БМ', 'ЖВ', 'Очки', 'Нападение', 'Защита', 'Итог'].join(';')];
+  lastTop.forEach(({ h, place, s, change, score }) => {
+    let moved = '';
+    if (change) moved = change.fresh ? 'новый' : String(change.delta);
+    lines.push([
+      place, moved, h.name, h.title, h.isSkin ? 'да' : '', h.event ? 'да' : '', h.bm, h.hp, Math.round(score),
+      s ? pct(s.atk) : '', s ? pct(s.def) : '', s ? pct(s.overall) : '',
+    ].join(';'));
+  });
+  try {
+    await downloads.save({ filename: `top-${state.rank}-${state.cls}.csv`, data: '﻿' + lines.join('\n') });
+  } catch (e) { /* зритель отказался от сохранения */ }
+});
+
+// Без подключения к базе герои и сезоны хранятся в этом браузере.
+function startLocal(message) {
+  db = null;
+  setSaveStatus(false);
+  setHeroes(readStore('ani-titles', []));
+  setSeasons(readStore('ani-seasons', []).map(({ docs: _skip, ...rest }) => rest));
+  notify(message);
+}
+
+// Герои, добавленные раньше без подключения, переносятся в базу один раз и без повторов.
+async function moveLocalToBase() {
+  const local = readStore('ani-titles', []);
+  if (!local.length || !canWrite) return;
+  const parsed = local.flatMap((t) => (t.heroes || []).map((h) => ({ ...h, title: t.title })));
+  const plan = E.planImport(titles, parsed);
+  try {
+    await applyDocs(plan.writes, plan.deletes);
+    writeStore('ani-titles', null);
+    if (plan.added) notify(`Перенёс в базу героев, добавленных в этом браузере: ${plan.added}.`);
+  } catch (e) {
+    notify(writeError(e));
+  }
+}
+
+// Открытая версия сайта для игроков: данные и готовые расчёты лежат рядом в data.json, менять их нельзя.
+async function loadJson(name) {
+  try {
+    const response = await fetch(name, { cache: 'no-cache' });
+    return response.ok ? await response.json() : null;
+  } catch (e) { return null; }
+}
+const loadSiteData = () => loadJson('data.json');
+let siteConfig = {};
+
+// Герой ищется по короткому коду, а старые ссылки с полным адресом героя тоже работают.
+function heroByCode(code) {
+  let id = '';
+  try { id = decodeURIComponent(code); } catch (e) { return null; }
+  return heroes.find((h) => E.heroCode(h) === code) || heroes.find((h) => E.heroId(h) === id) || null;
+}
+
+function heroLink(hero) {
+  const code = E.heroCode(hero);
+  if (tg && siteConfig.telegramLink) return `${siteConfig.telegramLink}?startapp=${code}`;
+  return `${location.origin}${location.pathname}#hero=${code}`;
+}
+
+function routeHash() {
+  const match = location.hash.match(/^#hero=([^&]+)$/);
+  const hero = match && heroByCode(match[1]);
+  if (hero) openCard(E.heroId(hero));
+}
+
+// ---------- Telegram ----------
+
+let cloudReady = false;
+let cloudParts = 0;
+let cloudTimer = 0;
+let changedBeforeCloud = false;
+const CLOUD_PART = 4000;
+
+// Шапка и фон Telegram красятся под тему страницы.
+function paintTelegram() {
+  if (!tg || !tg.isVersionAtLeast || !tg.isVersionAtLeast('6.9')) return;
+  const bg = getComputedStyle(pageRoot).getPropertyValue('--bg').trim();
+  if (!/^#[0-9a-f]{6}$/i.test(bg)) return;
+  try { tg.setHeaderColor(bg); tg.setBackgroundColor(bg); } catch (e) { /* старый клиент Telegram */ }
+}
+
+function cloudSave() {
+  if (!tg) return;
+  if (!cloudReady) { changedBeforeCloud = true; return; }
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(() => {
+    const parts = E.chunkText(E.packCollection(collection, heroes), CLOUD_PART);
+    parts.forEach((part, i) => tg.CloudStorage.setItem(`col${i}`, part));
+    for (let i = parts.length; i < cloudParts; i += 1) tg.CloudStorage.removeItem(`col${i}`);
+    tg.CloudStorage.setItem('colN', String(parts.length));
+    cloudParts = parts.length;
+  }, 600);
+}
+
+// Облако главнее браузера: так коллекция одинакова на всех устройствах игрока.
+// Если облако не ответило, в него ничего не пишется, чтобы не затереть сохранённое.
+function cloudLoad() {
+  tg.CloudStorage.getItem('colN', (error, value) => {
+    if (error) return;
+    const count = parseInt(value, 10) || 0;
+    const finish = (remote) => {
+      const merge = changedBeforeCloud;
+      changedBeforeCloud = false;
+      collection = merge ? { ...remote, ...collection } : (count ? remote : collection);
+      writeStore('ani-collection', collection);
+      cloudReady = true;
+      cloudParts = count;
+      if (!count || merge) cloudSave();
+      renderRanking();
+    };
+    if (!count) { finish({}); return; }
+    const keys = Array.from({ length: count }, (_, i) => `col${i}`);
+    tg.CloudStorage.getItems(keys, (error2, values) => {
+      if (error2) return;
+      finish(E.unpackCollection(keys.map((k) => values[k] || '').join(''), heroes));
+    });
+  });
+}
+
+function initTelegram(app) {
+  tg = app;
+  document.body.classList.add('telegram');
+  app.ready();
+  app.expand();
+  let saved = null;
+  try { saved = localStorage.getItem('ani-theme'); } catch (e) { /* без хранилища тема берётся из Telegram */ }
+  if (!saved) { pageTheme = app.colorScheme === 'light' ? 'light' : 'dark'; showTheme(); }
+  paintTelegram();
+  app.BackButton.onClick(() => {
+    const back = tabTrail.pop();
+    if (!back) return;
+    goingBack = true;
+    cardState.id = back.card;
+    showTab(back.tab);
+    goingBack = false;
+    window.scrollTo(0, 0);
+  });
+  $('colWhere').textContent = 'В Telegram коллекция хранится в твоём облаке Telegram и появляется на всех твоих устройствах. Код нужен, только чтобы перенести её в обычный браузер.';
+  if (app.isVersionAtLeast && app.isVersionAtLeast('6.9')) cloudLoad();
+  const start = app.initDataUnsafe && app.initDataUnsafe.start_param;
+  const hero = start && heroByCode(start);
+  if (hero) openCard(E.heroId(hero));
+}
+
+// Скрипт Telegram грузится без ожидания: если telegram.org недоступен, сайт работает как обычно.
+function maybeTelegram() {
+  const app = window.Telegram && window.Telegram.WebApp;
+  if (tg || !siteData || !app || !app.initData) return;
+  initTelegram(app);
+}
+window.onAniTelegram = maybeTelegram;
+
+function startPublic(site) {
+  siteData = site;
+  canWrite = false;
+  document.body.classList.add('public');
+  settings = { ...settings, ...site.settings };
+  site.seasons.forEach((s) => seasonDocs.set(s.id, s.docs));
+  seasons = site.seasons.map(({ docs: _skip, ...rest }) => rest).filter((s) => s.complete).sort((a, b) => String(a.savedAt).localeCompare(String(b.savedAt)));
+  $('saveStatus').className = 'saved';
+  $('saveStatus').textContent = site.builtAt ? `Обновлено ${dateText(new Date(site.builtAt))}` : '';
+  setHeroes(site.titles);
+  routeHash();
+  window.addEventListener('hashchange', routeHash);
+  maybeTelegram();
+}
+
+renderAll();
+
+(async () => {
+  const claude = window.claude;
+  const offline = 'Эта страница открыта без подключения к базе, поэтому герои и сезоны сохраняются только в этом браузере. Чтобы данные были на всех устройствах, открой её по ссылке claude.ai в своём аккаунте.';
+  if (!claude || !claude.use) {
+    const site = await loadSiteData();
+    if (site) siteConfig = (await loadJson('config.json')) || {};
+    if (site) startPublic(site);
+    else startLocal(offline);
+    return;
+  }
+
+  const [downloadsApi, user, dbApi] = await Promise.all([claude.use('downloads'), claude.use('user'), claude.use('db')]);
+  downloads = downloadsApi;
+  if (!dbApi) { startLocal(offline); return; }
+  db = dbApi;
+  if (user && user.canEdit) canWrite = await user.canEdit();
+  setSaveStatus(true);
+  if (!canWrite) {
+    $('saveStatus').className = 'saved';
+    $('saveStatus').textContent = 'Только просмотр';
+  }
+
+  const timer = setTimeout(() => notify('База пока не отвечает. Показанные данные могут быть устаревшими.'), 10000);
+  let confirmed = false;
+  db.collection('titles').onSnapshot((snap) => {
+    setHeroes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    if (!confirmed && !snap.metadata.fromCache) {
+      confirmed = true;
+      clearTimeout(timer);
+      notify('');
+      moveLocalToBase();
+    }
+  }, () => {
+    clearTimeout(timer);
+    notify('Связь с базой прервалась. Обнови страницу.');
+  });
+  db.collection('seasons').onSnapshot((snap) => {
+    setSeasons(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  }, () => {});
+})();
+</script>
+</body></html>
