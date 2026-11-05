@@ -423,7 +423,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <button role="tab" data-tab="seasons" aria-selected="false" data-admin>Сезоны</button>
     <button role="tab" data-tab="add" aria-selected="false" data-admin>Добавить героев</button>
     <button role="tab" data-tab="export" aria-selected="false" data-admin>Выгрузка</button>
-    <button role="tab" data-tab="rules" aria-selected="false">Правила боя</button>
+    <button role="tab" data-tab="rules" aria-selected="false" data-admin>Правила боя</button>
   </nav>
 
   <div class="mobile-bar">
@@ -3022,7 +3022,7 @@ const TAB_INFO = {
   add: { icon: '➕', label: 'Добавить героев', note: 'Вставка из каталога бота' },
   export: { icon: '📤', label: 'Выгрузка', note: 'Топы для статей Telegram' },
 };
-const PLAYER_TABS = ['top', 'compare', 'card', 'collection', 'news', 'stats', 'rules'];
+const PLAYER_TABS = ['top', 'compare', 'card', 'collection', 'news', 'stats'];
 
 function renderMenu() {
   const shown = [...document.querySelectorAll('nav [data-tab]')].filter((b) => !(b.hasAttribute('data-admin') && document.body.classList.contains('public')));
