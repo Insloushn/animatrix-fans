@@ -426,6 +426,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <button role="tab" data-tab="collection" aria-selected="false">Моя коллекция</button>
     <button role="tab" data-tab="news" aria-selected="false">Новости сезона</button>
     <button role="tab" data-tab="records" aria-selected="false">Рекорды игроков</button>
+    <button role="tab" data-tab="contests" aria-selected="false">Конкурсы</button>
     <button role="tab" data-tab="stats" aria-selected="false">Статистика</button>
     <button role="tab" data-tab="heroes" aria-selected="false" data-admin>Герои и скины</button>
     <button role="tab" data-tab="seasons" aria-selected="false" data-admin>Сезоны</button>
@@ -576,6 +577,10 @@ details.card summary { cursor: pointer; font-weight: 500; }
     </div>
     <div class="tools"><input id="recSearch" type="search" placeholder="Найти игрока" aria-label="Найти игрока"></div>
     <div id="recList" class="view"></div>
+  </section>
+
+  <section class="view" id="view-contests" hidden>
+    <div id="contestList" class="view"></div>
   </section>
 
   <section class="view" id="view-stats" hidden>
@@ -788,6 +793,7 @@ const seasonDocs = new Map();
 let db = null, downloads = null, canWrite = true, loaded = false, siteData = null;
 let tg = null;              // Telegram.WebApp, когда сайт открыт как мини-приложение
 let records = [];          // события с рекордами игроков, свежие сверху
+let contests = [];         // итоги конкурсов круток, свежие сверху
 const state = {
   rank: 'SS', cls: 'Гибрид', search: '', title: '', sort: 'overall', dir: -1,
   viewSeason: '', compareWith: 'auto',
@@ -2262,6 +2268,7 @@ function renderRecAdmin() {
 function setRecords(list) {
   records = E.sortRecordEvents(list || []);
   if (!$('view-records').hidden) renderRecords();
+  if (!$('view-contests').hidden) renderContests();
 }
 
 const recDate = (iso) => {
@@ -2497,6 +2504,67 @@ async function downloadRecords() {
     URL.revokeObjectURL(url);
   }
   $('recResult').textContent = 'Файл records.json готов: загрузи его в репозиторий сайта рядом с index.html.';
+}
+
+// ---------- Конкурсы круток ----------
+
+const CONTEST_SHOWN = 10;
+const contestDate = (unix) => (unix ? dateText(new Date(unix * 1000)) : '');
+const contestRanks = (ranks) => ['SSS', 'SS', 'S'].filter((r) => ranks && ranks[r]).map((r) => `${r}×${ranks[r]}`).join(' · ');
+
+function setContests(list) {
+  contests = [...(list || [])].sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+  if (!$('view-contests').hidden) renderContests();
+}
+
+// Лучший результат каждого игрока за все конкурсы.
+function contestAllTime() {
+  const best = new Map();
+  contests.forEach((c) => (c.players || []).forEach((p) => {
+    const current = best.get(p.id);
+    if (!current || p.points > current.points) best.set(p.id, { ...p, contest: c.name, startedAt: c.startedAt });
+  }));
+  return [...best.values()].sort((a, b) => b.points - a.points || (a.startedAt || 0) - (b.startedAt || 0))
+    .map((p, i, list) => ({ ...p, place: list.findIndex((x) => x.points === p.points) + 1 }));
+}
+
+function contestTable(rows, note) {
+  return `<div class="table-box"><table class="m-rows">
+    <thead><tr><th class="left">Место</th><th class="left">Игрок</th><th>🎲 Очки</th></tr></thead>
+    <tbody>${rows.map((p) => `<tr class="has-lead rec-row">
+      <td class="left place m-lead">${recPlace(p.place)}</td>
+      <td class="left m-main">${esc(p.name)}<span class="small muted" style="display:block">${esc(note(p))}</span></td>
+      <td class="m-side">${fmt(p.points)} 🎲</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function renderContests() {
+  if ($('view-contests').hidden) return;
+  const intro = '<p class="small muted">Конкурсы круток проходят в чате игроков: бот засчитывает первые 100 круток каждого участника. Очки: F +1, E +2, D +3, C +4, B +5, A +6, S +12, SS +18, SSS +30.</p>';
+  if (!contests.length) {
+    $('contestList').innerHTML = `${intro}<p class="empty">Скоро здесь появятся итоги конкурсов.</p>`;
+    return;
+  }
+  const allTime = contestAllTime().slice(0, CONTEST_SHOWN);
+  const cards = contests.map((c) => {
+    const players = c.players || [];
+    const dates = [contestDate(c.startedAt), c.endedAt && contestDate(c.endedAt) !== contestDate(c.startedAt) ? contestDate(c.endedAt) : ''].filter(Boolean).join(' – ');
+    const note = (p) => [`круток ${p.pulls}`, contestRanks(p.ranks)].filter(Boolean).join(' · ');
+    const rest = players.slice(CONTEST_SHOWN);
+    return `<article class="card">
+      <h2>🎲 ${esc(c.name)}</h2>
+      <p class="small muted">${esc(dates)} · участников: ${players.length}</p>
+      ${contestTable(players.slice(0, CONTEST_SHOWN), note)}
+      ${rest.length ? `<details><summary class="small muted">Показать всех: ещё ${rest.length}</summary>${contestTable(rest, note)}</details>` : ''}
+    </article>`;
+  }).join('');
+  $('contestList').innerHTML = `${intro}
+    <article class="card"><h2>🏆 Топ-10 за всё время</h2>
+      <p class="small muted">Лучший результат каждого игрока за все конкурсы</p>
+      ${contestTable(allTime, (p) => [p.contest, contestRanks(p.ranks)].filter(Boolean).join(' · '))}
+    </article>
+    <h2>Итоги конкурсов</h2>${cards}`;
 }
 
 // ---------- Статистика ----------
@@ -3375,8 +3443,9 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
   document.querySelectorAll('nav button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   $('currentTabLabel').textContent = (TAB_INFO[tab] || {}).label || '';
   closeMenu(false);
-  ['top', 'compare', 'card', 'collection', 'news', 'records', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
+  ['top', 'compare', 'card', 'collection', 'news', 'records', 'contests', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
   if (tab === 'records') renderRecords();
+  if (tab === 'contests') renderContests();
   if (tab === 'card') renderCard();
   if (tab === 'collection') renderCollection();
   if (tab === 'news') renderNews();
@@ -3411,6 +3480,7 @@ const TAB_INFO = {
   collection: { icon: '📚', label: 'Моя коллекция', note: 'Отметь свои карты и смотри личный топ' },
   news: { icon: '📰', label: 'Новости сезона', note: 'Новые герои, скины и кто сдвинулся' },
   records: { icon: '🥇', label: 'Рекорды игроков', note: 'Лучшие результаты в ивентах и событиях бота' },
+  contests: { icon: '🎲', label: 'Конкурсы', note: 'Итоги конкурсов круток и лучшие за всё время' },
   stats: { icon: '📊', label: 'Статистика', note: 'Доли рангов, классов и аниме' },
   rules: { icon: '📜', label: 'Правила боя', note: 'Как считается бой и что не подтверждено' },
   heroes: { icon: '🎭', label: 'Герои и скины', note: 'Отметки скинов и ивент-карт' },
@@ -3418,7 +3488,7 @@ const TAB_INFO = {
   add: { icon: '➕', label: 'Добавить героев', note: 'Вставка из каталога бота' },
   export: { icon: '📤', label: 'Выгрузка', note: 'Топы для статей Telegram' },
 };
-const PLAYER_TABS = ['top', 'compare', 'card', 'collection', 'news', 'records', 'stats'];
+const PLAYER_TABS = ['top', 'compare', 'card', 'collection', 'news', 'records', 'contests', 'stats'];
 
 function renderMenu() {
   const shown = [...document.querySelectorAll('nav [data-tab]')].filter((b) => !(b.hasAttribute('data-admin') && document.body.classList.contains('public')));
@@ -4258,6 +4328,7 @@ function startPublic(site) {
   $('saveStatus').className = 'saved';
   $('saveStatus').textContent = site.builtAt ? `Обновлено ${dateText(new Date(site.builtAt))}` : '';
   setRecords(site.records || []);
+  setContests(site.contests || []);
   setHeroes(site.titles);
   routeHash();
   window.addEventListener('hashchange', routeHash);
@@ -4274,6 +4345,7 @@ renderAll();
     if (site) siteConfig = (await loadJson('config.json')) || {};
     // Рекорды лежат отдельным файлом, чтобы их можно было обновлять без пересборки топов.
     if (site) site.records = ((await loadJson('records.json')) || {}).events || site.records || [];
+    if (site) site.contests = ((await loadJson('contests.json')) || {}).contests || [];
     if (site) startPublic(site);
     else startLocal(offline);
     return;
