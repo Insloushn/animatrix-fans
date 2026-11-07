@@ -2517,6 +2517,7 @@ function openPlayer(key) {
     syncBackButton();
     renderRecords();
   } else showTab('records', before);
+  if (before.tab === 'records') trackView('/player');
   window.scrollTo(0, 0);
 }
 
@@ -3753,6 +3754,7 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
   if (tab === 'top') renderTop();
   if (tab === 'heroes') renderHeroesTab();
   if (tab === 'seasons') renderSeasons();
+  trackView(viewPath(tab));
 }
 
 // Удаление в два нажатия: диалоги подтверждения на странице недоступны.
@@ -4255,6 +4257,7 @@ $('recList').addEventListener('click', async (e) => {
     recState.player = '';
     if (siteData && !tg) history.replaceState(null, '', location.pathname);
     renderRecords();
+    trackView('/records');
     return;
   }
   if (e.target.closest('[data-rec-share]')) {
@@ -4519,6 +4522,50 @@ async function loadJson(name) {
 const loadSiteData = () => loadJson('data.json');
 let siteConfig = {};
 
+// ---------- Счётчик разделов (GoatCounter) ----------
+// Только сайт игроков и не админ. В счёт уходят путь раздела и «telegram»/«браузер»: ни ID, ни имён.
+const GC_CODE = 'animatrix-fans';
+let gcLast = '';
+let gcPending = [];
+let gcState = 'idle'; // idle → loading → ready | off
+
+const viewPath = (tab) => {
+  if (tab === 'card') {
+    const hero = cardState.id && heroes.find((h) => E.heroId(h) === cardState.id);
+    return hero ? `/hero/${E.heroCode(hero)}` : '/card';
+  }
+  if (tab === 'records' && recState.player) return '/player';
+  return `/${tab}`;
+};
+
+function gcSend(path) {
+  try {
+    const inTg = !!(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData);
+    const data = { path, title: path, event: false };
+    if (inTg) data.referrer = 'telegram';
+    window.goatcounter.count(data);
+  } catch (e) { /* счётчик не должен ломать страницу */ }
+}
+
+function trackView(path) {
+  try {
+    if (!siteData || adminWanted() || path === gcLast) return;
+    gcLast = path;
+    if (gcState === 'ready') { gcSend(path); return; }
+    if (gcState === 'off') return;
+    gcPending.push(path);
+    if (gcState === 'loading') return;
+    gcState = 'loading';
+    window.goatcounter = { no_onload: true, endpoint: `https://${GC_CODE}.goatcounter.com/count` };
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://gc.zgo.at/count.js';
+    script.onload = () => { gcState = 'ready'; gcPending.splice(0).forEach(gcSend); };
+    script.onerror = () => { gcState = 'off'; gcPending = []; };
+    document.head.appendChild(script);
+  } catch (e) { gcState = 'off'; }
+}
+
 // Герой ищется по короткому коду, а старые ссылки с полным адресом героя тоже работают.
 function heroByCode(code) {
   let id = '';
@@ -4675,6 +4722,7 @@ function startPublic(site) {
   routeHash();
   window.addEventListener('hashchange', routeHash);
   maybeTelegram();
+  if (!gcLast) trackView(viewPath(currentTab()));
 }
 
 renderAll();
