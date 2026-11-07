@@ -104,12 +104,21 @@ html.theme-anim, html.theme-anim *:not(.theme-thumb):not(.theme-thumb *) {
   header #saveStatus:not(:empty)::before { content: "· "; }
 }
 
-nav { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+/* На ПК в строке — сколько разделов влезает, остальные — в «Ещё ▾» (tickets/desktop-tabs.md); прокрутки вбок нет. */
+.nav-row { position: relative; }
+nav { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow: hidden; }
 nav button {
   background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted);
-  font: 500 14px var(--body); padding: 8px 12px; cursor: pointer; white-space: nowrap;
+  font: 500 14px var(--body); padding: 8px 12px; cursor: pointer; white-space: nowrap; flex: none;
 }
-nav button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+nav button[aria-selected="true"], nav .nav-more.on { color: var(--fg); border-bottom-color: var(--accent); }
+nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+nav button.nav-over { display: none; }
+.nav-drop {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 40; width: min(340px, 100%);
+  max-height: calc(100dvh - 120px); overflow-y: auto; display: grid; gap: 2px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px; box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
+}
 
 /* На телефоне вкладки уезжали за край ленты, поэтому там вместо них кнопка меню, которая всегда под рукой. */
 .mobile-bar { display: none; }
@@ -151,7 +160,7 @@ nav button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--
 .menu-btn[aria-expanded="true"] .burger i:nth-child(2) { opacity: 0; }
 .menu-btn[aria-expanded="true"] .burger i:nth-child(3) { top: 6px; transform: rotate(-45deg); }
 @media (max-width: 760px) {
-  nav[role="tablist"] { display: none; }
+  nav[role="tablist"], .nav-drop { display: none; }
   .mobile-bar {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     position: sticky; top: 0; z-index: 30; background: var(--bg);
@@ -534,24 +543,28 @@ details.card summary { cursor: pointer; font-weight: 500; }
     </div>
   </header>
 
+  <div class="nav-row">
   <nav role="tablist">
     <button role="tab" data-tab="home" aria-selected="false">Главная</button>
     <button role="tab" data-tab="top" aria-selected="true">Топ</button>
-    <button role="tab" data-tab="compare" aria-selected="false">Сравнение</button>
-    <button role="tab" data-tab="card" aria-selected="false">Карточка героя</button>
-    <button role="tab" data-tab="collection" aria-selected="false">Моя коллекция</button>
-    <button role="tab" data-tab="news" aria-selected="false">Новости сезона</button>
-    <button role="tab" data-tab="profile" aria-selected="false" id="profileTab" hidden>Мой профиль</button>
-    <button role="tab" data-tab="players" aria-selected="false">Игроки</button>
-    <button role="tab" data-tab="records" aria-selected="false">Рекорды игроков</button>
     <button role="tab" data-tab="contests" aria-selected="false">Конкурсы</button>
+    <button role="tab" data-tab="profile" aria-selected="false" id="profileTab" hidden>Мой профиль</button>
+    <button role="tab" data-tab="records" aria-selected="false">Рекорды игроков</button>
+    <button role="tab" data-tab="collection" aria-selected="false">Моя коллекция</button>
+    <button role="tab" data-tab="card" aria-selected="false">Карточка героя</button>
+    <button role="tab" data-tab="compare" aria-selected="false">Сравнение</button>
+    <button role="tab" data-tab="players" aria-selected="false">Игроки</button>
     <button role="tab" data-tab="stats" aria-selected="false">Статистика</button>
+    <button role="tab" data-tab="news" aria-selected="false">Новости сезона</button>
     <button role="tab" data-tab="heroes" aria-selected="false" data-admin>Герои и скины</button>
     <button role="tab" data-tab="seasons" aria-selected="false" data-admin>Сезоны</button>
     <button role="tab" data-tab="add" aria-selected="false" data-admin>Добавить героев</button>
     <button role="tab" data-tab="export" aria-selected="false" data-admin>Выгрузка</button>
     <button role="tab" data-tab="rules" aria-selected="false" data-admin>Правила боя</button>
+    <button class="nav-more" id="navMore" aria-haspopup="menu" aria-expanded="false" aria-controls="navDrop" hidden><span id="navMoreLabel">Ещё</span> ▾</button>
   </nav>
+  <div class="nav-drop" id="navDrop" role="menu" aria-label="Остальные разделы" hidden></div>
+  </div>
 
   <div class="mobile-bar">
     <span class="mobile-title" id="currentTabLabel">Топ</span>
@@ -2886,8 +2899,8 @@ const tgUserName = () => {
   const user = tgUser();
   return user ? [user.first_name, user.last_name].filter(Boolean).join(' ') : '';
 };
-// Пункты меню для игроков: «Мой профиль» и «Игроки» — после «Новостей сезона».
-const menuTabs = () => ['home', ...PLAYER_TABS.slice(0, 5), 'profile', 'players', ...PLAYER_TABS.slice(5)];
+// Пункты меню для игроков — по важности, как в строке разделов на ПК (tickets/desktop-tabs.md).
+const menuTabs = () => ['home', 'top', 'contests', 'profile', 'records', 'collection', 'card', 'compare', 'players', 'stats', 'news', 'antistress'];
 const tabShown = (tab) => { const b = document.querySelector(`nav [data-tab="${tab}"]`); return !!b && !b.hidden; };
 
 // Аватар: буква имени на цвете акцента, сверху — картинка, если она есть. Свою картинку в Telegram берём сразу из Telegram.
@@ -4441,9 +4454,11 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
   if (tab === 'profile') renderProfile();
   if (tab === 'players') renderPlayers();
   if (tab === 'home') renderHome();
-  document.querySelectorAll('nav button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  document.querySelectorAll('nav [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   $('currentTabLabel').textContent = (TAB_INFO[tab] || {}).label || '';
   closeMenu(false);
+  closeNavDrop(false);
+  layoutNav();
   ['top', 'compare', 'card', 'collection', 'news', 'records', 'contests', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
   if (tab === 'records') renderRecords();
   if (tab === 'contests') renderContests();
@@ -4493,7 +4508,6 @@ const TAB_INFO = {
   add: { icon: '➕', label: 'Добавить героев', note: 'Вставка из каталога бота' },
   export: { icon: '📤', label: 'Выгрузка', note: 'Топы для статей Telegram' },
 };
-const PLAYER_TABS = ['top', 'compare', 'card', 'collection', 'news', 'records', 'contests', 'stats'];
 
 function renderMenu() {
   const shown = [...document.querySelectorAll('nav [data-tab]')].filter((b) => !(b.hasAttribute('data-admin') && document.body.classList.contains('public')));
@@ -4566,6 +4580,103 @@ document.addEventListener('keydown', (e) => {
     if (next) { next.focus(); e.preventDefault(); }
   }
 });
+// ---------- Строка разделов на ПК и «Ещё ▾» (tickets/desktop-tabs.md) ----------
+const navEl = document.querySelector('nav[role="tablist"]');
+let navOver = []; // разделы, которые не влезли в строку и ушли в «Ещё»
+const navTabsShown = () => [...navEl.querySelectorAll('[data-tab]')].filter((b) => !b.hidden && !(b.hasAttribute('data-admin') && document.body.classList.contains('public')));
+
+// Раскладка за один проход до отрисовки: всё показать, измерить, лишнее с конца — в «Ещё».
+function layoutNav() {
+  const tabs = navTabsShown();
+  const more = $('navMore');
+  const cur = currentTab();
+  const focused = document.activeElement === more; // при замере кнопка на миг скрывается — фокус вернуть
+  tabs.forEach((b) => b.classList.remove('nav-over'));
+  more.hidden = true;
+  more.classList.remove('on');
+  $('navMoreLabel').textContent = 'Ещё';
+  navOver = [];
+  const room = navEl.clientWidth;
+  if (room) {
+    const gap = parseFloat(getComputedStyle(navEl).columnGap) || 0;
+    const widths = tabs.map((b) => b.getBoundingClientRect().width);
+    const upTo = (k) => widths.slice(0, k).reduce((a, w) => a + w + gap, 0);
+    if (Math.ceil(upTo(tabs.length) - gap) > room) {
+      more.hidden = false;
+      let k = tabs.length - 1;
+      const fit = () => { const w = more.getBoundingClientRect().width; while (k > 0 && Math.ceil(upTo(k) + w) > room) k--; };
+      fit();
+      const active = tabs.slice(k).find((b) => b.dataset.tab === cur);
+      if (active) { $('navMoreLabel').textContent = active.textContent; more.classList.add('on'); fit(); }
+      tabs.slice(k).forEach((b) => b.classList.add('nav-over'));
+      navOver = tabs.slice(k).map((b) => b.dataset.tab);
+    }
+  }
+  if (focused && !more.hidden) more.focus({ preventScroll: true });
+  if (!$('navDrop').hidden) renderNavDrop();
+}
+
+function renderNavDrop() {
+  const item = (tab) => {
+    const info = TAB_INFO[tab];
+    const label = navEl.querySelector(`[data-tab="${tab}"]`).textContent;
+    return `<button class="menu-item" role="menuitem" data-go="${tab}"${tab === currentTab() ? ' aria-current="page"' : ''}>
+      <span class="icon" aria-hidden="true">${info.icon}</span><b>${label}</b><small>${info.note}</small>
+    </button>`;
+  };
+  const isAdmin = (tab) => navEl.querySelector(`[data-tab="${tab}"]`).hasAttribute('data-admin');
+  const players = navOver.filter((t) => !isAdmin(t));
+  const admin = navOver.filter(isAdmin);
+  $('navDrop').innerHTML = players.map(item).join('')
+    + (admin.length ? `<div class="menu-group">Для владельца</div>${admin.map(item).join('')}` : '');
+}
+
+function openNavDrop() {
+  renderNavDrop();
+  $('navDrop').hidden = false;
+  $('navMore').setAttribute('aria-expanded', 'true');
+  const first = $('navDrop').querySelector('[aria-current="page"]') || $('navDrop').querySelector('.menu-item');
+  if (first) first.focus({ preventScroll: true });
+}
+
+function closeNavDrop(returnFocus) {
+  if ($('navDrop').hidden) return;
+  $('navDrop').hidden = true;
+  $('navMore').setAttribute('aria-expanded', 'false');
+  if (returnFocus && !$('navMore').hidden) $('navMore').focus({ preventScroll: true });
+}
+
+$('navMore').addEventListener('click', () => {
+  if ($('navDrop').hidden) openNavDrop();
+  else closeNavDrop(true);
+});
+$('navDrop').addEventListener('click', (e) => {
+  const go = e.target.closest('[data-go]');
+  if (!go) return;
+  closeNavDrop(true);
+  goTab(go.dataset.go);
+  window.scrollTo(0, 0);
+});
+document.addEventListener('click', (e) => {
+  if (!$('navDrop').hidden && !e.target.closest('#navDrop, #navMore')) closeNavDrop(false);
+});
+$('navDrop').addEventListener('focusout', (e) => {
+  if (e.relatedTarget && !e.relatedTarget.closest('#navDrop, #navMore')) closeNavDrop(false);
+});
+document.addEventListener('keydown', (e) => {
+  if ($('navDrop').hidden) return;
+  if (e.key === 'Escape') { closeNavDrop(true); e.preventDefault(); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const items = [...$('navDrop').querySelectorAll('.menu-item')];
+    const at = items.indexOf(document.activeElement);
+    const next = items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
+    if (next) { next.focus(); e.preventDefault(); }
+  }
+});
+if (window.ResizeObserver) new ResizeObserver(() => layoutNav()).observe(navEl);
+else window.addEventListener('resize', layoutNav);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutNav);
+
 $('rankChips').addEventListener('click', (e) => {
   const b = e.target.closest('[data-rank]');
   if (b) { state.rank = b.dataset.rank; renderTop(); }
@@ -5520,6 +5631,7 @@ function initTelegram(app) {
   paintTelegram();
   app.BackButton.onClick(goBack);
   $('profileTab').hidden = !myPlayerKey();
+  layoutNav();
   renderHome(); // карточка «Мой профиль»
   syncTabbar();
   $('colWhere').textContent = 'В Telegram коллекция хранится в твоём облаке Telegram и появляется на всех твоих устройствах. Код нужен, только чтобы перенести её в обычный браузер.';
@@ -5544,6 +5656,7 @@ function startPublic(site) {
   siteData = site;
   canWrite = false;
   document.body.classList.add('public');
+  layoutNav();
   settings = { ...settings, ...site.settings };
   site.seasons.forEach((s) => seasonDocs.set(s.id, s.docs));
   seasons = site.seasons.map(({ docs: _skip, ...rest }) => rest).filter((s) => s.complete).sort((a, b) => String(a.savedAt).localeCompare(String(b.savedAt)));
