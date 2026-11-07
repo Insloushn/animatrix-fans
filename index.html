@@ -91,6 +91,19 @@ html.theme-anim, html.theme-anim *:not(.theme-thumb):not(.theme-thumb *) {
 .saved.on { color: var(--good); }
 .saved.off { color: var(--warn); }
 
+/* Шапка на телефоне: название и переключатель темы в одной строке, счётчики — мелко под ним. */
+@media (max-width: 760px) {
+  header { display: flex; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 2px; position: relative; }
+  header .brand { display: contents; }
+  header h1 { order: 1; padding-right: 68px; font-size: 22px; }
+  header .head-side { order: 2; gap: 0 6px; }
+  header .brand p { order: 3; }
+  header .theme-switch { position: absolute; top: 0; right: 0; }
+  header .saved { font-weight: 400; }
+  header .saved:not(.on):not(.off) { color: var(--muted); }
+  header #saveStatus:not(:empty)::before { content: "· "; }
+}
+
 nav { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
 nav button {
   background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted);
@@ -497,6 +510,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
       <span id="simText"></span>
       <div class="track" id="simTrack" hidden><span id="simBar"></span></div>
     </div>
+    <p class="small muted" id="skinHint" hidden>🎭 Версии со скином стоят рядом по силе и места не занимают.</p>
     <div class="table-box"><table id="topTable" class="m-rows"></table></div>
     <p class="small muted" id="topHint"></p>
   </section>
@@ -763,7 +777,8 @@ const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
 const $ =(id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const fmt = (n) => Math.round(n).toLocaleString('en-US');
+// Разделитель тысяч — неразрывный пробел, как в ru-RU; toLocaleString('ru-RU') не делит четырёхзначные числа (2479), поэтому вручную.
+const fmt = (n) => Math.round(n).toLocaleString('en-US').replace(/,/g, ' ');
 const pct = (x) => (x * 100).toFixed(1) + '%';
 const HERO_ROW_LIMIT = 100;
 const EVENT_MARK = E.EVENT_MARK;
@@ -1619,6 +1634,9 @@ function renderTop() {
     }).join('');
   }
   $('topTable').innerHTML = `<thead><tr>${headHtml}</tr></thead><tbody>${body}</tbody>`;
+  // Строки со скином над первым пронумерованным героем без пояснения выглядят как ошибка.
+  const firstNumbered = shown.findIndex((h) => !h.isSkin && !h.event);
+  $('skinHint').hidden = !(firstNumbered > 0 && shown.slice(0, firstNumbered).some((h) => h.isSkin));
   // На телефоне заголовков нет, поэтому сортировка выбирается списком.
   const sortOptions = [['place', 'По месту'], ...(hasChange ? [['change', 'По сдвигу']] : []), ['overall', 'По победам'], ['bm', 'По БМ'], ['hp', 'По ЖВ'], ['score', 'По очкам формулы'], ['atk', 'По нападению'], ['def', 'По защите'], ['name', 'По имени']];
   $('topSort').innerHTML = sortOptions.map(([k, label]) => `<option value="${k}"${state.sort === k ? ' selected' : ''}>${label}</option>`).join('');
@@ -2474,9 +2492,10 @@ function playerLink(key) {
   return `${location.origin}${location.pathname}#player=${encodeURIComponent(id || key)}`;
 }
 
-function syncBackButton() {
+// «Назад» Telegram: виден, когда есть куда вернуться и открыт не «Топ».
+function syncBackButton(tab = currentTab()) {
   if (!tg) return;
-  if (tabTrail.length) tg.BackButton.show();
+  if (tabTrail.length && tab !== 'top') tg.BackButton.show();
   else tg.BackButton.hide();
 }
 
@@ -3620,10 +3639,7 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
     tabTrail.push(before);
     if (tabTrail.length > 30) tabTrail.shift();
   }
-  if (tg) {
-    if (tabTrail.length) tg.BackButton.show();
-    else tg.BackButton.hide();
-  }
+  syncBackButton(tab);
   document.querySelectorAll('nav button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   $('currentTabLabel').textContent = (TAB_INFO[tab] || {}).label || '';
   closeMenu(false);
