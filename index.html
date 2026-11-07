@@ -379,6 +379,15 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .live-rank { display: grid; justify-items: center; gap: 0; padding: 6px 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-variant-numeric: tabular-nums; min-width: 0; }
 .live-rank b { font-size: 15px; }
 .live-lists h3 { margin: 0 0 4px; font-size: 15px; }
+.pull-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.pull-head h2 { margin: 0; }
+.pull-every { font-size: 11px; }
+.pull-days { display: flex; align-items: flex-end; gap: 2px; height: 72px; }
+.pull-days i { flex: 1 1 0; min-width: 0; min-height: 2px; background: var(--chart-bar); border-radius: 2px 2px 0 0; }
+.pull-days i.zero { background: var(--line); }
+.pull-axis { display: flex; justify-content: space-between; margin-top: 2px; }
+.pull-auto { display: grid; gap: 4px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.pull-auto label { display: flex; gap: 8px; align-items: center; }
 .live-lists p { margin: 0 0 6px; }
 .stat-tile.text b { font-size: 17px; line-height: 1.3; }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 12px; align-items: start; }
@@ -720,6 +729,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 
   <section class="view" id="view-stats" hidden>
+    <div id="pullOut"></div>
     <div class="filters">
       <div class="chips" id="statRanks" aria-label="Ранг"></div>
       <div class="chips" id="statClasses" aria-label="Класс"></div>
@@ -2367,7 +2377,11 @@ function renderColAccount() {
     <p>${esc(name)}${user.id ? ` <span class="muted small">· ID ${esc(user.id)}</span>` : ''}</p>
     <p class="small ${bad ? '' : 'muted'}" style="${bad ? 'color:var(--warn)' : ''}">${status}</p>
     ${cloudStatus.state === 'loadError' ? '<div><button class="btn ghost mini" id="cloudRetry">Повторить</button></div>' : ''}
-    <p class="small muted">Коллекция привязана к твоему аккаунту Telegram: она хранится в облаке Telegram, не пропадёт при очистке телефона и появится на всех твоих устройствах, где ты открываешь это мини-приложение.</p>`;
+    <p class="small muted">Коллекция привязана к твоему аккаунту Telegram: она хранится в облаке Telegram, не пропадёт при очистке телефона и появится на всех твоих устройствах, где ты открываешь это мини-приложение.</p>
+    ${pullStats ? `<div class="pull-auto">
+      <label><input type="checkbox" id="pullAutoToggle"${pullMark.on ? ' checked' : ''}${pullMark.done ? '' : ' disabled'}> 🎰 Отмечать карты из круток</label>
+      <p class="small muted">${pullMark.added ? `${esc(pullMarkText(pullMark.added))}. ` : ''}${esc(PULL_MARK_NOTE)}</p>
+    </div>` : ''}`;
 }
 
 function renderCollection() {
@@ -2423,7 +2437,7 @@ function renderCollection() {
     return `<tr class="has-lead">
       <td class="left m-lead"><label class="skin-toggle"><input type="checkbox" data-own="${id}"${entry ? ' checked' : ''} aria-label="Есть в коллекции"></label></td>
       <td class="left m-side">${h.skin ? `<label class="skin-toggle"><input type="checkbox" data-own-skin="${id}"${entry && entry.skin ? ' checked' : ''}${entry ? '' : ' disabled'} aria-label="Есть скин"> 🎭</label>` : ''}</td>
-      <td class="left hero m-main">${openLink(h)}<span>${esc(h.title || E.NO_TITLE)}</span></td>
+      <td class="left hero m-main">${openLink(h)}<span>${esc(h.title || E.NO_TITLE)}${fromPulls(h) ? ' · 🎰\u00a0из\u00a0круток' : ''}</span></td>
       <td class="left m-meta"><b>${h.rank}</b></td>
       <td class="left m-meta">${ICONS[h.cls]} ${esc(h.cls)}</td>
       <td class="m-meta" data-label="💥">${fmt(h.bm)}</td><td class="m-meta" data-label="❤️">${fmt(h.hp)}</td>
@@ -2940,7 +2954,8 @@ function renderProfile() {
   }
   const p = E.playerProfile(records, contests, contestLive, key);
   const mine = key === me;
-  const name = p.name || (mine ? tgUserName() : '') || (key.startsWith('n:') ? key.slice(2) : 'Игрок');
+  const pp = E.pullPlayer(pullStats, key); // общая статистика круток (pull-stats.json)
+  const name = p.name || (pp && pp.name) || (mine ? tgUserName() : '') || (key.startsWith('n:') ? key.slice(2) : 'Игрок');
   const since = recDate(p.since);
   const tile = (label, value, note) => `<div class="stat-tile"><span class="small muted">${label}</span><b>${value}</b>${note ? `<span class="small muted">${note}</span>` : ''}</div>`;
   const t = p.tiles;
@@ -2948,7 +2963,7 @@ function renderProfile() {
       ${avatarHtml(key, name, true)}
       <div class="profile-name">
         <h2>${esc(name)}${mine ? ' <span class="tag">это ты</span>' : ''}</h2>
-        <p class="small muted">${since ? `в AniMatrix Fans с ${esc(since)}` : 'пока без результатов'}${p.id ? '' : ' · без Telegram'}</p>
+        <p class="small muted">${since ? `в AniMatrix Fans с ${esc(since)}` : pp && pp.pulls ? 'пока только крутки' : 'пока без результатов'}${p.id ? '' : ' · без Telegram'}</p>
       </div>
       <div class="actions">
         ${p.id ? `<a class="btn ghost mini" href="${BOT_PROFILE}${esc(p.id)}" target="_blank" rel="noopener">Профиль в боте</a>` : ''}
@@ -2956,8 +2971,18 @@ function renderProfile() {
       </div>
       <p class="small muted" id="profileShareNote"></p>
     </div>`;
+  const luck = E.pullLuck(pp, (pullStats && pullStats.luckMin) || 50);
+  const pulls = pp && pp.pulls ? `<div class="card">
+      <h2>🎰 Крутки</h2>
+      <div class="stat-tiles live-tiles">
+        ${tile('Круток всего', fmt(pp.pulls))}
+        ${tile('SSS / SS', `${fmt(pp.sss)} / ${fmt(pp.ss)}`)}
+        ${tile('Удача', luck.value == null ? '—' : esc(luck.num), esc(luck.note))}
+      </div>
+      <p class="small muted">Только крутки в чатах, где есть @Insloushn. Удача — средние очки за крутку против среднего по всем.</p>
+    </div>` : '';
   if (p.empty) {
-    $('profileOut').innerHTML = `${back}${head}<p class="empty">Пока пусто: участвуй в конкурсах и пересылай итоги ивентов боту @AniMatrix_fansBot.</p>`;
+    $('profileOut').innerHTML = `${back}${head}${pulls || '<p class="empty">Пока пусто: участвуй в конкурсах и пересылай итоги ивентов боту @AniMatrix_fansBot.</p>'}`;
     return;
   }
   const tiles = `<div class="stat-tiles live-tiles">
@@ -2982,7 +3007,7 @@ function renderProfile() {
       <span>${b.rank <= 3 ? recPlace(b.rank) : `№${b.rank}`} <b>${esc(recEventName(b.event))}</b> — ${esc(recValue(b.event, b.value))}</span>
       <span>${b.rank}-е место из ${b.of}</span>
     </li>`).join('');
-  $('profileOut').innerHTML = `${back}${head}${tiles}${live}
+  $('profileOut').innerHTML = `${back}${head}${tiles}${live}${pulls}
     ${p.contests.length ? `<div class="card"><h2>🎲 Конкурсы</h2><ol class="best-list rec-best">${contestRows}</ol></div>` : ''}
     ${p.records.best.length ? `<div class="card"><h2>🥇 Рекорды</h2>${REC_DISCLAIMER}<ol class="best-list rec-best">${recRows}</ol></div>` : ''}`;
 }
@@ -3479,6 +3504,64 @@ function renderContests() {
     <h2>Итоги конкурсов</h2>${cards}`;
 }
 
+// ---------- 🎰 Крутки: общая статистика (pull-stats.json пишет бот, tickets/pull-stats.md) ----------
+// Нет файла — блока нет. Чаты и их названия видны всем.
+let pullStats = null;
+const pullState = { chat: '' };
+const PULL_NOTE = 'Считается только в чатах, где есть @Insloushn — так устроены ограничения Telegram для ботов. Хотите статистику своего чата — напишите @Insloushn.';
+const PULL_SHOWN = 10;
+// 1 карта, 2 карты, 5 карт.
+const plural = (n, one, few, many) => {
+  const d = Math.abs(n) % 100;
+  const u = d % 10;
+  return d > 10 && d < 20 ? many : u === 1 ? one : u >= 2 && u <= 4 ? few : many;
+};
+const pullDay = (day) => { const m = String(day).match(/^\d{4}-(\d{2})-(\d{2})$/); return m ? `${m[2]}.${m[1]}` : ''; };
+
+function pullStatsHtml() {
+  const chats = (pullStats && pullStats.chats) || [];
+  if (!chats.length) return '';
+  if (pullState.chat && !chats.some((c) => c.id === pullState.chat)) pullState.chat = '';
+  const s = E.pullScope(pullStats, pullState.chat);
+  if (!s) return '';
+  const chat = chats.find((c) => c.id === pullState.chat);
+  const titleOf = (id) => (chats.find((c) => c.id === id) || {}).title || '';
+  const since = chats.map((c) => c.since).filter(Boolean);
+  const scope = chat
+    ? `Считается с ${contestDate(chat.since)}${chat.on ? '' : `, сейчас не считается${chat.offAt ? ` (с ${contestDate(chat.offAt)})` : ''}`}`
+    : `${chats.length} ${plural(chats.length, 'чат', 'чата', 'чатов')}${since.length ? `, с ${contestDate(Math.min(...since))}` : ''}`;
+  const picker = chats.length > 1
+    ? `<select id="pullChat" aria-label="Чат"><option value="">Все чаты</option>${chats.map((c) => `<option value="${esc(c.id)}"${c.id === pullState.chat ? ' selected' : ''}>${esc(c.title)}</option>`).join('')}</select>`
+    : '';
+  const tile = (label, value) => `<div class="stat-tile"><span class="small muted">${label}</span><b>${value}</b></div>`;
+  const every = (r) => (s.every && s.every[r] ? `1 на ${fmt(s.every[r])}` : '—');
+  const ranks = CONTEST_RANKS.map((r) => {
+    const n = (s.ranks && s.ranks[r]) || 0;
+    return `<div class="live-rank"><b>${r}</b><span>${fmt(n)}</span><span class="small muted">${s.pulls ? pct(n / s.pulls) : '—'}</span>${n ? `<span class="muted pull-every">${every(r)}</span>` : ''}</div>`;
+  }).join('');
+  const list = (title, items) => `<div><h3>${title}</h3>${items.length ? `<ul class="best-list">${items.slice(0, PULL_SHOWN).join('')}</ul>` : '<p class="small muted">Пока нет</p>'}${items.length > PULL_SHOWN ? `<details><summary class="small muted">Показать всех: ещё ${items.length - PULL_SHOWN}</summary><ul class="best-list">${items.slice(PULL_SHOWN).join('')}</ul></details>` : ''}</div>`;
+  const heroesTop = (s.topHeroes || []).map((h) => `<li>${esc(h.name)} (${esc(h.rank)})<span>выпал ${fmt(h.count)} ${plural(h.count, 'раз', 'раза', 'раз')}</span></li>`);
+  const legends = (s.legends || []).map((x) => `<li>${esc(x.hero)} (${x.rank}) — ${playerNameLink(x.id ? `id:${x.id}` : '', x.player || 'игрок не найден')}<span>${esc([contestTime(x.date), chat ? '' : titleOf(x.chat)].filter(Boolean).join(' · '))}</span></li>`);
+  const days = s.days || [];
+  const max = Math.max(1, ...days.map((d) => d.pulls));
+  const bars = days.map((d) => `<i class="${d.pulls ? '' : 'zero'}" style="height:${d.pulls ? Math.max(3, d.pulls / max * 100) : 3}%" title="${esc(pullDay(d.day))}: ${fmt(d.pulls)}"></i>`).join('');
+  return `<article class="card" id="pullCard">
+    <div class="pull-head"><h2>🎰 Крутки</h2>${picker}</div>
+    <p class="small muted">${esc(scope)}${pullStats.savedAt ? ` · ${esc(liveAgo(pullStats.savedAt))}` : ''}</p>
+    <div class="stat-tiles live-tiles">
+      ${tile('Круток', fmt(s.pulls))}${tile('SSS', fmt(s.ranks.SSS || 0))}${tile('SS', fmt(s.ranks.SS || 0))}${tile('SSS — 1 на', s.every && s.every.SSS ? fmt(s.every.SSS) : '—')}
+    </div>
+    <div class="live-ranks">${ranks}</div>
+    <div class="best-grid live-lists">
+      ${list('🎉 Последние легендарные', legends)}
+      ${list('Чаще всех выпадали', heroesTop)}
+    </div>
+    ${days.length ? `<div><h3 class="small">Круток по дням, 30 дней</h3><div class="pull-days" role="img" aria-label="Круток по дням за 30 дней">${bars}</div>
+      <div class="pull-axis small muted"><span>${esc(pullDay(days[0].day))}</span><span>больше всего: ${fmt(max)}</span><span>${esc(pullDay(days[days.length - 1].day))}</span></div></div>` : ''}
+    <p class="small muted">${esc(PULL_NOTE)}</p>
+  </article>`;
+}
+
 // ---------- Статистика ----------
 
 const statState = { rank: '', cls: '', title: '' };
@@ -3621,6 +3704,7 @@ function statTopBody(list, selected, empty) {
 
 function renderStats() {
   if ($('view-stats').hidden) return;
+  $('pullOut').innerHTML = pullStatsHtml();
   const names = [...new Set(heroes.map((h) => h.title || E.NO_TITLE))].sort((a, b) => a.localeCompare(b, 'ru'));
   if (statState.title && !names.includes(statState.title)) statState.title = '';
   const stats = E.statsFor(heroes, { ...statState, events: settings.showEvents });
@@ -4631,6 +4715,7 @@ const statPickSelector = '[data-stat-rank], [data-stat-cls], [data-stat-title]';
   });
 });
 $('statTitle').addEventListener('change', (e) => { statState.title = e.target.value; renderStats(); });
+$('pullOut').addEventListener('change', (e) => { if (e.target.id === 'pullChat') { pullState.chat = e.target.value; renderStats(); } });
 $('statEvents').addEventListener('click', () => {
   settings.showEvents = !settings.showEvents;
   saveSettings();
@@ -4773,6 +4858,12 @@ $('colStatus').addEventListener('click', (e) => {
 $('colTitle').addEventListener('change', (e) => { colState.title = e.target.value; colState.limit = HERO_ROW_LIMIT; colState.clearArmed = false; renderCollection(); });
 $('colSearch').addEventListener('input', (e) => { colState.search = e.target.value; colState.limit = HERO_ROW_LIMIT; colState.clearArmed = false; renderCollection(); });
 $('colMore').addEventListener('click', () => { colState.limit += HERO_ROW_LIMIT; renderCollection(); });
+$('colAccount').addEventListener('change', (e) => {
+  if (e.target.id !== 'pullAutoToggle' || !tg) return;
+  pullMark.on = e.target.checked;
+  try { tg.CloudStorage.setItem('pullAuto', pullMark.on ? '1' : '0'); } catch (err) { /* облако недоступно */ }
+  if (pullMark.on) autoMarkPulls();
+});
 $('colTable').addEventListener('change', (e) => {
   const own = e.target.dataset.own;
   const skin = e.target.dataset.ownSkin;
@@ -5337,6 +5428,7 @@ function cloudLoad() {
       setCloudStatus('saved');
       if (!count || merge) cloudSave();
       renderRanking();
+      autoMarkPulls();
     };
     if (!count) { finish({}); return; }
     const keys = Array.from({ length: count }, (_, i) => `col${i}`);
@@ -5345,6 +5437,76 @@ function cloudLoad() {
       finish(E.unpackCollection(keys.map((k) => values[k] || '').join(''), heroes));
     });
   });
+}
+
+// ---------- Автоотметка коллекции из круток (tickets/pull-stats.md, п. 9) ----------
+// Только мини-приложение и только свой Telegram ID. Формат коллекции не меняется; новое лежит рядом в облаке Telegram:
+// pullAuto — переключатель ('0' — выключен), pullN и pull0… — разобранные герои (E.packPullMarks). Отметки только добавляются.
+const pullMark = { on: true, done: null, added: 0 };
+let pullMarkParts = 0;
+const PULL_MARK_NOTE = 'Только крутки в чатах с @Insloushn и в конкурсах — остальные карты отмечай сам.';
+const pullMarkText = (n) => `Из твоих круток ${n % 10 === 1 && n % 100 !== 11 ? 'отмечена' : 'отмечено'} ${n} ${plural(n, 'карта', 'карты', 'карт')}`;
+const fromPulls = (h) => !!(pullMark.done && pullMark.done[E.heroCode(h)] === true && isOwned(h));
+
+function pullMarksLoad() {
+  tg.CloudStorage.getItems(['pullAuto', 'pullN'], (error, values) => {
+    if (error || !values) return; // облако не ответило — в этот раз без автоотметки
+    pullMark.on = values.pullAuto !== '0';
+    const count = parseInt(values.pullN, 10) || 0;
+    const finish = (text) => {
+      pullMark.done = E.unpackPullMarks(text);
+      pullMarkParts = count;
+      if (!$('view-collection').hidden) renderColAccount();
+      autoMarkPulls();
+    };
+    if (!count) { finish(''); return; }
+    const keys = Array.from({ length: count }, (_, i) => `pull${i}`);
+    tg.CloudStorage.getItems(keys, (error2, parts) => {
+      if (error2 || !parts) return;
+      finish(keys.map((k) => parts[k] || '').join(''));
+    });
+  });
+}
+
+// Как коллекция: сначала части, счётчик частей последним.
+function pullMarksSave() {
+  const parts = E.chunkText(E.packPullMarks(pullMark.done), CLOUD_PART);
+  let waiting = parts.length;
+  let failed = false;
+  const finish = () => {
+    if (failed) return;
+    tg.CloudStorage.setItem('pullN', String(parts.length), (error) => {
+      if (error) return;
+      for (let i = parts.length; i < pullMarkParts; i += 1) tg.CloudStorage.removeItem(`pull${i}`);
+      pullMarkParts = parts.length;
+    });
+  };
+  if (!waiting) { finish(); return; }
+  parts.forEach((part, i) => tg.CloudStorage.setItem(`pull${i}`, part, (error) => {
+    if (error) failed = true;
+    waiting -= 1;
+    if (!waiting) finish();
+  }));
+}
+
+// Ждёт коллекцию из облака, разобранных героев и pull-stats.json; добавляет то, чего ещё не было.
+function autoMarkPulls() {
+  if (!tg || !cloudReady || !pullMark.done || !pullMark.on || !heroes.length) return;
+  const me = E.pullPlayer(pullStats, myPlayerKey());
+  if (!me) return;
+  const plan = E.pullAutoMark(collection, E.pullHeroIds(pullStats, me, heroes), pullMark.done, heroes);
+  if (E.packPullMarks(plan.done) === E.packPullMarks(pullMark.done)) return;
+  plan.add.forEach((id) => { collection[id] = { skin: false }; });
+  pullMark.done = plan.done;
+  if (plan.add.length) {
+    pullMark.added += plan.add.length;
+    saveCollection();
+    const text = `🎰 ${pullMarkText(plan.add.length)}`;
+    notify(text);
+    setTimeout(() => { if ($('notice').textContent === text) notify(''); }, 8000);
+  }
+  pullMarksSave();
+  renderRanking();
 }
 
 function initTelegram(app) {
@@ -5361,7 +5523,7 @@ function initTelegram(app) {
   renderHome(); // карточка «Мой профиль»
   syncTabbar();
   $('colWhere').textContent = 'В Telegram коллекция хранится в твоём облаке Telegram и появляется на всех твоих устройствах. Код нужен, только чтобы перенести её в обычный браузер.';
-  if (app.isVersionAtLeast && app.isVersionAtLeast('6.9')) cloudLoad();
+  if (app.isVersionAtLeast && app.isVersionAtLeast('6.9')) { cloudLoad(); if (pullStats) pullMarksLoad(); }
   const start = app.initDataUnsafe && app.initDataUnsafe.start_param;
   const hero = start && heroByCode(start);
   if (hero) openCard(E.heroId(hero));
@@ -5409,6 +5571,7 @@ renderAll();
     if (site) site.records = ((await loadJson('records.json')) || {}).events || site.records || [];
     if (site) site.contests = ((await loadJson('contests.json')) || {}).contests || [];
     if (site) startContestLive(await loadJson(`contest-live.json?t=${Date.now()}`));
+    if (site) pullStats = await loadJson('pull-stats.json');
     if (site) startPublic(site);
     else startLocal(offline);
     return;

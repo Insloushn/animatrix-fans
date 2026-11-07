@@ -1255,6 +1255,72 @@
     };
   }
 
+  // ---------- Общая статистика круток (pull-stats.json от бота, tickets/pull-stats.md) ----------
+
+  // Сводка по чату: '' — все чаты. Нет файла или такого чата — null.
+  function pullScope(data, chatId) {
+    if (!data || !data.all) return null;
+    if (!chatId) return data.all;
+    return (data.byChat && data.byChat[chatId]) || null;
+  }
+
+  // Игрок в сводке по ключу профиля (id:…). Нет — null.
+  function pullPlayer(data, key) {
+    const id = String(key || '').startsWith('id:') ? String(key).slice(3) : '';
+    return (id && data && data.players && data.players[id]) || null;
+  }
+
+  // «Удача»: средние очки за крутку игрока ÷ среднее по всем. Меньше 50 круток — «мало данных».
+  function pullLuck(player, min = 50) {
+    if (!player || player.luck == null || !(player.pulls >= min)) return { value: null, num: '', note: 'мало данных', text: 'мало данных' };
+    const value = player.luck;
+    const num = `×${value.toFixed(2).replace('.', ',')}`;
+    const note = value >= 1.05 ? 'везёт больше среднего' : value <= 0.95 ? 'везёт меньше среднего' : 'как в среднем';
+    return { value, num, note, text: `${num} — ${note}` };
+  }
+
+  // Выпавшие герои игрока → id героев сайта. Сравнение по имени (normName) и рангу; если таких героев
+  // несколько (разные аниме) или ни одного — пропуск.
+  function pullHeroIds(data, player, heroes) {
+    const byKey = new Map();
+    (heroes || []).forEach((h) => {
+      const key = `${h.rank}|${normName(h.name)}`;
+      if (!byKey.has(key)) byKey.set(key, new Set());
+      byKey.get(key).add(heroId(h));
+    });
+    const ids = new Set();
+    ((player && player.heroes) || []).forEach((i) => {
+      const pair = data && data.heroList && data.heroList[i];
+      if (!pair) return;
+      const found = byKey.get(`${pair[1]}|${normName(pair[0])}`);
+      if (found && found.size === 1) ids.add([...found][0]);
+    });
+    return [...ids];
+  }
+
+  // Автоотметка коллекции: только добавляет. done — уже разобранные герои (код → true, если карту добавили крутки).
+  // Карта, которая уже была в коллекции, тоже запоминается: снимешь её вручную — сама она не вернётся.
+  function pullAutoMark(collection, ids, done, heroes) {
+    const codeOf = new Map((heroes || []).map((h) => [heroId(h), heroCode(h)]));
+    const next = { ...(done || {}) };
+    const add = [];
+    ids.forEach((id) => {
+      const code = codeOf.get(id);
+      if (!code || code in next) return;
+      next[code] = !collection[id];
+      if (!collection[id]) add.push(id);
+    });
+    return { add, done: next };
+  }
+
+  // Разобранные герои для облака Telegram: коды через запятую, «+» — карту добавили крутки.
+  const packPullMarks = (done) => Object.keys(done || {}).sort().map((code) => code + (done[code] ? '+' : '')).join(',');
+  function unpackPullMarks(text) {
+    const done = {};
+    String(text || '').split(',').filter(Boolean).forEach((part) => { done[part.replace(/\+$/, '')] = part.endsWith('+'); });
+    return done;
+  }
+
   // ---------- Файл базы ----------
 
   const isText = (v) => typeof v === 'string' && v.trim() !== '';
@@ -1512,6 +1578,7 @@
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     legendOwnerId, playerDirectory, playerProfile, hallOfFame,
+    pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
     CLASSES, RANKS, DEFAULTS, NO_TITLE, SKIN_BONUS, fight, duel, plainFight, formulaScore,
