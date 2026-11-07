@@ -1135,6 +1135,126 @@
       || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   }
 
+  // ---------- Игроки: профили по рекордам и конкурсам ----------
+  // Ключ игрока как у рекордов: id:<Telegram ID> или n:<ник> (рекорды без ID). Ник с ID и такой же ник без ID — разные игроки.
+
+  const unixIso = (unix) => (unix ? new Date(unix * 1000).toISOString() : '');
+  const contestAt = (c) => unixIso(c.endedAt || c.startedAt);
+
+  // Чья легендарка: у новых итогов в записи есть id, у старых — по имени, если в конкурсе ровно один игрок с таким именем.
+  function legendOwnerId(players, entry) {
+    if (entry && entry.id) return String(entry.id);
+    const same = (players || []).filter((p) => normName(p.name) === normName(entry && entry.player));
+    return same.length === 1 ? String(same[0].id) : '';
+  }
+
+  // Все игроки: имя (последнее известное), с какого времени, конкурсы, число записей в рекордах, идущий конкурс.
+  function playerDirectory(events, contests, live) {
+    const map = new Map();
+    const get = (key, id) => {
+      if (!map.has(key)) map.set(key, { key, id: id ? String(id) : '', name: '', nameAt: '', since: '', last: '', contests: 0, records: 0, live: null });
+      return map.get(key);
+    };
+    const touch = (p, name, at) => {
+      if (name && at >= p.nameAt) { p.name = name; p.nameAt = at; }
+      if (!p.name && name) p.name = name;
+      if (at && (!p.since || at < p.since)) p.since = at;
+      if (at > p.last) p.last = at;
+    };
+    (events || []).forEach((ev) => {
+      const seen = new Set();
+      (ev.rows || []).forEach((row) => {
+        const key = recordPlayerKey(row);
+        const p = get(key, row.tgId);
+        if (!seen.has(key)) { p.records += 1; seen.add(key); }
+        touch(p, row.player, String(ev.date || ''));
+      });
+    });
+    const liveContest = live && live.contest;
+    (contests || []).forEach((c) => {
+      if (liveContest && c.id === liveContest.id) return;
+      (c.players || []).forEach((x) => {
+        const p = get(`id:${x.id}`, x.id);
+        p.contests += 1;
+        touch(p, x.name, contestAt(c));
+      });
+    });
+    if (liveContest && !(contests || []).some((c) => c.id === liveContest.id)) {
+      const at = String(live.savedAt || '') || unixIso(liveContest.startedAt);
+      (liveContest.players || []).forEach((x, i) => {
+        const p = get(`id:${x.id}`, x.id);
+        p.live = { place: x.place || i + 1, points: x.points, pulls: x.pulls, of: liveContest.players.length };
+        touch(p, x.name, at);
+      });
+    }
+    return [...map.values()].map(({ nameAt, ...p }) => p)
+      .sort((a, b) => (b.contests + b.records + (b.live ? 1 : 0)) - (a.contests + a.records + (a.live ? 1 : 0))
+        || b.last.localeCompare(a.last) || a.name.localeCompare(b.name, 'ru'));
+  }
+
+  // «Зал славы»: все SSS и SS из конкурсов со сводкой (SSS сверху, внутри по времени) и кто выбил больше всех.
+  function hallOfFame(contests) {
+    const legends = [];
+    (contests || []).forEach((c) => {
+      if (!c.stats) return;
+      [['SSS', c.stats.sss], ['SS', c.stats.ss]].forEach(([rank, list]) => (list || []).forEach((x) => {
+        legends.push({ hero: x.hero, rank, player: x.player, id: legendOwnerId(c.players, x), contest: c.name, contestId: c.id, date: x.date || 0 });
+      }));
+    });
+    legends.sort((a, b) => (a.rank === b.rank ? 0 : a.rank === 'SSS' ? -1 : 1) || a.date - b.date);
+    const byPlayer = new Map();
+    legends.forEach((x) => {
+      const key = x.id ? `id:${x.id}` : `n:${normName(x.player)}`;
+      const p = byPlayer.get(key) || { key: x.id ? key : '', name: x.player, sss: 0, ss: 0, last: 0 };
+      p[x.rank === 'SSS' ? 'sss' : 'ss'] += 1;
+      if (x.date >= p.last) { p.last = x.date; p.name = x.player; }
+      byPlayer.set(key, p);
+    });
+    const leaders = [...byPlayer.values()].sort((a, b) => (b.sss + b.ss) - (a.sss + a.ss) || b.sss - a.sss || a.last - b.last).slice(0, 5);
+    return { legends, leaders };
+  }
+
+  // Профиль игрока: шапка, плитки, идущий конкурс, все конкурсы и рекорды.
+  function playerProfile(events, contests, live, key) {
+    const info = playerDirectory(events, contests, live).find((p) => p.key === key)
+      || { key, id: key.startsWith('id:') ? key.slice(3) : '', name: '', since: '', last: '', contests: 0, records: 0, live: null };
+    const id = key.startsWith('id:') ? key.slice(3) : '';
+    const liveContest = live && live.contest;
+    const list = id ? (contests || []).filter((c) => !(liveContest && c.id === liveContest.id)).map((c) => {
+      const players = c.players || [];
+      const p = players.find((x) => String(x.id) === id);
+      if (!p) return null;
+      const legends = [...((c.stats && c.stats.sss) || []).map((x) => ({ ...x, rank: 'SSS' })), ...((c.stats && c.stats.ss) || []).map((x) => ({ ...x, rank: 'SS' }))]
+        .filter((x) => legendOwnerId(players, x) === id).sort((a, b) => a.date - b.date);
+      return {
+        id: c.id, name: c.name, startedAt: c.startedAt, endedAt: c.endedAt, limit: c.limit || 100, of: players.length,
+        place: p.place, points: p.points, pulls: p.pulls, ranks: p.ranks || {},
+        best: legends.length ? legends.map((x) => `${x.hero} (${x.rank})`) : (p.best || []),
+      };
+    }).filter(Boolean).sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0)) : [];
+    const rec = playerRecords(events || [], key);
+    const liveRow = id && liveContest && !(contests || []).some((c) => c.id === liveContest.id)
+      ? (liveContest.players || []).map((x, i) => ({ ...x, place: x.place || i + 1 })).find((x) => String(x.id) === id) : null;
+    const places = list.map((c) => c.place).filter(Boolean);
+    const recPlaces = rec.best.map((b) => b.rank);
+    return {
+      key, id, name: info.name || rec.name, since: info.since,
+      tiles: {
+        contests: list.length,
+        bestPlace: places.length ? Math.min(...places) : null,
+        sss: list.reduce((n, c) => n + (c.ranks.SSS || 0), 0),
+        ss: list.reduce((n, c) => n + (c.ranks.SS || 0), 0),
+        records: rec.weeks.length,
+        recordEvents: rec.best.length,
+        recordBest: recPlaces.length ? Math.min(...recPlaces) : null,
+      },
+      live: liveRow ? { name: liveContest.name, endsAt: liveContest.endsAt || 0, limit: liveContest.limit || 100, of: (liveContest.players || []).length, place: liveRow.place, points: liveRow.points, pulls: liveRow.pulls } : null,
+      contests: list,
+      records: rec,
+      empty: !list.length && !rec.weeks.length && !liveRow,
+    };
+  }
+
   // ---------- Файл базы ----------
 
   const isText = (v) => typeof v === 'string' && v.trim() !== '';
@@ -1391,6 +1511,7 @@
     packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, chunkText, hitsToKill, seasonNews,
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
+    legendOwnerId, playerDirectory, playerProfile, hallOfFame,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
     CLASSES, RANKS, DEFAULTS, NO_TITLE, SKIN_BONUS, fight, duel, plainFight, formulaScore,

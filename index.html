@@ -447,6 +447,64 @@ details.card summary { cursor: pointer; font-weight: 500; }
   .bar { grid-template-columns: 46px; }
   .bar u { display: none; }
 }
+
+/* Профиль и «Игроки»: круглый аватар, под ним буква имени — видна, пока картинки нет. */
+.avatar { position: relative; flex: none; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; display: inline-grid; place-items: center; background: var(--accent); color: var(--on-accent); font: 600 17px/1 var(--display); }
+.avatar.big { width: 72px; height: 72px; font-size: 30px; }
+.avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.profile-head { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 14px; }
+.profile-head h2 { font-size: 20px; overflow-wrap: anywhere; }
+.profile-head .actions, .profile-head #profileShareNote { grid-column: 1 / -1; }
+.profile-head #profileShareNote:empty { display: none; }
+.player-list { padding: 4px; gap: 0; }
+.player-row { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 8px; cursor: pointer; min-width: 0; }
+.player-row + .player-row { border-top: 1px solid var(--line); }
+.player-row:hover, .player-row:focus-visible { background: var(--tint); }
+.player-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.player-text { display: grid; min-width: 0; }
+.player-text b { font-weight: 600; overflow-wrap: anywhere; }
+.player-text small { color: var(--muted); font-size: 12px; }
+#view-players .tools > span { flex: none; }
+
+/* Главная: карточки с «Все →» и плитки разделов. */
+#homeOut { grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); align-items: start; }
+.home-card { gap: 8px; }
+/* «Кого качать»: ранги свёрнуты, кроме старшего. */
+.advice-rank { border-top: 1px solid var(--line); padding-top: 8px; }
+.advice-rank summary { cursor: pointer; padding: 2px 0; }
+.advice-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; padding-top: 10px; }
+.advice-body h3 { margin: 0 0 4px; font-size: 14px; }
+.home-tiles { grid-column: 1 / -1; }
+.home-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 12px; }
+.home-head .link-btn { color: var(--accent); white-space: nowrap; font-size: 14px; }
+.home-sub { margin: 4px 0 0; font-size: 14px; }
+.home-me { padding: 4px 0; }
+.home-me:hover { background: none; }
+.home-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(150px, calc(50% - 5px)), 1fr)); gap: 10px; }
+.home-tile { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer; min-width: 0; }
+.home-tile span { font-size: 22px; line-height: 1; }
+.home-tile b { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.home-tile:hover, .home-tile:focus-visible { background: var(--tint); }
+.home-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Нижние вкладки на телефоне вместо меню «Разделы»; «Ещё» открывает меню снизу. */
+.tabbar { display: none; }
+@media (max-width: 760px) {
+  .mobile-bar .menu-btn { display: none; }
+  body { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .tabbar {
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+    background: var(--panel); border-top: 1px solid var(--line);
+    padding: 4px max(4px, env(safe-area-inset-right, 0px)) calc(4px + env(safe-area-inset-bottom, 0px)) max(4px, env(safe-area-inset-left, 0px));
+  }
+  .tabbar button { all: unset; box-sizing: border-box; display: grid; justify-items: center; gap: 1px; min-width: 0; padding: 5px 2px; border-radius: 10px; cursor: pointer; color: var(--muted); font: 500 11px/1.2 var(--body); white-space: nowrap; }
+  .tabbar button span { font-size: 20px; line-height: 1.15; filter: grayscale(.7); opacity: .75; }
+  .tabbar button[aria-current="page"], .tabbar button[aria-expanded="true"] { color: var(--accent); background: var(--tint); }
+  .tabbar button[aria-current="page"] span, .tabbar button[aria-expanded="true"] span { filter: none; opacity: 1; }
+  .tabbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .menu-sheet.from-bar .menu-panel { top: auto; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); max-height: calc(100dvh - 130px); transform: translateY(10px) scale(.98); transform-origin: bottom right; }
+  .menu-sheet.from-bar.open .menu-panel { transform: none; }
+}
 </style>
 
 <div class="wrap">
@@ -468,11 +526,14 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </header>
 
   <nav role="tablist">
+    <button role="tab" data-tab="home" aria-selected="false">Главная</button>
     <button role="tab" data-tab="top" aria-selected="true">Топ</button>
     <button role="tab" data-tab="compare" aria-selected="false">Сравнение</button>
     <button role="tab" data-tab="card" aria-selected="false">Карточка героя</button>
     <button role="tab" data-tab="collection" aria-selected="false">Моя коллекция</button>
     <button role="tab" data-tab="news" aria-selected="false">Новости сезона</button>
+    <button role="tab" data-tab="profile" aria-selected="false" id="profileTab" hidden>Мой профиль</button>
+    <button role="tab" data-tab="players" aria-selected="false">Игроки</button>
     <button role="tab" data-tab="records" aria-selected="false">Рекорды игроков</button>
     <button role="tab" data-tab="contests" aria-selected="false">Конкурсы</button>
     <button role="tab" data-tab="stats" aria-selected="false">Статистика</button>
@@ -494,8 +555,19 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <div class="menu-backdrop" data-menu-close></div>
     <div class="menu-panel" id="menuPanel" role="menu" aria-label="Разделы сайта"></div>
   </div>
+  <div class="tabbar" id="tabbar" role="navigation" aria-label="Основные разделы">
+    <button data-bar="home"><span aria-hidden="true">🏠</span>Главная</button>
+    <button data-bar="top"><span aria-hidden="true">🏆</span>Топ</button>
+    <button data-bar="contests"><span aria-hidden="true">🎲</span>Конкурсы</button>
+    <button data-bar="profile"><span aria-hidden="true">👤</span>Профиль</button>
+    <button data-bar="more" id="tabMore" aria-expanded="false" aria-controls="menuSheet"><span aria-hidden="true">☰</span>Ещё</button>
+  </div>
 
   <p class="notice" id="notice" hidden></p>
+
+  <section class="view" id="view-home" hidden>
+    <div id="homeOut" class="view"></div>
+  </section>
 
   <section class="view" id="view-top">
     <div class="filters" id="topRows">
@@ -561,6 +633,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   <section class="view" id="view-collection" hidden>
     <div class="card" id="colAccount"></div>
     <div class="stat-tiles" id="colTiles"></div>
+    <div id="colAdvice"></div>
     <div id="colBest" class="view"></div>
     <div class="stat-grid" id="colProgress"></div>
     <div class="card">
@@ -606,6 +679,15 @@ details.card summary { cursor: pointer; font-weight: 500; }
       <span class="small muted" id="newsArticleNote"></span>
     </div>
     <div id="newsOut" class="stat-grid"></div>
+  </section>
+
+  <section class="view" id="view-profile" hidden>
+    <div id="profileOut" class="view"></div>
+  </section>
+
+  <section class="view" id="view-players" hidden>
+    <div class="tools"><input id="playersSearch" type="search" placeholder="Найти игрока" aria-label="Найти игрока"><span class="small muted" id="playersCount"></span></div>
+    <div id="playersOut" class="view"></div>
   </section>
 
   <section class="view" id="view-records" hidden>
@@ -1721,6 +1803,7 @@ let exportData = null;
 
 // Симуляция идёт одна за раз, поэтому считает та вкладка, которая сейчас открыта.
 function renderRanking() {
+  renderHome();
   if (!$('view-export').hidden) renderExport();
   else if (!$('view-card').hidden) renderCard();
   else if (!$('view-news').hidden) renderNews();
@@ -2350,6 +2433,168 @@ function renderCollection() {
     <tbody>${rows || '<tr><td colspan="7" class="empty">Таких карт нет.</td></tr>'}</tbody>`;
   $('colMore').hidden = shown.length <= colState.limit;
   $('colMore').textContent = `Показать ещё, осталось ${fmt(shown.length - colState.limit)}`;
+  renderAdvice();
+}
+
+// ---------- «Кого качать» (tickets/collection-advice.md) ----------
+// По каждому рангу, где есть отмеченные карты: лучшая в каждом классе, «Универсал» и самый выгодный скин.
+// Места — только из уже посчитанного топа (на сайте он готов сразу), «Универсал» — тот же расчёт и кэш, что «Все классы» в карточке.
+const ADVICE_MIN = 3;
+const adviceState = { open: null, job: null, ms: {} };
+
+// Посчитанный топ группы или null: коллекция сама симуляцию топа не запускает.
+function knownRanked(group) {
+  const calc = calcFor(null);
+  const has = (mode) => {
+    const key = groupKey(group, calc, mode, runsFor(group.length, mode));
+    return results.has(key) || !!siteResult(key);
+  };
+  if (!group.length || (settings.mode === 'plain' ? hasEqualPoints(numbered(group), calc) && !has('tiebreak') : !has('skills'))) return null;
+  const ranked = rankGroup(group, calc, '', group.length);
+  return ranked.pending ? null : ranked;
+}
+
+// Ключ кэша соперников — как у карточки в режиме «Все классы», поэтому посчитанное здесь видно и там.
+function allClassesKey(hero, poolSize, calc) {
+  const runs = settings.mode === 'plain' ? 0 : cardRuns(poolSize);
+  return { key: [hero.key, hero.bm, hero.hp, 'all', settings.mode, calc.maxMoves, runs].join('|'), runs };
+}
+
+// «Универсал» считается порциями по 40 мс, по одной карте; ушли из коллекции — счёт останавливается.
+function adviceJob(rank, list, pool, calc) {
+  if (oppCacheFor !== heroes) { oppCache.clear(); oppCacheFor = heroes; oppJob = null; }
+  const todo = list.map((hero) => ({ hero, ...allClassesKey(hero, pool.length, calc) })).filter((x) => !oppCache.has(x.key));
+  if (!todo.length) return null;
+  const sig = [rank, settings.mode, calc.maxMoves, ...list.map((h) => h.key)].join('#');
+  if (adviceState.job && adviceState.job.sig === sig) return adviceState.job;
+  const job = { sig, rank, todo, k: 0, i: 0, rows: [], rivals: null, pool, maxMoves: calc.maxMoves, done: 0, total: todo.length * Math.max(1, pool.length - 1), started: performance.now() };
+  adviceState.job = job;
+  setTimeout(() => adviceStep(job), 0);
+  return job;
+}
+
+function adviceStep(job) {
+  if (adviceState.job !== job) return;
+  if ($('view-collection').hidden) { adviceState.job = null; return; }
+  const started = performance.now();
+  while (job.k < job.todo.length && performance.now() - started < 40) {
+    const cur = job.todo[job.k];
+    if (!job.rivals) { job.rivals = job.pool.filter((h) => h.key !== cur.hero.key); job.rows = []; job.i = 0; }
+    const rate = cur.runs ? (x, y) => pairRate(x, y, cur.runs, job.maxMoves) : (x, y) => E.plainFight(x, y, job.maxMoves).result;
+    while (job.i < job.rivals.length && performance.now() - started < 40) {
+      const rival = job.rivals[job.i];
+      job.rows.push({ rival, wins: (rate(cur.hero, rival) + 1 - rate(rival, cur.hero)) / 2, kills: E.hitsToKill(cur.hero, rival), dies: E.hitsToKill(rival, cur.hero) });
+      job.i += 1;
+      job.done += 1;
+    }
+    if (job.i >= job.rivals.length) {
+      oppCache.set(cur.key, job.rows.sort((a, b) => a.wins - b.wins));
+      job.k += 1;
+      job.rivals = null;
+    }
+  }
+  const bar = $(`advBar-${job.rank}`);
+  if (bar) bar.style.width = `${Math.min(100, job.done / job.total * 100)}%`;
+  const note = $(`advNote-${job.rank}`);
+  if (note) note.textContent = `Считаю «Универсала»: карта ${Math.min(job.k + 1, job.todo.length)} из ${job.todo.length}`;
+  if (job.k < job.todo.length) { setTimeout(() => adviceStep(job), 0); return; }
+  adviceState.ms[job.rank] = Math.round(performance.now() - job.started);
+  adviceState.job = null;
+  renderAdvice();
+}
+
+function adviceRankHtml(rank, owned) {
+  const calc = calcFor(null);
+  const rankHeroes = heroes.filter((h) => h.rank === rank);
+  const ownedKeys = new Set(owned.map((h) => h.key));
+  const placeOf = (ranked) => {
+    const places = E.sharedPlaces(ranked.order, sameStats);
+    return { places, of: ranked.order.length ? places.get(ranked.order[ranked.order.length - 1].key) : 0 };
+  };
+  const score = (h) => E.formulaScore(h, settings.formula);
+
+  // 1. Лучшая карта каждого класса и её место.
+  const skinGains = [];
+  const classRows = E.CLASSES.map((cls) => {
+    const mine = owned.filter((h) => h.cls === cls);
+    if (!mine.length) return `<li><span>${ICONS[cls]} ${esc(cls)}</span><span>нет карт этого класса</span></li>`;
+    const ranked = knownRanked(rankHeroes.filter((h) => h.cls === cls));
+    let best = [...mine].sort((a, b) => score(b) - score(a))[0];
+    let where = 'место появится, когда посчитается топ';
+    if (ranked) {
+      const { places, of } = placeOf(ranked);
+      const inOrder = ranked.order.find((h) => !h.isSkin && ownedKeys.has(h.key));
+      if (inOrder) best = mine.find((h) => h.key === inOrder.key) || best;
+      const place = places.get(best.key);
+      where = best.event ? `${EVENT_MARK} ивент-карта` : place ? `№${place} из ${of}` : '';
+      // 3. Скин: на сколько вырастет процент побед в своей группе.
+      mine.filter((h) => h.skin && !ownEntry(h).skin).forEach((h) => {
+        const base = ranked.result.rows.get(h.key);
+        const skin = ranked.result.rows.get(E.skinVersion(h).key);
+        if (base && skin) skinGains.push({ h, from: base.overall, to: skin.overall });
+      });
+    }
+    return `<li><span>${ICONS[cls]} ${openLink(best)}${ownEntry(best).skin ? ' 🎭' : ''}</span><span>${esc(cls)}${where ? ` · ${where}` : ''}</span></li>`;
+  }).join('');
+
+  // 2. Универсал: лучший средний шанс против всех классов ранга.
+  const pool = numbered(rankHeroes);
+  let universal;
+  if (pool.length < 2) universal = '<p class="small muted">В ранге нет соперников.</p>';
+  else {
+    const job = adviceJob(rank, owned, pool, calc);
+    if (job) {
+      universal = `<div class="status small muted"><span id="advNote-${rank}">Считаю «Универсала»: карта ${Math.min(job.k + 1, job.todo.length)} из ${job.todo.length}</span><div class="track"><span id="advBar-${rank}" style="width:${job.done / job.total * 100}%"></span></div></div>`;
+    } else {
+      const avg = owned.map((h) => {
+        const rows = oppCache.get(allClassesKey(h, pool.length, calc).key) || [];
+        const byCls = E.CLASSES.map((c) => { const r = rows.filter((o) => o.rival.cls === c); return r.length ? [c, r.reduce((s, o) => s + o.wins, 0) / r.length] : null; }).filter(Boolean);
+        return { h, wins: rows.length ? rows.reduce((s, o) => s + o.wins, 0) / rows.length : 0, byCls };
+      }).sort((a, b) => b.wins - a.wins);
+      const top = avg[0];
+      universal = `<ul class="best-list rec-best"><li><span>${ICONS[top.h.cls]} ${openLink(top.h)} — <b>${pct(top.wins)}</b> против всех классов</span><span>${top.byCls.map(([c, w]) => `${ICONS[c]} ${pct(w)}`).join(' · ')}</span></li>
+        ${avg.slice(1, 3).map((x) => `<li><span>${ICONS[x.h.cls]} ${openLink(x.h)} — ${pct(x.wins)}</span></li>`).join('')}</ul>`;
+    }
+  }
+
+  const gains = skinGains.sort((a, b) => (b.to - b.from) - (a.to - a.from)).slice(0, 3);
+  const skins = gains.length
+    ? `<ul class="best-list rec-best">${gains.map((g) => `<li><span>🎭 ${openLink(g.h)} — ${pct(g.from)} → <b>${pct(g.to)}</b></span><span>${ICONS[g.h.cls]} ${esc(g.h.cls)} · +${((g.to - g.from) * 100).toFixed(1)} п.</span></li>`).join('')}</ul>`
+    : `<p class="small muted">${owned.some((h) => h.skin && !ownEntry(h).skin) ? 'Посчитается, когда будет готов топ.' : 'Нет карт, к которым можно взять скин.'}</p>`;
+
+  return `<div class="advice-body">
+      <div><h3>Лучшие в каждом классе</h3><ul class="best-list rec-best">${classRows}</ul></div>
+      <div><h3>⚔️ Универсал</h3>${universal}</div>
+      <div><h3>🎭 Скин даст больше всех</h3>${skins}</div>
+    </div>`;
+}
+
+function renderAdvice() {
+  const box = $('colAdvice');
+  if (!box || $('view-collection').hidden) return;
+  const owned = heroes.filter(isOwned);
+  if (owned.length < ADVICE_MIN) { box.innerHTML = ''; adviceState.job = null; return; }
+  const ranks = E.RANKS.filter((r) => owned.some((h) => h.rank === r));
+  if (!adviceState.open) adviceState.open = new Set([ranks[0]]); // старший ранг раскрыт
+  // Считается только открытый ранг: счёт свёрнутых — при раскрытии.
+  const openRanks = ranks.filter((r) => adviceState.open.has(r));
+  if (adviceState.job && !openRanks.includes(adviceState.job.rank)) adviceState.job = null;
+  let busy = false;
+  const parts = ranks.map((rank) => {
+    const mine = owned.filter((h) => h.rank === rank);
+    const open = adviceState.open.has(rank);
+    // Одна задача счёта за раз: следующий раскрытый ранг ждёт, пока досчитается предыдущий.
+    const body = open ? (busy ? '<p class="small muted">Посчитаю после ранга выше…</p>' : adviceRankHtml(rank, mine)) : '';
+    if (open && adviceState.job) busy = true;
+    return `<details class="advice-rank" data-advice-rank="${rank}"${open ? ' open' : ''}>
+        <summary><b>${rank}-ранг</b> <span class="small muted">· твоих карт: ${mine.length}</span></summary>${body}
+      </details>`;
+  }).join('');
+  box.innerHTML = `<div class="card">
+      <h2>💪 Кого качать</h2>
+      <p class="small muted">По статам на 1 уровне, без учёта уровня твоих карт.</p>
+      ${parts}
+    </div>`;
 }
 
 // ---------- Новости сезона ----------
@@ -2458,7 +2703,7 @@ function renderNews() {
 
 // ---------- Рекорды игроков ----------
 
-const recState = { editing: '', search: '', titleManual: false, autoDate: '', player: '' };
+const recState = { editing: '', search: '', titleManual: false, autoDate: '' };
 const recInfo = (title) => E.recordEventInfo(title);
 const recEventName = (title) => { const info = recInfo(title); return `${info.emoji ? `${info.emoji} ` : ''}${info.name}`; };
 const recValue = (title, value) => (value ? `${value} ${recInfo(title).unitInfo.icon}` : '—');
@@ -2557,7 +2802,7 @@ async function commitRecords(list, message) {
 
 function renderRecAdmin() {
   const box = $('recAdmin');
-  box.hidden = !adminWanted() || !!recState.player;
+  box.hidden = !adminWanted();
   if (box.hidden) return;
   if (siteAdmin.state === 'idle') { adminConnect(); return; }
   if (siteAdmin.state === 'ready') {
@@ -2579,6 +2824,7 @@ function setRecords(list) {
   records = E.sortRecordEvents(list || []);
   if (!$('view-records').hidden) renderRecords();
   if (!$('view-contests').hidden) renderContests();
+  renderPlayerViews();
 }
 
 const recDate = (iso) => {
@@ -2602,50 +2848,281 @@ function playerLink(key) {
   return `${location.origin}${location.pathname}#player=${encodeURIComponent(id || key)}`;
 }
 
-// «Назад» Telegram: виден, когда есть куда вернуться и открыт не «Топ».
+// «Назад» Telegram: виден, когда есть куда вернуться и открыта не «Главная».
 function syncBackButton(tab = currentTab()) {
   if (!tg) return;
-  if (tabTrail.length && tab !== 'top') tg.BackButton.show();
+  if (tabTrail.length && tab !== 'home') tg.BackButton.show();
   else tg.BackButton.hide();
 }
 
+// ---------- Профиль игрока и «Игроки» (tickets/player-profiles.md) ----------
+// Профиль собирается из рекордов, итогов конкурсов и идущего конкурса. Аватары кладёт бот в avatars/<ID>.jpg.
+const profileState = { key: '' };
+const PLAYERS_SHOWN = 50;
+const playersState = { search: '', limit: PLAYERS_SHOWN };
+let playerDirCache = null;
+const playerDir = () => {
+  const c = playerDirCache;
+  if (c && c.records === records && c.contests === contests && c.live === contestLive) return c.list;
+  playerDirCache = { records, contests, live: contestLive, list: E.playerDirectory(records, contests, contestLive) };
+  return playerDirCache.list;
+};
+const tgUser = () => (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
+const tgUserName = () => {
+  const user = tgUser();
+  return user ? [user.first_name, user.last_name].filter(Boolean).join(' ') : '';
+};
+// Пункты меню для игроков: «Мой профиль» и «Игроки» — после «Новостей сезона».
+const menuTabs = () => ['home', ...PLAYER_TABS.slice(0, 5), 'profile', 'players', ...PLAYER_TABS.slice(5)];
+const tabShown = (tab) => { const b = document.querySelector(`nav [data-tab="${tab}"]`); return !!b && !b.hidden; };
+
+// Аватар: буква имени на цвете акцента, сверху — картинка, если она есть. Свою картинку в Telegram берём сразу из Telegram.
+function avatarHtml(key, name, big) {
+  const id = key && key.startsWith('id:') ? key.slice(3) : '';
+  const letter = (String(name || '').trim().match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase();
+  const user = tgUser();
+  const own = user && user.photo_url && key === myPlayerKey() ? user.photo_url : '';
+  const src = own || (siteData && /^\d+$/.test(id) ? `avatars/${id}.jpg` : '');
+  return `<span class="avatar${big ? ' big' : ''}" aria-hidden="true"><span>${esc(letter)}</span>${src ? `<img src="${esc(src)}" alt="" loading="lazy" decoding="async" data-avatar>` : ''}</span>`;
+}
+// Ник ведёт в профиль; без ключа — просто текст.
+const playerNameLink = (key, name) => (key ? `<button class="link-btn" data-player="${esc(key)}">${esc(name)}</button>` : esc(name));
+
 function openPlayer(key) {
-  const before = { tab: currentTab(), card: cardState.id, player: recState.player };
-  recState.player = key;
-  recState.search = '';
-  $('recSearch').value = '';
+  if (!key) return;
+  const before = { tab: currentTab(), card: cardState.id, player: profileState.key };
+  profileState.key = key;
   if (siteData && !tg) history.replaceState(null, '', `#player=${encodeURIComponent(key.startsWith('id:') ? key.slice(3) : key)}`);
-  if (before.tab === 'records') {
+  if (before.tab === 'profile') {
     if (before.player !== key) tabTrail.push(before);
     syncBackButton();
-    renderRecords();
-  } else showTab('records', before);
-  if (before.tab === 'records') trackView('/player');
+    renderProfile();
+    trackView('/player');
+  } else showTab('profile', before);
   window.scrollTo(0, 0);
 }
 
-// Профиль: лучший результат игрока в каждом ивенте и его место среди всех списков этого ивента.
-function recProfileHtml(key) {
-  const p = E.playerRecords(records, key);
-  const back = '<div><button class="btn ghost mini" data-rec-back>← Все рекорды</button></div>';
-  if (!p.best.length) return `${back}<p class="empty">У этого игрока пока нет записанных результатов.</p>`;
-  const mine = key === myPlayerKey();
-  const best = p.best.map((b) => `<li>
+// Вкладка «Мой профиль» всегда открывает свой профиль.
+function goTab(tab) {
+  if (tab === 'profile' && myPlayerKey()) openPlayer(myPlayerKey());
+  else showTab(tab);
+}
+
+// «Назад» на странице и в Telegram: туда, откуда пришли.
+function goBack() {
+  const back = tabTrail.pop();
+  if (!back) return false;
+  goingBack = true;
+  cardState.id = back.card;
+  if ('player' in back) profileState.key = back.player || '';
+  showTab(back.tab);
+  goingBack = false;
+  window.scrollTo(0, 0);
+  return true;
+}
+
+// Данные игроков обновились — открытый профиль или список перерисовываются.
+function renderPlayerViews() {
+  renderProfile();
+  renderPlayers();
+  renderHome();
+}
+
+function renderProfile() {
+  if ($('view-profile').hidden) return;
+  const me = myPlayerKey();
+  const key = profileState.key || me;
+  const back = !tg && tabTrail.length ? '<div><button class="btn ghost mini" data-go-back>← Назад</button></div>' : '';
+  if (!key) {
+    $('profileOut').innerHTML = `${back}<p class="empty">Свой профиль виден в мини-приложении Telegram. Профили всех игроков — в разделе «Игроки».</p>
+      <div><button class="btn mini" data-go="players">👥 Все игроки</button></div>`;
+    return;
+  }
+  const p = E.playerProfile(records, contests, contestLive, key);
+  const mine = key === me;
+  const name = p.name || (mine ? tgUserName() : '') || (key.startsWith('n:') ? key.slice(2) : 'Игрок');
+  const since = recDate(p.since);
+  const tile = (label, value, note) => `<div class="stat-tile"><span class="small muted">${label}</span><b>${value}</b>${note ? `<span class="small muted">${note}</span>` : ''}</div>`;
+  const t = p.tiles;
+  const head = `<div class="card profile-head">
+      ${avatarHtml(key, name, true)}
+      <div class="profile-name">
+        <h2>${esc(name)}${mine ? ' <span class="tag">это ты</span>' : ''}</h2>
+        <p class="small muted">${since ? `в AniMatrix Fans с ${esc(since)}` : 'пока без результатов'}${p.id ? '' : ' · без Telegram'}</p>
+      </div>
+      <div class="actions">
+        ${p.id ? `<a class="btn ghost mini" href="${BOT_PROFILE}${esc(p.id)}" target="_blank" rel="noopener">Профиль в боте</a>` : ''}
+        ${siteData ? '<button class="btn ghost mini" data-profile-share>Поделиться</button>' : ''}
+      </div>
+      <p class="small muted" id="profileShareNote"></p>
+    </div>`;
+  if (p.empty) {
+    $('profileOut').innerHTML = `${back}${head}<p class="empty">Пока пусто: участвуй в конкурсах и пересылай итоги ивентов боту @AniMatrix_fansBot.</p>`;
+    return;
+  }
+  const tiles = `<div class="stat-tiles live-tiles">
+      ${tile('Конкурсов', fmt(t.contests))}
+      ${tile('Лучшее место в конкурсе', t.bestPlace ? `№${t.bestPlace}` : '—')}
+      ${tile('SSS / SS в конкурсах', `${fmt(t.sss)} / ${fmt(t.ss)}`)}
+      ${tile('Рекордов', fmt(t.records), t.recordEvents ? `в ивентах: ${t.recordEvents}` : '')}
+      ${tile('Лучшее место в рекордах', t.recordBest ? `№${t.recordBest}` : '—')}
+    </div>`;
+  const live = p.live ? `<div class="card live-card">
+      <h2>🔴 Идёт сейчас: ${esc(p.live.name)}</h2>
+      <p>Место <b>№${p.live.place}</b> из ${p.live.of} · <b>${fmt(p.live.points)}</b> 🎲 · круток ${fmt(p.live.pulls)} из ${p.live.limit}</p>
+      ${p.live.endsAt ? `<p class="small muted" data-ends="${Number(p.live.endsAt)}">⏳ ${esc(liveLeft(p.live.endsAt))}</p>` : ''}
+      <div><button class="btn ghost mini" data-go="contests">Таблица конкурса →</button></div>
+    </div>` : '';
+  const contestRows = p.contests.map((c) => `<li>
+      <span>${c.place <= 3 ? recPlace(c.place) : `№${c.place}`} <b>${esc(c.name)}</b> — ${fmt(c.points)} 🎲</span>
+      <span>${esc([contestDate(c.endedAt || c.startedAt), `место ${c.place} из ${c.of}`, `круток ${c.pulls}`, contestRanks(c.ranks)].filter(Boolean).join(' · '))}</span>
+      ${c.best.length ? `<span>🎉 ${esc(c.best.join(', '))}</span>` : ''}
+    </li>`).join('');
+  const recRows = p.records.best.map((b) => `<li>
       <span>${b.rank <= 3 ? recPlace(b.rank) : `№${b.rank}`} <b>${esc(recEventName(b.event))}</b> — ${esc(recValue(b.event, b.value))}</span>
       <span>${b.rank}-е место из ${b.of}</span>
     </li>`).join('');
-  return `${back}${REC_DISCLAIMER}
-    <div class="card">
-      <div class="card-head">
-        <div><h2>${esc(p.name)}${mine ? ' <span class="tag">это ты</span>' : ''}</h2><p class="small muted">Ивентов в рекордах: ${p.best.length}</p></div>
-        <div class="actions">
-          ${p.tgId ? `<a class="btn ghost mini" href="${BOT_PROFILE}${esc(p.tgId)}" target="_blank" rel="noopener">Профиль в боте</a>` : ''}
-          ${siteData ? '<button class="btn ghost mini" data-rec-share>Поделиться</button>' : ''}
-        </div>
-      </div>
-      <p class="small muted" id="recShareNote"></p>
-    </div>
-    <div class="card"><h2>Лучшие результаты</h2><ol class="best-list rec-best">${best}</ol></div>`;
+  $('profileOut').innerHTML = `${back}${head}${tiles}${live}
+    ${p.contests.length ? `<div class="card"><h2>🎲 Конкурсы</h2><ol class="best-list rec-best">${contestRows}</ol></div>` : ''}
+    ${p.records.best.length ? `<div class="card"><h2>🥇 Рекорды</h2>${REC_DISCLAIMER}<ol class="best-list rec-best">${recRows}</ol></div>` : ''}`;
+}
+
+function renderPlayers() {
+  if ($('view-players').hidden) return;
+  const q = E.normName(playersState.search);
+  const all = playerDir().filter((p) => !q || E.normName(p.name).includes(q));
+  const withId = all.filter((p) => p.id);
+  const noId = all.filter((p) => !p.id);
+  const me = myPlayerKey();
+  const row = (p) => `<button class="player-row" data-player="${esc(p.key)}">
+      ${avatarHtml(p.key, p.name)}
+      <span class="player-text"><b>${esc(p.name)}${p.key === me ? ' <span class="tag">это ты</span>' : ''}</b>
+        <small>${[`конкурсов ${p.contests}`, `рекордов ${p.records}`, p.live ? '🔴 в конкурсе' : ''].filter(Boolean).join(' · ')}</small></span>
+    </button>`;
+  const shownId = withId.slice(0, playersState.limit);
+  const shownNo = noId.slice(0, Math.max(0, playersState.limit - withId.length));
+  const left = all.length - shownId.length - shownNo.length;
+  $('playersCount').textContent = all.length ? `Игроков: ${fmt(all.length)}` : '';
+  $('playersOut').innerHTML = !all.length
+    ? `<p class="empty">${q ? 'Игрок с таким именем не найден.' : 'Пока никого: игроки появятся после конкурсов и рекордов.'}</p>`
+    : `${shownId.length ? `<div class="card player-list">${shownId.map(row).join('')}</div>` : ''}
+      ${shownNo.length ? `<h2>Без Telegram</h2><p class="small muted">Игроки из рекордов, у которых в итогах не было ссылки на профиль: их профиль — по нику.</p><div class="card player-list">${shownNo.map(row).join('')}</div>` : ''}
+      ${left > 0 ? `<div><button class="btn ghost" data-players-more>Показать ещё, осталось ${fmt(left)}</button></div>` : ''}`;
+}
+
+// ---------- Главная и нижние вкладки (tickets/site-home-tabs.md) ----------
+// Главная — раздел по умолчанию на сайте игроков; в claude.ai страница открывается на «Топе».
+const BAR_TABS = ['home', 'top', 'contests', 'profile'];
+let menuFromBar = false; // меню открыто из «Ещё»: без разделов, которые уже есть внизу
+
+// Какая нижняя вкладка подсвечена. «Профиль» без Telegram ведёт в «Игроки».
+function barTab(tab) {
+  if (tab === 'home' || tab === 'top' || tab === 'contests') return tab;
+  const me = myPlayerKey();
+  if (tab === 'profile' && me && (profileState.key || me) === me) return 'profile';
+  if (tab === 'players' && !me) return 'profile';
+  return 'more';
+}
+function syncTabbar(tab = currentTab()) {
+  const on = barTab(tab);
+  document.querySelectorAll('#tabbar [data-bar]').forEach((b) => {
+    if (b.dataset.bar === on) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+}
+
+// Первый раздел без записи в «Назад».
+function startOn(tab) {
+  goingBack = true;
+  showTab(tab);
+  goingBack = false;
+}
+
+// Свежие новые герои и скины: последний переход между сезонами, а если он пустой — предыдущий (как в «Новостях»).
+function homeNews() {
+  const views = newsViews();
+  if (!views.length) return null;
+  const docsOf = (season) => (season ? seasonDocs.get(season.id) : titles);
+  const newsFor = (view) => {
+    const missing = [view.season, view.prev].filter((s) => s && !seasonDocs.has(s.id));
+    if (missing.length) { missing.forEach((s) => requestSeason(s.id)); return null; }
+    return E.seasonNews(derive(docsOf(view.season)), derive(docsOf(view.prev)));
+  };
+  let news = newsFor(views[0]);
+  if (!news) return { loading: true };
+  if (!news.fresh.length && !news.skins.length && views[1]) news = newsFor(views[1]) || news;
+  const rankOrder = (h) => E.RANKS.indexOf(h.rank);
+  const items = [
+    ...[...news.fresh].sort((a, b) => rankOrder(a) - rankOrder(b)).map((h) => ({ h, note: 'новый' })),
+    ...[...news.skins].sort((a, b) => rankOrder(a) - rankOrder(b)).map((h) => ({ h, note: 'скин 🎭' })),
+  ];
+  return { items: items.slice(0, 5), total: items.length };
+}
+
+function renderHome() {
+  if ($('view-home').hidden) return;
+  if (!loaded) { $('homeOut').innerHTML = '<p class="empty">Загружаю…</p>'; return; }
+  const card = (title, go, body) => `<article class="card home-card">
+      <div class="home-head"><h2>${title}</h2>${go ? `<button class="link-btn small" data-go="${go}">Все →</button>` : ''}</div>${body}
+    </article>`;
+  const topRows = (players) => `<ol class="best-list rec-best">${players.slice(0, 3).map((p, i) => `<li><span>${recPlace(p.place || i + 1)} ${playerNameLink(p.id ? `id:${p.id}` : '', p.name)} — <b>${fmt(p.points)}</b> 🎲</span><span>круток ${fmt(p.pulls)}</span></li>`).join('')}</ol>`;
+  const parts = [];
+
+  // Конкурс: идущий — мини-версия «Идёт сейчас», иначе итог последнего.
+  const now = contestLive && contestLive.contest && !contests.some((c) => c.id === contestLive.contest.id) ? contestLive.contest : null;
+  if (now) {
+    const players = now.players || [];
+    const s = now.stats || {};
+    const legends = [...(s.sss || []).map((x) => ({ ...x, rank: 'SSS' })), ...(s.ss || []).map((x) => ({ ...x, rank: 'SS' }))]
+      .sort((a, b) => b.date - a.date).slice(0, 3)
+      .map((x) => { const id = E.legendOwnerId(players, x); return `<li><span>🎉 <b>${esc(x.hero)}</b> (${x.rank}) — ${playerNameLink(id ? `id:${id}` : '', x.player)}</span><span>${esc(contestTime(x.date))}</span></li>`; });
+    parts.push(card(`🔴 Идёт сейчас: ${esc(now.name)}`, 'contests', `
+      <p class="small muted">${now.endsAt ? `<b data-ends="${Number(now.endsAt)}">⏳ ${esc(liveLeft(now.endsAt))}</b> · ` : ''}участников: ${players.length}</p>
+      ${players.length ? topRows(players) : '<p class="small muted">Пока ни одной засчитанной крутки.</p>'}
+      ${legends.length ? `<h3 class="home-sub">Последние легендарки</h3><ul class="best-list rec-best">${legends.join('')}</ul>` : ''}`));
+  } else if (contests.length) {
+    const last = contests[0];
+    parts.push(card(`🏁 Последний конкурс: ${esc(last.name)}`, 'contests', `
+      <p class="small muted">${esc(contestDate(last.endedAt || last.startedAt))} · участников: ${(last.players || []).length}</p>
+      ${topRows(last.players || [])}`));
+  }
+
+  // Мой профиль — только в Telegram, где известен свой ID.
+  const me = myPlayerKey();
+  if (me) {
+    const p = E.playerProfile(records, contests, contestLive, me);
+    const name = p.name || tgUserName() || 'Игрок';
+    const line = [p.tiles.bestPlace ? `лучшее место: №${p.tiles.bestPlace}` : '', `конкурсов: ${p.tiles.contests}`, p.live ? `сейчас №${p.live.place}` : ''].filter(Boolean).join(' · ');
+    parts.push(card('👤 Мой профиль', 'profile', `<button class="player-row home-me" data-go="profile">${avatarHtml(me, name)}<span class="player-text"><b>${esc(name)}</b><small>${esc(line)}</small></span></button>`));
+  }
+
+  // Новое в сезоне.
+  const news = homeNews();
+  if (news && (news.loading || news.items.length)) {
+    parts.push(card('📰 Новое в сезоне', 'news', news.loading ? '<p class="small muted">Загружаю сезоны…</p>'
+      : `<ul class="best-list rec-best">${news.items.map(({ h, note }) => `<li><span>${openLink(h)} · ${h.rank}</span><span>${esc(note)} · ${ICONS[h.cls]} ${esc(h.cls)} · ${esc(h.title || E.NO_TITLE)}</span></li>`).join('')}</ul>
+        ${news.total > news.items.length ? `<p class="small muted">и ещё ${news.total - news.items.length}</p>` : ''}`));
+  }
+
+  // Свежие рекорды: последние три события, первое место.
+  if (records.length) {
+    parts.push(card('🥇 Свежие рекорды', 'records', `<ul class="best-list rec-best">${records.slice(0, 3).map((ev) => {
+      const first = [...(ev.rows || [])].sort((a, b) => (a.place || 99) - (b.place || 99))[0];
+      return `<li><span><b>${esc(recEventName(ev.title))}</b> · <span class="muted small">${esc(ev.period || recDate(ev.date))}</span></span>${first ? `<span>🥇 ${playerNameLink(E.recordPlayerKey(first), first.player)} — ${esc(recValue(ev.title, first.value))}</span>` : ''}</li>`;
+    }).join('')}</ul>`));
+  }
+
+  // Моя коллекция.
+  const owned = heroes.filter(isOwned).length;
+  parts.push(card('📚 Моя коллекция', 'collection', owned
+    ? `<p>Отмечено <b>${fmt(owned)}</b> из ${fmt(heroes.length)} карт</p>`
+    : '<p class="small muted">Отметь свои карты — увидишь личный топ и кого качать.</p>'));
+
+  // Разделы плитками.
+  const tiles = ['top', 'compare', 'card', 'collection', 'players', 'stats', 'records', 'antistress'].filter(tabShown)
+    .map((t) => `<button class="home-tile" data-go="${t}"><span aria-hidden="true">${TAB_INFO[t].icon}</span><b>${esc(TAB_INFO[t].label)}</b></button>`).join('');
+  parts.push(`<div class="home-tiles">${tiles}</div>`);
+  $('homeOut').innerHTML = parts.join('');
 }
 
 // По каждому ивенту один топ из всех сохранённых списков: у игрока берётся лучший результат.
@@ -2694,14 +3171,10 @@ function recSourcesHtml() {
 function renderRecords() {
   if ($('view-records').hidden) return;
   renderRecAdmin();
-  $('recEditor').hidden = !recEditable() || !!recState.player;
+  $('recEditor').hidden = !recEditable();
   $('recDownload').hidden = !!siteData;
   if (recEditable()) fillRecEvents();
   if (recEditable() && !$('recDate').value && !recState.editing) $('recDate').value = todayIso();
-  if (recState.player) {
-    $('recList').innerHTML = recProfileHtml(recState.player);
-    return;
-  }
   if (!records.length) {
     $('recList').innerHTML = `${REC_DISCLAIMER}<p class="empty">${recEditable() ? 'Вставь в форму выше сообщение бота с итогами ивента.' : 'Скоро здесь появятся рекорды игроков в ивентах бота.'}</p>`;
     return;
@@ -2827,6 +3300,7 @@ const contestRanks = (ranks) => ['SSS', 'SS', 'S'].filter((r) => ranks && ranks[
 function setContests(list) {
   contests = [...(list || [])].sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
   if (!$('view-contests').hidden) renderContests();
+  renderPlayerViews();
 }
 
 // Лучший результат каждого игрока за все конкурсы.
@@ -2845,7 +3319,7 @@ function contestTable(rows, note) {
     <thead><tr><th class="left">Место</th><th class="left">Игрок</th><th>🎲 Очки</th></tr></thead>
     <tbody>${rows.map((p) => `<tr class="has-lead rec-row">
       <td class="left place m-lead">${recPlace(p.place)}</td>
-      <td class="left m-main">${esc(p.name)}<span class="small muted" style="display:block">${esc(note(p))}</span></td>
+      <td class="left m-main">${playerNameLink(p.id ? `id:${p.id}` : '', p.name)}<span class="small muted" style="display:block">${esc(note(p))}</span></td>
       <td class="m-side">${fmt(p.points)} 🎲</td>
     </tr>`).join('')}</tbody>
   </table></div>`;
@@ -2868,6 +3342,7 @@ async function refreshContestLive() {
   if (!contestLiveOn || $('view-contests').hidden || document.hidden) return;
   await loadContestLive();
   renderContests();
+  renderPlayerViews();
 }
 
 function startContestLive(first) {
@@ -2909,7 +3384,7 @@ const contestTime = (unix) => {
 };
 
 // Сводка конкурса: плитки и ранги сверху, списки (невезучие, SSS и SS, частые герои) — под таблицей.
-function contestStatsParts(s, limit) {
+function contestStatsParts(s, limit, players) {
   if (!s) return { head: '', lists: '' };
   const tile = (label, value) => `<div class="stat-tile"><span class="small muted">${label}</span><b>${value}</b></div>`;
   const total = CONTEST_RANKS.reduce((n, r) => n + ((s.ranks && s.ranks[r]) || 0), 0);
@@ -2924,11 +3399,11 @@ function contestStatsParts(s, limit) {
     <div class="live-ranks">${ranks}</div>`;
   // Длинный список (легендарные) — первые 10, остальные под «Показать всех».
   const list = (title, note, items) => `<div><h3>${title}</h3>${note ? `<p class="small muted">${note}</p>` : ''}${items.length ? `<ul class="best-list">${items.slice(0, CONTEST_SHOWN).join('')}</ul>` : '<p class="small muted">Пока нет</p>'}${items.length > CONTEST_SHOWN ? `<details><summary class="small muted">Показать всех: ещё ${items.length - CONTEST_SHOWN}</summary><ul class="best-list">${items.slice(CONTEST_SHOWN).join('')}</ul></details>` : ''}</div>`;
-  const unlucky = (s.unlucky || []).map((p) => `<li>${esc(p.name)} — ${fmt(p.points)} 🎲<span>${esc(contestRanks(p.ranks) || 'без S и выше')}</span></li>`);
+  const unlucky = (s.unlucky || []).map((p) => `<li>${playerNameLink(p.id ? `id:${p.id}` : '', p.name)} — ${fmt(p.points)} 🎲<span>${esc(contestRanks(p.ranks) || 'без S и выше')}</span></li>`);
   // SSS и SS одним списком по времени; в старых файлах ss нет — тогда только SSS.
   const legends = [...(s.sss || []).map((x) => ({ ...x, rank: 'SSS' })), ...(s.ss || []).map((x) => ({ ...x, rank: 'SS' }))]
     .sort((a, b) => a.date - b.date)
-    .map((x) => `<li>${esc(x.hero)} (${x.rank}) — ${esc(x.player)}<span>${esc(contestTime(x.date))}</span></li>`);
+    .map((x) => { const id = E.legendOwnerId(players, x); return `<li>${esc(x.hero)} (${x.rank}) — ${playerNameLink(id ? `id:${id}` : '', x.player)}<span>${esc(contestTime(x.date))}</span></li>`; });
   const heroesTop = (s.topHeroes || []).map((h) => `<li>${esc(h.name)} (${esc(h.rank)})<span>выпал ${fmt(h.count)} раз</span></li>`);
   const lists = `<div class="best-grid live-lists">
       ${list('😿 Меньше всего везёт', `среди сделавших все ${limit}`, unlucky)}
@@ -2936,6 +3411,24 @@ function contestStatsParts(s, limit) {
       ${list('Чаще всех выпадали', '', heroesTop)}
     </div>`;
   return { head, lists };
+}
+
+// «🏛 Зал славы»: все SSS и SS из прошлых конкурсов и «Больше всех легендарок» (tickets/contest-stats.md).
+function hallOfFameHtml() {
+  const hall = E.hallOfFame(contests);
+  if (!hall.legends.length) return '';
+  const item = (x) => `<li><span><b>${esc(x.hero)}</b> (${x.rank}) — ${playerNameLink(x.id ? `id:${x.id}` : '', x.player)}</span><span>${esc([x.contest, x.date ? contestDate(x.date) : ''].filter(Boolean).join(' · '))}</span></li>`;
+  const rest = hall.legends.slice(CONTEST_SHOWN);
+  const leaders = hall.leaders.map((p, i) => `<li><span>${recPlace(i + 1)} ${playerNameLink(p.key, p.name)}</span><span>${esc([p.sss ? `SSS×${p.sss}` : '', p.ss ? `SS×${p.ss}` : ''].filter(Boolean).join(' · '))}</span></li>`).join('');
+  return `<article class="card">
+      <h2>🏛 Зал славы</h2>
+      <p class="small muted">Все SSS и SS из конкурсов: ${fmt(hall.legends.length)}</p>
+      <div class="best-grid live-lists">
+        <div><ul class="best-list rec-best">${hall.legends.slice(0, CONTEST_SHOWN).map(item).join('')}</ul>
+          ${rest.length ? `<details><summary class="small muted">Показать всех: ещё ${rest.length}</summary><ul class="best-list rec-best">${rest.map(item).join('')}</ul></details>` : ''}</div>
+        <div><h3>Больше всех легендарок</h3><ol class="best-list rec-best">${leaders}</ol></div>
+      </div>
+    </article>`;
 }
 
 function renderContests() {
@@ -2947,7 +3440,7 @@ function renderContests() {
     const players = now.players || [];
     const note = (p) => [`круток ${p.pulls}`, contestRanks(p.ranks)].filter(Boolean).join(' · ');
     const rest = players.slice(CONTEST_SHOWN);
-    const parts = contestStatsParts(now.stats, now.limit || 100);
+    const parts = contestStatsParts(now.stats, now.limit || 100, players);
     return `<article class="card live-card">
       <h2>🔴 Идёт сейчас: ${esc(now.name)}</h2>
       <p class="small muted">${now.endsAt ? `<b data-ends="${Number(now.endsAt)}">⏳ ${esc(liveLeft(now.endsAt))}</b> · ` : ''}${esc(liveAgo(contestLive.savedAt))}</p>
@@ -2967,7 +3460,7 @@ function renderContests() {
     const dates = [contestDate(c.startedAt), c.endedAt && contestDate(c.endedAt) !== contestDate(c.startedAt) ? contestDate(c.endedAt) : ''].filter(Boolean).join(' – ');
     const note = (p) => [`круток ${p.pulls}`, contestRanks(p.ranks)].filter(Boolean).join(' · ');
     const rest = players.slice(CONTEST_SHOWN);
-    const parts = contestStatsParts(c.stats, c.limit || 100);
+    const parts = contestStatsParts(c.stats, c.limit || 100, players);
     return `<article class="card">
       <h2>🎲 ${esc(c.name)}</h2>
       <p class="small muted">${esc(dates)} · участников: ${players.length}</p>
@@ -2982,6 +3475,7 @@ function renderContests() {
       <p class="small muted">Лучший результат каждого игрока за все конкурсы</p>
       ${contestTable(allTime, (p) => [p.contest, contestRanks(p.ranks)].filter(Boolean).join(' · '))}
     </article>
+    ${hallOfFameHtml()}
     <h2>Итоги конкурсов</h2>${cards}`;
 }
 
@@ -3857,6 +4351,12 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
     if (tabTrail.length > 30) tabTrail.shift();
   }
   syncBackButton(tab);
+  ['home', 'profile', 'players'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
+  syncTabbar(tab);
+  if (tab !== 'profile' && siteData && !tg && /^#player=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+  if (tab === 'profile') renderProfile();
+  if (tab === 'players') renderPlayers();
+  if (tab === 'home') renderHome();
   document.querySelectorAll('nav button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   $('currentTabLabel').textContent = (TAB_INFO[tab] || {}).label || '';
   closeMenu(false);
@@ -3887,16 +4387,19 @@ function armed(button) {
 
 document.querySelector('nav').addEventListener('click', (e) => {
   const b = e.target.closest('[data-tab]');
-  if (b) showTab(b.dataset.tab);
+  if (b) goTab(b.dataset.tab);
 });
 
 // Пункты меню повторяют вкладки: скрытые для игроков разделы в меню тоже не попадают.
 const TAB_INFO = {
+  home: { icon: '🏠', label: 'Главная', note: 'Конкурс, новое в сезоне, свежие рекорды' },
   top: { icon: '🏆', label: 'Топ', note: 'Лучшие герои ранга и класса' },
   compare: { icon: '⚔️', label: 'Сравнение', note: 'Бой двух героев один на один' },
   card: { icon: '🃏', label: 'Карточка героя', note: 'Место, соперники и история по сезонам' },
   collection: { icon: '📚', label: 'Моя коллекция', note: 'Отметь свои карты и смотри личный топ' },
   news: { icon: '📰', label: 'Новости сезона', note: 'Новые герои, скины и кто сдвинулся' },
+  profile: { icon: '👤', label: 'Профиль', note: 'Твои конкурсы и рекорды' },
+  players: { icon: '👥', label: 'Игроки', note: 'Все участники конкурсов и рекордов' },
   records: { icon: '🥇', label: 'Рекорды игроков', note: 'Лучшие результаты в ивентах и событиях бота' },
   contests: { icon: '🎲', label: 'Конкурсы', note: 'Итоги конкурсов круток и лучшие за всё время' },
   stats: { icon: '📊', label: 'Статистика', note: 'Доли рангов, классов и аниме' },
@@ -3914,20 +4417,23 @@ function renderMenu() {
   const item = (tab) => {
     const info = TAB_INFO[tab];
     return `<button class="menu-item" role="menuitem" data-go="${tab}"${tab === currentTab() ? ' aria-current="page"' : ''}>
-      <span class="icon" aria-hidden="true">${info.icon}</span><b>${info.label}</b><small>${info.note}</small>
+      <span class="icon" aria-hidden="true">${info.icon}</span><b>${tab === 'profile' ? 'Мой профиль' : info.label}</b><small>${info.note}</small>
     </button>`;
   };
-  const players = PLAYER_TABS.filter((t) => tabs.includes(t));
-  const admin = tabs.filter((t) => !PLAYER_TABS.includes(t));
+  const players = menuTabs().filter((t) => tabs.includes(t) && tabShown(t) && !(menuFromBar && BAR_TABS.includes(t)));
+  const admin = tabs.filter((t) => !menuTabs().includes(t));
   $('menuPanel').innerHTML = players.map(item).join('')
     + (admin.length ? `<div class="menu-group">Для владельца</div>${admin.map(item).join('')}` : '');
 }
 
-function openMenu() {
+// fromBar: меню «Ещё» из нижних вкладок — открывается снизу.
+function openMenu(fromBar) {
+  menuFromBar = !!fromBar;
   renderMenu();
+  $('menuSheet').classList.toggle('from-bar', menuFromBar);
   $('menuSheet').style.setProperty('--menu-top', `${Math.round($('menuBtn').getBoundingClientRect().bottom + 8)}px`);
   $('menuSheet').classList.add('open');
-  $('menuBtn').setAttribute('aria-expanded', 'true');
+  $(menuFromBar ? 'tabMore' : 'menuBtn').setAttribute('aria-expanded', 'true');
   const current = $('menuPanel').querySelector('[aria-current="page"]') || $('menuPanel').querySelector('.menu-item');
   if (current) current.focus({ preventScroll: true });
 }
@@ -3936,8 +4442,24 @@ function closeMenu(returnFocus) {
   if (!$('menuSheet').classList.contains('open')) return;
   $('menuSheet').classList.remove('open');
   $('menuBtn').setAttribute('aria-expanded', 'false');
-  if (returnFocus) $('menuBtn').focus({ preventScroll: true });
+  $('tabMore').setAttribute('aria-expanded', 'false');
+  if (returnFocus) $(menuFromBar ? 'tabMore' : 'menuBtn').focus({ preventScroll: true });
 }
+
+// Нижние вкладки: нажатие на активную — наверх страницы; «Ещё» — остальные разделы.
+$('tabbar').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-bar]');
+  if (!b) return;
+  if (b.dataset.bar === 'more') {
+    if ($('menuSheet').classList.contains('open')) closeMenu(true);
+    else openMenu(true);
+    return;
+  }
+  if (b.getAttribute('aria-current') === 'page' && !$('menuSheet').classList.contains('open')) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  closeMenu(false);
+  goTab(b.dataset.bar === 'profile' && !myPlayerKey() ? 'players' : b.dataset.bar);
+  window.scrollTo(0, 0);
+});
 
 $('menuBtn').addEventListener('click', () => {
   if ($('menuSheet').classList.contains('open')) closeMenu(true);
@@ -3946,7 +4468,7 @@ $('menuBtn').addEventListener('click', () => {
 $('menuSheet').addEventListener('click', (e) => {
   const go = e.target.closest('[data-go]');
   if (go) {
-    showTab(go.dataset.go);
+    goTab(go.dataset.go);
     window.scrollTo(0, 0);
   } else if (e.target.closest('[data-menu-close]')) closeMenu(true);
 });
@@ -4174,7 +4696,25 @@ $('view-stats').addEventListener('pointerleave', () => { $('statTip').hidden = t
 document.querySelector('.wrap').addEventListener('click', (e) => {
   const link = e.target.closest('[data-open-card]');
   if (link) openCard(link.dataset.openCard);
+  const player = e.target.closest('[data-player]');
+  if (player) { openPlayer(player.dataset.player); return; }
+  const go = e.target.closest('[data-go]');
+  if (go && !go.closest('#menuSheet')) { goTab(go.dataset.go); window.scrollTo(0, 0); return; }
+  if (e.target.closest('[data-go-back]')) { goBack(); return; }
+  if (e.target.closest('[data-players-more]')) { playersState.limit += PLAYERS_SHOWN; renderPlayers(); return; }
+  if (e.target.closest('[data-profile-share]')) {
+    const key = profileState.key || myPlayerKey();
+    const link = playerLink(key);
+    if (tg && link.startsWith('https://t.me/')) {
+      tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Профиль игрока в AniMatrix Fans')}`);
+      return;
+    }
+    $('profileShareNote').textContent = copyRich(link) ? 'Ссылка скопирована.' : `Ссылка: ${link}`;
+  }
 });
+// Нет картинки аватара — остаётся буква.
+document.addEventListener('error', (e) => { if (e.target.matches && e.target.matches('img[data-avatar]')) e.target.remove(); }, true);
+$('playersSearch').addEventListener('input', (e) => { playersState.search = e.target.value; playersState.limit = PLAYERS_SHOWN; renderPlayers(); });
 $('cardSearch').addEventListener('input', (e) => {
   const id = cardOptions.get(e.target.value);
   if (id) openCard(id);
@@ -4257,6 +4797,15 @@ $('colClearAll').addEventListener('click', () => {
   saveCollection();
   renderCollection();
 });
+// Свёрнутый ранг в «Кого качать» считается, когда его раскрыли.
+$('colAdvice').addEventListener('toggle', (e) => {
+  const rank = e.target.dataset && e.target.dataset.adviceRank;
+  if (!rank || !adviceState.open) return;
+  if (e.target.open === adviceState.open.has(rank)) return;
+  if (e.target.open) adviceState.open.add(rank);
+  else adviceState.open.delete(rank);
+  renderAdvice();
+}, true);
 $('colAccount').addEventListener('click', (e) => {
   if (e.target.closest('#cloudRetry') && tg) cloudLoad();
 });
@@ -4368,7 +4917,7 @@ $('restoreRun').addEventListener('click', async () => {
 });
 
 $('search').addEventListener('input', (e) => { state.search = e.target.value; renderTop(); });
-$('recSearch').addEventListener('input', (e) => { recState.search = e.target.value; recState.player = ''; renderRecords(); });
+$('recSearch').addEventListener('input', (e) => { recState.search = e.target.value; renderRecords(); });
 $('recLines').addEventListener('input', recPreview);
 // Выбранный вручную ивент больше не подменяется узнанным по тексту; пустая строка возвращает автоподстановку.
 $('recTitle').addEventListener('input', (e) => {
@@ -4396,22 +4945,6 @@ $('recDownload').addEventListener('click', downloadRecords);
 $('recList').addEventListener('click', async (e) => {
   const player = e.target.closest('[data-rec-player]');
   if (player) { openPlayer(player.dataset.recPlayer); return; }
-  if (e.target.closest('[data-rec-back]')) {
-    recState.player = '';
-    if (siteData && !tg) history.replaceState(null, '', location.pathname);
-    renderRecords();
-    trackView('/records');
-    return;
-  }
-  if (e.target.closest('[data-rec-share]')) {
-    const link = playerLink(recState.player);
-    if (tg && link.startsWith('https://t.me/')) {
-      tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Рекорды игрока в AniMatrix Fans')}`);
-      return;
-    }
-    $('recShareNote').textContent = copyRich(link) ? 'Ссылка скопирована.' : `Ссылка: ${link}`;
-    return;
-  }
   const edit = e.target.closest('[data-rec-edit]');
   const del = e.target.closest('[data-rec-del]');
   if (edit) {
@@ -4633,6 +5166,7 @@ $('csv').addEventListener('click', async () => {
 // Без подключения к базе герои и сезоны хранятся в этом браузере.
 function startLocal(message) {
   db = null;
+  if (currentTab() === 'home' && !tabTrail.length) startOn('top');
   setSaveStatus(false);
   setHeroes(readStore('ani-titles', []));
   setSeasons(readStore('ani-seasons', []).map(({ docs: _skip, ...rest }) => rest));
@@ -4677,7 +5211,7 @@ const viewPath = (tab) => {
     const hero = cardState.id && heroes.find((h) => E.heroId(h) === cardState.id);
     return hero ? `/hero/${E.heroCode(hero)}` : '/card';
   }
-  if (tab === 'records' && recState.player) return '/player';
+  if (tab === 'profile') return '/player';
   return `/${tab}`;
 };
 
@@ -4822,16 +5356,10 @@ function initTelegram(app) {
   try { saved = localStorage.getItem('ani-theme'); } catch (e) { /* без хранилища тема берётся из Telegram */ }
   if (!saved) { pageTheme = app.colorScheme === 'light' ? 'light' : 'dark'; showTheme(); }
   paintTelegram();
-  app.BackButton.onClick(() => {
-    const back = tabTrail.pop();
-    if (!back) return;
-    goingBack = true;
-    cardState.id = back.card;
-    if ('player' in back) recState.player = back.player || '';
-    showTab(back.tab);
-    goingBack = false;
-    window.scrollTo(0, 0);
-  });
+  app.BackButton.onClick(goBack);
+  $('profileTab').hidden = !myPlayerKey();
+  renderHome(); // карточка «Мой профиль»
+  syncTabbar();
   $('colWhere').textContent = 'В Telegram коллекция хранится в твоём облаке Telegram и появляется на всех твоих устройствах. Код нужен, только чтобы перенести её в обычный браузер.';
   if (app.isVersionAtLeast && app.isVersionAtLeast('6.9')) cloudLoad();
   const start = app.initDataUnsafe && app.initDataUnsafe.start_param;
@@ -4874,6 +5402,7 @@ renderAll();
   const claude = window.claude;
   const offline = 'Эта страница открыта без подключения к базе, поэтому герои и сезоны сохраняются только в этом браузере. Чтобы данные были на всех устройствах, открой её по ссылке claude.ai в своём аккаунте.';
   if (!claude || !claude.use) {
+    startOn('home');
     const site = await loadSiteData();
     if (site) siteConfig = (await loadJson('config.json')) || {};
     // Рекорды лежат отдельным файлом, чтобы их можно было обновлять без пересборки топов.
