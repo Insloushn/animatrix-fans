@@ -373,6 +373,13 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .stat-tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: grid; gap: 2px; align-content: start; min-width: 0; }
 .stat-tile b { font: 600 24px/1.2 var(--body); }
 .stat-tile.text { grid-column: span 2; }
+.live-tiles { grid-template-columns: repeat(auto-fit, minmax(min(130px, calc(50% - 5px)), 1fr)); }
+.live-ranks { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; }
+@media (max-width: 560px) { .live-ranks { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.live-rank { display: grid; justify-items: center; gap: 0; padding: 6px 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-variant-numeric: tabular-nums; min-width: 0; }
+.live-rank b { font-size: 15px; }
+.live-lists h3 { margin: 0 0 4px; font-size: 15px; }
+.live-lists p { margin: 0 0 6px; }
 .stat-tile.text b { font-size: 17px; line-height: 1.3; }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 12px; align-items: start; }
 .stat-grid > * { min-width: 0; }
@@ -2488,7 +2495,7 @@ const myPlayerKey = () => {
 
 function playerLink(key) {
   const id = key.startsWith('id:') ? key.slice(3) : '';
-  if (tg && siteConfig.telegramLink && id) return `${siteConfig.telegramLink}?startapp=p_${id}`;
+  if (siteConfig.telegramLink && id) return `${siteConfig.telegramLink}?startapp=p_${id}`;
   return `${location.origin}${location.pathname}#player=${encodeURIComponent(id || key)}`;
 }
 
@@ -2740,11 +2747,98 @@ function contestTable(rows, note) {
   </table></div>`;
 }
 
+// Идущий конкурс (contest-live.json, бот обновляет раз в 10 минут). Только на сайте игроков.
+let contestLive = null;
+let contestLiveAt = 0;     // когда страница последний раз читала файл
+let contestLiveOn = false; // файл читается: открыт сайт игроков
+const CONTEST_LIVE_EVERY = 5 * 60 * 1000;
+const CONTEST_RANKS = ['SSS', 'SS', 'S', 'A', 'B', 'C', 'D', 'E', 'F'];
+
+async function loadContestLive() {
+  contestLiveAt = Date.now();
+  const data = await loadJson(`contest-live.json?t=${Date.now()}`);
+  contestLive = data && data.contest ? data : null;
+}
+
+async function refreshContestLive() {
+  if (!contestLiveOn || $('view-contests').hidden || document.hidden) return;
+  await loadContestLive();
+  renderContests();
+}
+
+function startContestLive(first) {
+  contestLiveOn = true;
+  contestLive = first && first.contest ? first : null;
+  contestLiveAt = Date.now();
+  setInterval(refreshContestLive, CONTEST_LIVE_EVERY);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshContestLive(); });
+}
+
+function liveAgo(iso) {
+  const at = new Date(iso).getTime();
+  if (Number.isNaN(at)) return '';
+  const min = Math.floor((Date.now() - at) / 60000);
+  if (min < 1) return 'обновлено только что';
+  if (min < 60) return `обновлено ${min} мин назад`;
+  return `обновлено ${dateText(new Date(at))} ${new Date(at).toTimeString().slice(0, 5)}`;
+}
+
+const contestTime = (unix) => {
+  const d = new Date(unix * 1000);
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')} ${d.toTimeString().slice(0, 5)}`;
+};
+
+// Сводка конкурса: плитки и ранги сверху, списки (невезучие, SSS и SS, частые герои) — под таблицей.
+function contestStatsParts(s, limit) {
+  if (!s) return { head: '', lists: '' };
+  const tile = (label, value) => `<div class="stat-tile"><span class="small muted">${label}</span><b>${value}</b></div>`;
+  const total = CONTEST_RANKS.reduce((n, r) => n + ((s.ranks && s.ranks[r]) || 0), 0);
+  const ranks = CONTEST_RANKS.map((r) => {
+    const n = (s.ranks && s.ranks[r]) || 0;
+    return `<div class="live-rank"><b>${r}</b><span>${fmt(n)}</span><span class="small muted">${total ? pct(n / total) : '—'}</span></div>`;
+  }).join('');
+  const head = `<div class="stat-tiles live-tiles">
+      ${tile('Участников', fmt(s.players || 0))}${tile(`Сделали все ${limit}`, fmt(s.finished || 0))}
+      ${tile('Круток всего', fmt(s.pulls || 0))}${tile(`Средние очки на ${limit} круток`, s.avgPoints == null ? '—' : fmt(s.avgPoints))}
+    </div>
+    <div class="live-ranks">${ranks}</div>`;
+  // Длинный список (легендарные) — первые 10, остальные под «Показать всех».
+  const list = (title, note, items) => `<div><h3>${title}</h3>${note ? `<p class="small muted">${note}</p>` : ''}${items.length ? `<ul class="best-list">${items.slice(0, CONTEST_SHOWN).join('')}</ul>` : '<p class="small muted">Пока нет</p>'}${items.length > CONTEST_SHOWN ? `<details><summary class="small muted">Показать всех: ещё ${items.length - CONTEST_SHOWN}</summary><ul class="best-list">${items.slice(CONTEST_SHOWN).join('')}</ul></details>` : ''}</div>`;
+  const unlucky = (s.unlucky || []).map((p) => `<li>${esc(p.name)} — ${fmt(p.points)} 🎲<span>${esc(contestRanks(p.ranks) || 'без S и выше')}</span></li>`);
+  // SSS и SS одним списком по времени; в старых файлах ss нет — тогда только SSS.
+  const legends = [...(s.sss || []).map((x) => ({ ...x, rank: 'SSS' })), ...(s.ss || []).map((x) => ({ ...x, rank: 'SS' }))]
+    .sort((a, b) => a.date - b.date)
+    .map((x) => `<li>${esc(x.hero)} (${x.rank}) — ${esc(x.player)}<span>${esc(contestTime(x.date))}</span></li>`);
+  const heroesTop = (s.topHeroes || []).map((h) => `<li>${esc(h.name)} (${esc(h.rank)})<span>выпал ${fmt(h.count)} раз</span></li>`);
+  const lists = `<div class="best-grid live-lists">
+      ${list('😿 Меньше всего везёт', `среди сделавших все ${limit}`, unlucky)}
+      ${list('🎉 Легендарные: SSS и SS', '', legends)}
+      ${list('Чаще всех выпадали', '', heroesTop)}
+    </div>`;
+  return { head, lists };
+}
+
 function renderContests() {
   if ($('view-contests').hidden) return;
+  if (contestLiveOn && Date.now() - contestLiveAt > 60 * 1000) refreshContestLive(); // раздел открыли снова: свежие числа следом
   const intro = '<p class="small muted">Конкурсы круток проходят в чате игроков: бот засчитывает первые 100 круток каждого участника. Очки: F +1, E +2, D +3, C +4, B +5, A +6, S +12, SS +18, SSS +30.</p>';
+  const now = contestLive && contestLive.contest;
+  const liveCard = now && !contests.some((c) => c.id === now.id) ? (() => {
+    const players = now.players || [];
+    const note = (p) => [`круток ${p.pulls}`, contestRanks(p.ranks)].filter(Boolean).join(' · ');
+    const rest = players.slice(CONTEST_SHOWN);
+    const parts = contestStatsParts(now.stats, now.limit || 100);
+    return `<article class="card live-card">
+      <h2>🔴 Идёт сейчас: ${esc(now.name)}</h2>
+      <p class="small muted">${esc(liveAgo(contestLive.savedAt))}</p>
+      ${parts.head}
+      ${players.length ? contestTable(players.slice(0, CONTEST_SHOWN), note) : ''}
+      ${rest.length ? `<details><summary class="small muted">Показать всех: ещё ${rest.length}</summary>${contestTable(rest, note)}</details>` : ''}
+      ${parts.lists}
+    </article>`;
+  })() : '';
   if (!contests.length) {
-    $('contestList').innerHTML = `${intro}<p class="empty">Скоро здесь появятся итоги конкурсов.</p>`;
+    $('contestList').innerHTML = `${intro}${liveCard}<p class="empty">Скоро здесь появятся итоги конкурсов.</p>`;
     return;
   }
   const allTime = contestAllTime().slice(0, CONTEST_SHOWN);
@@ -2753,14 +2847,17 @@ function renderContests() {
     const dates = [contestDate(c.startedAt), c.endedAt && contestDate(c.endedAt) !== contestDate(c.startedAt) ? contestDate(c.endedAt) : ''].filter(Boolean).join(' – ');
     const note = (p) => [`круток ${p.pulls}`, contestRanks(p.ranks)].filter(Boolean).join(' · ');
     const rest = players.slice(CONTEST_SHOWN);
+    const parts = contestStatsParts(c.stats, c.limit || 100);
     return `<article class="card">
       <h2>🎲 ${esc(c.name)}</h2>
       <p class="small muted">${esc(dates)} · участников: ${players.length}</p>
+      ${parts.head}
       ${contestTable(players.slice(0, CONTEST_SHOWN), note)}
       ${rest.length ? `<details><summary class="small muted">Показать всех: ещё ${rest.length}</summary>${contestTable(rest, note)}</details>` : ''}
+      ${parts.lists}
     </article>`;
   }).join('');
-  $('contestList').innerHTML = `${intro}
+  $('contestList').innerHTML = `${intro}${liveCard}
     <article class="card"><h2>🏆 Топ-10 за всё время</h2>
       <p class="small muted">Лучший результат каждого игрока за все конкурсы</p>
       ${contestTable(allTime, (p) => [p.contest, contestRanks(p.ranks)].filter(Boolean).join(' · '))}
@@ -4431,7 +4528,7 @@ function heroByCode(code) {
 
 function heroLink(hero) {
   const code = E.heroCode(hero);
-  if (tg && siteConfig.telegramLink) return `${siteConfig.telegramLink}?startapp=${code}`;
+  if (siteConfig.telegramLink) return `${siteConfig.telegramLink}?startapp=${code}`;
   return `${location.origin}${location.pathname}#hero=${code}`;
 }
 
@@ -4550,6 +4647,7 @@ function initTelegram(app) {
   const start = app.initDataUnsafe && app.initDataUnsafe.start_param;
   const hero = start && heroByCode(start);
   if (hero) openCard(E.heroId(hero));
+  if (start === 'records' || start === 'contests') showTab(start);
   const playerId = start && start.match(/^p_(\d+)$/);
   if (playerId) openPlayer(`id:${playerId[1]}`);
 }
@@ -4590,6 +4688,7 @@ renderAll();
     // Рекорды лежат отдельным файлом, чтобы их можно было обновлять без пересборки топов.
     if (site) site.records = ((await loadJson('records.json')) || {}).events || site.records || [];
     if (site) site.contests = ((await loadJson('contests.json')) || {}).contests || [];
+    if (site) startContestLive(await loadJson(`contest-live.json?t=${Date.now()}`));
     if (site) startPublic(site);
     else startLocal(offline);
     return;
