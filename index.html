@@ -194,8 +194,29 @@ nav button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--
 .chip[aria-pressed="true"] i { color: inherit; opacity: .8; }
 .filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.tools > input, .tools > select { flex: 1 1 170px; min-width: 0; }
+.tools > input, .tools > select, .search-row > input { flex: 1 1 170px; min-width: 0; }
+.search-row { display: contents; }
+#modeChips { margin-top: -6px; }
 .tools > label { flex: 1 1 170px; min-width: 0; }
+
+/* «Топ» на телефоне: ранги и классы — лентой в одну строку, остальные настройки под кнопкой «Фильтры». */
+@media (max-width: 760px) {
+  #view-top > * { order: 20; }
+  #topRows { order: 1; gap: 6px; }
+  #topRows .chips { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px; scrollbar-width: none; overscroll-behavior-x: contain; }
+  #topRows .chips::-webkit-scrollbar { display: none; }
+  #topRows .chip { flex: none; white-space: nowrap; }
+  #view-top .top-bar { display: contents; }
+  .search-row { order: 2; display: flex; gap: 8px; }
+  .search-row input { flex: 1 1 auto; min-width: 0; }
+  #moreBtn { flex: none; white-space: nowrap; padding: 7px 12px; }
+  #csv { order: 3; }
+  #modeChips { order: 4; margin-top: 0; }
+  #seasonTools { order: 5; }
+  #topSort { order: 6; }
+  #titleFilter { order: 7; }
+  #view-top:not(.f-open) .f-more { display: none; }
+}
 
 input, select, textarea {
   background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 6px;
@@ -450,12 +471,12 @@ details.card summary { cursor: pointer; font-weight: 500; }
   <p class="notice" id="notice" hidden></p>
 
   <section class="view" id="view-top">
-    <div class="filters">
+    <div class="filters" id="topRows">
       <div class="chips" id="rankChips" aria-label="Ранг"></div>
       <div class="chips" id="classChips" aria-label="Класс"></div>
-      <div class="chips" id="modeChips" aria-label="Как считать"></div>
     </div>
-    <div class="tools" id="seasonTools" hidden>
+    <div class="chips f-more" id="modeChips" aria-label="Как считать"></div>
+    <div class="tools f-more" id="seasonTools" hidden>
       <label class="field">Показать
         <select id="seasonView"></select>
       </label>
@@ -463,10 +484,13 @@ details.card summary { cursor: pointer; font-weight: 500; }
         <select id="seasonCompare"></select>
       </label>
     </div>
-    <div class="tools">
-      <input id="search" type="search" placeholder="Найти героя" aria-label="Найти героя">
-      <select id="topSort" class="mobile-only" aria-label="Сортировка"></select>
-      <select id="titleFilter" aria-label="Тайтл"></select>
+    <div class="tools top-bar">
+      <div class="search-row">
+        <input id="search" type="search" placeholder="Найти героя" aria-label="Найти героя">
+        <button class="btn ghost mobile-only" id="moreBtn" aria-expanded="false" aria-controls="modeChips seasonTools topSort titleFilter">⚙️ Фильтры</button>
+      </div>
+      <select id="topSort" class="mobile-only f-more" aria-label="Сортировка"></select>
+      <select id="titleFilter" class="f-more" aria-label="Тайтл"></select>
       <button class="btn ghost" id="csv" hidden>Скачать CSV</button>
     </div>
     <div class="status small muted">
@@ -638,7 +662,13 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <div class="card">
       <h2>Файл для сайта игроков</h2>
       <p class="small muted">Скачивает текущую базу и все сезоны. Из этого файла собирается открытая версия сайта, как описано в инструкции.</p>
-      <div class="tools"><button class="btn ghost mini" id="siteExport">Скачать файл для сайта</button><span class="small muted" id="siteExportNote"></span></div>
+      <div class="tools"><button class="btn ghost mini" id="siteExport">Скачать файл для сайта</button><button class="btn ghost mini" id="restoreOpen" data-admin>Восстановить из файла</button><span class="small muted" id="siteExportNote"></span></div>
+      <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+      <div id="restoreBox" data-admin hidden>
+        <p class="small" id="restoreSummary"></p>
+        <div class="tools" id="restoreActions"><button class="btn mini" id="restoreRun">Восстановить</button><button class="btn ghost mini" id="restoreCancel">Отмена</button></div>
+        <p class="small muted" id="restoreResult"></p>
+      </div>
     </div>
     <div class="card" id="seasonDiffCard" hidden>
       <h2 id="seasonDiffTitle"></h2>
@@ -775,11 +805,13 @@ function writeStore(key, value) {
   } catch (e) { return false; }
 }
 
+const defaultSettings = () => ({
+  maxMoves: E.DEFAULTS.maxMoves, runs: 500, mode: 'skills', showSkins: true, showEvents: true, compareMode: 'both', titleSort: 'alpha', titleDir: 1, exportLimits: {},
+  formula: JSON.parse(JSON.stringify(E.DEFAULTS.formula)),
+});
+
 function loadSettings() {
-  const base = {
-    maxMoves: E.DEFAULTS.maxMoves, runs: 500, mode: 'skills', showSkins: true, showEvents: true, compareMode: 'both', titleSort: 'alpha', titleDir: 1, exportLimits: {},
-    formula: JSON.parse(JSON.stringify(E.DEFAULTS.formula)),
-  };
+  const base = defaultSettings();
   const saved = readStore('ani-settings', null);
   return saved ? { ...base, ...saved, formula: { ...base.formula, ...saved.formula } } : base;
 }
@@ -918,6 +950,41 @@ async function changeHero(key, change) {
   }
 }
 
+// ---------- Настройки расчёта в базе ----------
+
+// Ходы, точность и формула живут в базе (settings/calc), чтобы топы на всех устройствах считались одинаково.
+const CALC_DOC = 'settings/calc';
+const calcSettings = (s) => ({ maxMoves: s.maxMoves, runs: s.runs, formula: s.formula });
+const sameCalc = (a, b) => a.maxMoves === b.maxMoves && a.runs === b.runs
+  && E.CLASSES.every((c) => a.formula[c].bm === b.formula[c].bm && a.formula[c].hp === b.formula[c].hp);
+
+function applyCalc(calc) {
+  settings = { ...settings, maxMoves: calc.maxMoves, runs: calc.runs, formula: JSON.parse(JSON.stringify(calc.formula)) };
+  saveSettings();
+  if (!$('view-rules').hidden) renderRules();
+  if (loaded) renderAll();
+}
+
+async function saveCalcToBase() {
+  if (!db || !canWrite) return;
+  const body = calcSettings(settings);
+  try {
+    await queueWrite(CALC_DOC, () => db.doc(CALC_DOC).set(body));
+  } catch (e) {
+    notify(writeError(e));
+  }
+}
+
+async function loadCalcFromBase() {
+  try {
+    const snap = await db.doc(CALC_DOC).get();
+    const calc = snap.exists ? E.cleanCalcSettings(snap.data()) : null;
+    if (calc) { applyCalc(calc); return; }
+    // Пустой документ создаёт только браузер с особыми настройками: иначе телефон с умолчаниями затёр бы настройки ноутбука.
+    if (!snap.exists && canWrite && !sameCalc(calcSettings(settings), calcSettings(defaultSettings()))) await saveCalcToBase();
+  } catch (e) { /* без базы остаются настройки браузера */ }
+}
+
 // ---------- Сезоны ----------
 
 const seasonById = (id) => seasons.find((s) => s.id === id) || null;
@@ -987,6 +1054,108 @@ async function saveSeason() {
     $('seasonResult').textContent = writeError(e);
   }
   $('seasonSave').disabled = !canWrite;
+}
+
+// ---------- Восстановление из файла ----------
+
+let restorePlan = null;
+
+function restoreSummaryText(plan) {
+  const date = plan.savedAt && !Number.isNaN(new Date(plan.savedAt).getTime()) ? dateText(new Date(plan.savedAt)) : 'не указана';
+  const kind = plan.kind === 'site' ? 'сборка сайта' : 'выгрузка страницы';
+  const inFile = `тайтлов ${fmt(plan.titles.length)}, героев ${fmt(plan.heroCount)}, сезонов ${fmt(plan.seasons.length)}, рекордов ${fmt(plan.records.length)}`;
+  const nowHeroes = titles.reduce((sum, t) => sum + (t.heroes || []).length, 0);
+  const now = `тайтлов ${fmt(titles.length)}, героев ${fmt(nowHeroes)}, сезонов ${fmt(seasons.length)}, рекордов ${fmt(records.length)}`;
+  const missing = plan.missing.length ? ` В файле нет: ${plan.missing.join(', ')}.` : '';
+  return `Файл от ${date} (${kind}): ${inFile}.${missing} Сейчас ${db ? 'в базе' : 'в этом браузере'}: ${now}. ` +
+    'Совпадающие записи будут заменены, остальное в базе останется.';
+}
+
+function closeRestore() {
+  restorePlan = null;
+  $('restoreBox').hidden = true;
+  $('restoreFile').value = '';
+}
+
+// Запись только добавляет и заменяет по id, ничего не удаляет: повтор безопасен.
+async function runRestore(plan) {
+  const done = { titles: 0, seasons: 0, records: 0, settings: false };
+  const progress = (text) => { $('restoreResult').textContent = text; };
+  const doneText = () => [
+    `тайтлы ${done.titles} из ${plan.titles.length}`,
+    `сезоны ${done.seasons} из ${plan.seasons.length}`,
+    `рекорды ${done.records} из ${plan.records.length}`,
+    ...(plan.settings ? [`настройки расчёта ${done.settings ? 'записаны' : 'нет'}`] : []),
+  ].join(', ');
+  try {
+    // Тайтлы: без даты в файле — как в applyDocs, порядок из файла или прежний.
+    const bodies = plan.titles.map((d) => {
+      const old = titles.find((t) => t.id === d.id);
+      const body = { title: d.title, heroes: d.heroes, addedAt: 'addedAt' in d ? d.addedAt : (old ? (old.addedAt || null) : todayText()) };
+      const position = typeof d.position === 'number' ? d.position : old && old.position;
+      if (typeof position === 'number') body.position = position;
+      return { id: d.id, body };
+    });
+    const fileIds = new Set(bodies.map((b) => b.id));
+    setHeroes(titles.filter((t) => !fileIds.has(t.id)).concat(bodies.map((b) => ({ id: b.id, ...b.body }))));
+    if (db) {
+      for (const { id, body } of bodies) {
+        progress(`Тайтлы: ${done.titles + 1} из ${bodies.length}…`);
+        await queueWrite(`titles/${id}`, () => db.doc(`titles/${id}`).set(body));
+        done.titles += 1;
+      }
+    } else {
+      if (!writeStore('ani-titles', titles)) throw new Error('storage');
+      done.titles = bodies.length;
+    }
+
+    // Сезоны: как в saveSeason, описание последним.
+    for (const s of plan.seasons) {
+      if (db) {
+        let part = 0;
+        for (const d of s.docs) {
+          progress(`Сезон «${s.meta.name || s.id}» (${done.seasons + 1} из ${plan.seasons.length}): тайтлы ${part + 1} из ${s.docs.length}…`);
+          await db.doc(`seasons/${s.id}/titles/${d.id}`).set({ title: d.title, heroes: d.heroes });
+          part += 1;
+        }
+        await db.doc(`seasons/${s.id}`).set(s.meta);
+      } else {
+        const stored = readStore('ani-seasons', []).filter((x) => x.id !== s.id);
+        stored.push({ id: s.id, ...s.meta, docs: s.docs });
+        if (!writeStore('ani-seasons', stored)) throw new Error('storage');
+        setSeasons(stored.map(({ docs: _skip, ...rest }) => rest));
+      }
+      seasonDocs.set(s.id, s.docs);
+      done.seasons += 1;
+    }
+
+    // Рекорды: records/<id>.
+    if (db) {
+      for (const r of plan.records) {
+        progress(`Рекорды: ${done.records + 1} из ${plan.records.length}…`);
+        await db.doc(`records/${r.id}`).set(r.doc);
+        done.records += 1;
+      }
+    } else if (plan.records.length) {
+      const ids = new Set(plan.records.map((r) => r.id));
+      const list = records.filter((ev) => !ids.has(ev.id)).concat(plan.records.map((r) => ({ id: r.id, ...r.doc })));
+      if (!writeStore('ani-records', list)) throw new Error('storage');
+      setRecords(list);
+      done.records = plan.records.length;
+    }
+
+    if (plan.settings) {
+      progress('Настройки расчёта…');
+      applyCalc(plan.settings);
+      if (db) await queueWrite(CALC_DOC, () => db.doc(CALC_DOC).set(calcSettings(settings)));
+      done.settings = true;
+    }
+    progress(`Восстановлено: ${doneText()}.`);
+    return true;
+  } catch (e) {
+    progress(`${writeError(e)} Успело записаться: ${doneText()}. Восстановление можно повторить: записи с теми же id заменятся, дублей не будет.`);
+    return false;
+  }
 }
 
 async function deleteSeason(id) {
@@ -1238,6 +1407,18 @@ function renderChips(active) {
     names.map((t) => `<option value="${esc(t)}"${t === state.title ? ' selected' : ''}>${esc(t)}</option>`).join('');
 }
 
+// Кнопка «Фильтры» на телефоне: сколько спрятанных настроек отличается от обычных.
+function updateMoreBtn() {
+  const n = [
+    settings.mode !== 'skills', !settings.showSkins, !settings.showEvents,
+    !!state.title, state.sort !== 'overall',
+    !!seasons.length && !!state.viewSeason, !!seasons.length && state.compareWith !== 'auto',
+  ].filter(Boolean).length;
+  const open = $('view-top').classList.contains('f-open');
+  $('moreBtn').textContent = '⚙️ Фильтры' + (n ? ` · ${n}` : '');
+  $('moreBtn').setAttribute('aria-expanded', String(open));
+}
+
 function renderSeasonSelects() {
   $('seasonTools').hidden = !seasons.length;
   if (!seasons.length) return;
@@ -1289,6 +1470,7 @@ function renderTop() {
   const active = derive(docs);
   renderChips(active);
   renderSeasonSelects();
+  updateMoreBtn();
 
   const calc = calcFor(season);
   const group = active.filter((h) => h.rank === state.rank && h.cls === state.cls);
@@ -3202,6 +3384,8 @@ function renderHeroesTab() {
 
 function renderSeasons() {
   $('seasonSave').disabled = !canWrite || !heroes.length;
+  $('restoreOpen').hidden = !canWrite;
+  if (!canWrite) closeRestore();
   const latest = seasons[seasons.length - 1];
   if (latest) {
     const docs = seasonDocs.get(latest.id);
@@ -3864,7 +4048,11 @@ $('siteExport').addEventListener('click', async () => {
     for (const season of seasons) list.push({ ...season, docs: await ensureSeason(season.id) });
     const data = JSON.stringify({
       savedAt: new Date().toISOString(),
-      titles: titles.map(({ id, title, heroes: list2 }) => ({ id, title, heroes: list2 })),
+      // Дата и порядок тайтлов нужны для восстановления; сборка сайта их отбрасывает.
+      // addedAt: null тоже выгружается: «без даты» восстановится как «без даты», а не сегодняшним днём.
+      titles: titles.map(({ id, title, heroes: list2, addedAt, position }) => ({
+        id, title, heroes: list2, ...(addedAt !== undefined ? { addedAt: addedAt || null } : {}), ...(typeof position === 'number' ? { position } : {}),
+      })),
       seasons: list,
       records,
       settings: { maxMoves: settings.maxMoves, runs: settings.runs, formula: settings.formula },
@@ -3882,6 +4070,43 @@ $('siteExport').addEventListener('click', async () => {
   } catch (err) {
     note.textContent = 'Не вышло собрать файл. Попробуй ещё раз.';
   }
+});
+
+$('restoreOpen').addEventListener('click', () => {
+  if (!canWrite) return;
+  $('restoreFile').value = '';
+  $('restoreFile').click();
+});
+$('restoreFile').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file || !canWrite) return;
+  let text = '';
+  try { text = await file.text(); } catch (err) { text = ''; }
+  const plan = E.parseBackupFile(text);
+  $('restoreBox').hidden = false;
+  $('restoreResult').textContent = '';
+  restorePlan = plan.error ? null : plan;
+  $('restoreSummary').textContent = plan.error || restoreSummaryText(plan);
+  $('restoreRun').hidden = !!plan.error;
+  $('restoreRun').disabled = false;
+  $('restoreRun').textContent = 'Восстановить';
+  $('restoreCancel').disabled = false;
+  $('restoreCancel').textContent = plan.error ? 'Закрыть' : 'Отмена';
+});
+$('restoreCancel').addEventListener('click', closeRestore);
+$('restoreRun').addEventListener('click', async () => {
+  if (!restorePlan || !canWrite) return;
+  const plan = restorePlan;
+  restorePlan = null;
+  $('restoreRun').disabled = true;
+  $('restoreCancel').disabled = true;
+  $('restoreOpen').disabled = true;
+  const ok = await runRestore(plan);
+  $('restoreOpen').disabled = false;
+  $('restoreRun').hidden = true;
+  $('restoreCancel').disabled = false;
+  $('restoreCancel').textContent = 'Закрыть';
+  if (!ok) { restorePlan = plan; $('restoreRun').hidden = false; $('restoreRun').disabled = false; $('restoreRun').textContent = 'Повторить'; }
 });
 
 $('search').addEventListener('input', (e) => { state.search = e.target.value; renderTop(); });
@@ -3945,6 +4170,7 @@ $('recList').addEventListener('click', async (e) => {
     $('recEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else if (del && armed(del)) deleteRecordEvent(del.dataset.recDel);
 });
+$('moreBtn').addEventListener('click', () => { $('view-top').classList.toggle('f-open'); updateMoreBtn(); });
 $('topSort').addEventListener('change', (e) => {
   state.sort = e.target.value;
   state.dir = state.sort === 'name' || state.sort === 'place' ? 1 : -1;
@@ -4121,12 +4347,14 @@ $('view-rules').addEventListener('change', (e) => {
   if (e.target.id === 'runs') settings.runs = parseInt(e.target.value, 10);
   if (e.target.dataset.f) settings.formula[e.target.dataset.f][e.target.dataset.k] = parseFloat(e.target.value) || 0;
   saveSettings();
+  if (e.target.id === 'maxMoves' || e.target.id === 'runs' || e.target.dataset.f) saveCalcToBase();
 });
 $('resetSettings').addEventListener('click', () => {
   writeStore('ani-settings', null);
   settings = loadSettings();
   $('exportLimits').dataset.key = '';
   renderRules();
+  saveCalcToBase();
 });
 $('csv').addEventListener('click', async () => {
   const lines = [['Место', 'Сдвиг', 'Герой', 'Тайтл', 'Скин', 'Ивент', 'БМ', 'ЖВ', 'Очки', 'Нападение', 'Защита', 'Итог'].join(';')];
@@ -4361,6 +4589,7 @@ renderAll();
     $('saveStatus').className = 'saved';
     $('saveStatus').textContent = 'Только просмотр';
   }
+  loadCalcFromBase();
 
   const timer = setTimeout(() => notify('База пока не отвечает. Показанные данные могут быть устаревшими.'), 10000);
   let confirmed = false;

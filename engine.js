@@ -1135,6 +1135,103 @@
       || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   }
 
+  // ---------- Файл базы ----------
+
+  const isText = (v) => typeof v === 'string' && v.trim() !== '';
+  const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
+
+  // Настройки расчёта из файла или базы: все три поля целиком, иначе null.
+  function cleanCalcSettings(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const { maxMoves, runs, formula } = raw;
+    if (!Number.isInteger(maxMoves) || maxMoves < 1 || maxMoves > 30) return null;
+    if (!isNumber(runs) || runs <= 0) return null;
+    if (!formula || typeof formula !== 'object') return null;
+    const clean = {};
+    for (const cls of CLASSES) {
+      const f = formula[cls];
+      if (!f || !isNumber(f.bm) || !isNumber(f.hp)) return null;
+      clean[cls] = { bm: f.bm, hp: f.hp };
+    }
+    return { maxMoves, runs, formula: clean };
+  }
+
+  function checkTitleDocs(docs, where) {
+    if (!Array.isArray(docs)) return `${where}: нет списка тайтлов.`;
+    for (let i = 0; i < docs.length; i += 1) {
+      const d = docs[i];
+      const label = `${where}, тайтл №${i + 1}`;
+      if (!d || typeof d !== 'object' || !isText(d.id)) return `${label}: нет id.`;
+      if (typeof d.title !== 'string') return `${label}: нет названия.`;
+      if (!Array.isArray(d.heroes)) return `${label} «${d.title}»: нет списка героев.`;
+      const bad = d.heroes.findIndex((h) => !h || !isText(h.name) || !RANKS.includes(h.rank) || !CLASSES.includes(h.cls) || !isNumber(h.bm) || !isNumber(h.hp));
+      if (bad >= 0) return `${label} «${d.title}»: герой №${bad + 1} записан не так, как в базе.`;
+    }
+    return '';
+  }
+
+  const copyDoc = (d) => ({ id: d.id, title: d.title, heroes: d.heroes.map((h) => ({ ...h })) });
+
+  // Разбор файла для «Восстановить из файла»: выгрузка страницы (animatrix-data.json) или сборка сайта (data.json).
+  // Ничего не пишет; при любой ошибке возвращает { error } и база остаётся как есть.
+  function parseBackupFile(text) {
+    let data;
+    try { data = JSON.parse(text); } catch (e) { return { error: 'Файл повреждён или это не JSON. В базу ничего не записано.' }; }
+    if (!data || typeof data !== 'object' || Array.isArray(data) || !Array.isArray(data.titles)) {
+      return { error: 'Это не файл базы AniMatrix: в нём нет списка тайтлов. В базу ничего не записано.' };
+    }
+    const fail = (message) => ({ error: `Файл не похож на базу AniMatrix. ${message} В базу ничего не записано.` });
+    const titleError = checkTitleDocs(data.titles, 'Тайтлы');
+    if (titleError) return fail(titleError);
+    if (data.seasons !== undefined && !Array.isArray(data.seasons)) return fail('Сезоны записаны не списком.');
+    if (data.records !== undefined && !Array.isArray(data.records)) return fail('Рекорды записаны не списком.');
+
+    const titles = data.titles.map((d) => {
+      const doc = copyDoc(d);
+      // null — «без даты» на странице, его тоже надо вернуть как есть.
+      if ((typeof d.addedAt === 'string' && d.addedAt) || d.addedAt === null) doc.addedAt = d.addedAt;
+      if (isNumber(d.position)) doc.position = d.position;
+      return doc;
+    });
+
+    const seasons = [];
+    for (let i = 0; i < (data.seasons || []).length; i += 1) {
+      const s = data.seasons[i];
+      if (!s || typeof s !== 'object' || !isText(s.id)) return fail(`Сезон №${i + 1}: нет id.`);
+      const docsError = checkTitleDocs(s.docs, `Сезон «${s.name || s.id}»`);
+      if (docsError) return fail(docsError);
+      const { id, docs, ...meta } = s;
+      seasons.push({ id, meta, docs: docs.map(copyDoc) });
+    }
+
+    const records = [];
+    for (let i = 0; i < (data.records || []).length; i += 1) {
+      const r = data.records[i];
+      if (!r || typeof r !== 'object' || !isText(r.id)) return fail(`Рекорды, список №${i + 1}: нет id.`);
+      if (!Array.isArray(r.rows)) return fail(`Рекорды «${r.title || r.id}»: нет строк с игроками.`);
+      const { id, ...doc } = r;
+      records.push({ id, doc });
+    }
+
+    const settings = cleanCalcSettings(data.settings);
+    const kind = Array.isArray(data.records) || !data.results ? 'page' : 'site';
+    const missing = [];
+    if (!Array.isArray(data.seasons)) missing.push('сезоны');
+    if (!Array.isArray(data.records)) missing.push('рекорды');
+    if (!settings) missing.push('настройки расчёта');
+    if (titles.length && !titles.some((t) => 'addedAt' in t || isNumber(t.position))) missing.push('даты и порядок тайтлов');
+    return {
+      kind,
+      savedAt: (typeof data.savedAt === 'string' && data.savedAt) || (typeof data.builtAt === 'string' && data.builtAt) || '',
+      titles,
+      seasons,
+      records,
+      settings,
+      missing,
+      heroCount: titles.reduce((sum, t) => sum + t.heroes.length, 0),
+    };
+  }
+
   // ---------- Статистика ----------
 
   // Девять рангов в одной полосе не различить по цвету, поэтому ранги сведены в пять ступеней.
@@ -1299,6 +1396,6 @@
     CLASSES, RANKS, DEFAULTS, NO_TITLE, SKIN_BONUS, fight, duel, plainFight, formulaScore,
     createPairRates, seededDice, levelFactor, toBase, parseMessages, parseDetailed, catalogCounts,
     normName, sameName, titleDocId, planImport, removeDuplicates, matchSeason, skinVersion, seatOffTop, sharedPlaces,
-    sortTitles, planTitleMove,
+    sortTitles, planTitleMove, cleanCalcSettings, parseBackupFile,
   };
 });
