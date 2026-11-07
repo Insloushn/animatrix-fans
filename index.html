@@ -383,6 +383,11 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .stat-tile.text b { font-size: 17px; line-height: 1.3; }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 12px; align-items: start; }
 .stat-grid > * { min-width: 0; }
+.opp-scope { margin: 4px 0 10px; flex-wrap: nowrap; }
+.opp-scope .chip { white-space: nowrap; }
+.opp-classes { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0 0 10px; }
+.opp-cls { white-space: nowrap; font-weight: 600; }
+.opp-cls:not(:last-child)::after { content: ' ·'; color: var(--muted); font-weight: 400; }
 .stat-card.wide { grid-column: 1 / -1; }
 .stat-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: start; }
 .stat-preview canvas { display: block; max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); }
@@ -828,7 +833,7 @@ function writeStore(key, value) {
 }
 
 const defaultSettings = () => ({
-  maxMoves: E.DEFAULTS.maxMoves, runs: 500, mode: 'skills', showSkins: true, showEvents: true, compareMode: 'both', titleSort: 'alpha', titleDir: 1, exportLimits: {},
+  maxMoves: E.DEFAULTS.maxMoves, runs: 500, mode: 'skills', showSkins: true, showEvents: true, compareMode: 'both', cardScope: 'cls', titleSort: 'alpha', titleDir: 1, exportLimits: {},
   formula: JSON.parse(JSON.stringify(E.DEFAULTS.formula)),
 });
 
@@ -1957,7 +1962,7 @@ const cardState = { id: '' };
 let cardOptions = new Map();
 let cardListFor = null;
 const cardLabel = (h) => `${h.name} · ${h.rank} · ${h.title || E.NO_TITLE}`;
-const openLink = (h) => `<button class="link-btn" data-open-card="${esc(E.heroId(h))}">${esc(h.name)}</button>`;
+const openLink = (h, prefix = '') => `<button class="link-btn" data-open-card="${esc(E.heroId(h))}">${prefix}${esc(h.name)}</button>`;
 
 function openCard(id) {
   const before = { tab: currentTab(), card: cardState.id };
@@ -1980,18 +1985,52 @@ function fillCardList() {
 // Точность шанса против каждого соперника: большие группы считаются грубее, чтобы карточка не зависала.
 const cardRuns = (size) => (size <= 30 ? 5000 : size <= 100 ? 2000 : 1000);
 
+// Соперники считаются порциями: в режиме «Все классы» их в ранге до нескольких сотен.
+// Готовый список хранится по герою, режиму и настройкам; ушли с карточки — счёт бросается.
+const oppCache = new Map();
+let oppCacheFor = null;
+let oppJob = null;
+
 function cardOpponents(hero, pool, calc) {
-  const rivals = pool.filter((h) => h.key !== hero.key);
-  const runs = cardRuns(pool.length);
-  const rate = settings.mode === 'plain'
-    ? (x, y) => E.plainFight(x, y, calc.maxMoves).result
-    : (x, y) => pairRate(x, y, runs, calc.maxMoves);
-  return rivals.map((rival) => ({
-    rival,
-    wins: (rate(hero, rival) + 1 - rate(rival, hero)) / 2,
-    kills: E.hitsToKill(hero, rival),
-    dies: E.hitsToKill(rival, hero),
-  })).sort((a, b) => a.wins - b.wins);
+  if (oppCacheFor !== heroes) { oppCache.clear(); oppCacheFor = heroes; oppJob = null; }
+  const runs = settings.mode === 'plain' ? 0 : cardRuns(pool.length);
+  const key = [hero.key, hero.bm, hero.hp, settings.cardScope, settings.mode, calc.maxMoves, runs].join('|');
+  if (oppCache.has(key)) return { list: oppCache.get(key) };
+  if (!oppJob || oppJob.key !== key) {
+    oppJob = { key, id: E.heroId(hero), hero, runs, maxMoves: calc.maxMoves, rivals: pool.filter((h) => h.key !== hero.key), rows: [], i: 0 };
+    oppStep(oppJob, true);
+    if (oppCache.has(key)) return { list: oppCache.get(key) };
+  }
+  return { list: null, share: oppJob.i / oppJob.rivals.length };
+}
+
+function oppStep(job, sync) {
+  if (oppJob !== job) return;
+  if ($('view-card').hidden || cardState.id !== job.id) { oppJob = null; return; }
+  const { hero, runs, maxMoves } = job;
+  const rate = runs
+    ? (x, y) => pairRate(x, y, runs, maxMoves)
+    : (x, y) => E.plainFight(x, y, maxMoves).result;
+  const started = performance.now();
+  while (job.i < job.rivals.length && performance.now() - started < 40) {
+    const rival = job.rivals[job.i];
+    job.rows.push({
+      rival,
+      wins: (rate(hero, rival) + 1 - rate(rival, hero)) / 2,
+      kills: E.hitsToKill(hero, rival),
+      dies: E.hitsToKill(rival, hero),
+    });
+    job.i += 1;
+  }
+  if (job.i < job.rivals.length) {
+    const bar = $('oppBar');
+    if (bar) bar.style.width = (job.i / job.rivals.length * 100) + '%';
+    setTimeout(() => oppStep(job), 0);
+    return;
+  }
+  oppCache.set(job.key, job.rows.sort((a, b) => a.wins - b.wins));
+  oppJob = null;
+  if (!sync) renderCard();
 }
 
 // Места героя по сезонам. Сезоны считаются по одному, поэтому pending значит, что часть ещё впереди.
@@ -2062,9 +2101,12 @@ function renderCard() {
     </div>` : '';
 
   const hitsText = (n) => (n > 5 ? 'больше 5' : String(n));
-  const opponents = cardOpponents(hero, pool, calc);
+  const allClasses = settings.cardScope === 'all';
+  const rankPool = numbered(heroes.filter((h) => h.rank === hero.rank));
+  const oppPool = allClasses ? rankPool : pool;
+  const opponents = oppPool.length > 1 ? cardOpponents(hero, oppPool, calc) : { list: [] };
   const opponentRows = (list) => list.map((o) => `<tr>
-      <td class="left m-main">${openLink(o.rival)}<div class="small muted">${fmt(o.rival.bm)} / ${fmt(o.rival.hp)}</div></td>
+      <td class="left m-main">${openLink(o.rival, allClasses ? `<span title="${esc(o.rival.cls)}">${ICONS[o.rival.cls]}</span> ` : '')}<div class="small muted">${fmt(o.rival.bm)} / ${fmt(o.rival.hp)}</div></td>
       <td class="m-side">${pct(o.wins)}</td><td class="m-meta" data-label="Убьёт за">${hitsText(o.kills)}</td><td class="m-meta" data-label="Умрёт за">${hitsText(o.dies)}</td>
     </tr>`).join('');
   const opponentTable = (title, list) => `<div class="card">
@@ -2074,9 +2116,32 @@ function renderCard() {
         <tbody>${opponentRows(list)}</tbody>
       </table></div>
     </div>`;
-  const hardest = opponents.slice(0, 5);
-  const easiest = [...opponents].reverse().slice(0, 5);
-  const modeText = settings.mode === 'plain' ? 'Без навыков: один точный бой за каждую сторону.' : `С навыками: ${fmt(cardRuns(pool.length))} боёв за каждую сторону.`;
+  const modeText = settings.mode === 'plain' ? 'Без навыков: один точный бой за каждую сторону.' : `С навыками: ${fmt(cardRuns(oppPool.length))} боёв за каждую сторону.`;
+  const scopeChips = rankPool.length > 1 ? `<div class="chips opp-scope" aria-label="Соперники">
+      <button class="chip" data-card-scope="cls" aria-pressed="${!allClasses}">Свой класс</button>
+      <button class="chip" data-card-scope="all" aria-pressed="${allClasses}">Все классы</button>
+    </div>` : '';
+  // Средний шанс против каждого класса ранга; класс без героев не показывается.
+  const byClass = (list) => E.CLASSES.map((c) => {
+    const rows = list.filter((o) => o.rival.cls === c);
+    return rows.length ? `<span class="opp-cls" title="Против класса «${esc(c)}»: ${rows.length} соперн.">${ICONS[c]} ${pct(rows.reduce((sum, o) => sum + o.wins, 0) / rows.length)}</span>` : '';
+  }).filter(Boolean).join(' ');
+  let opponentBlock = '';
+  if (oppPool.length <= 1) {
+    opponentBlock = scopeChips ? `${scopeChips}<p class="small muted">В этом классе ранга нет других героев. Выбери «Все классы».</p>` : '';
+  } else if (!opponents.list) {
+    opponentBlock = `${scopeChips}<div class="status small muted"><span>Считаю соперников…</span><div class="track"><span id="oppBar" style="width:${opponents.share * 100}%"></span></div></div>`;
+  } else {
+    const hardest = opponents.list.slice(0, 5);
+    const easiest = [...opponents.list].reverse().slice(0, 5);
+    opponentBlock = `${scopeChips}
+    ${allClasses ? `<p class="opp-classes"><span class="muted">Шанс против классов:</span> ${byClass(opponents.list)}</p>` : ''}
+    <div class="stat-grid">
+      ${opponentTable('Самые неудобные соперники', hardest)}
+      ${opponentTable('Самые удобные соперники', easiest)}
+    </div>
+    <p class="small muted">${modeText} Удары считаются без навыков. За бой у каждого только 5 ударов, поэтому «больше 5» значит, что обычными ударами соперника не убить.</p>`;
+  }
 
   const historyRows = history.rows.map((row, i) => {
     if (row.missing) return `<tr><td class="left">${esc(row.name)}</td><td colspan="4" class="left muted">Героя ещё не было</td></tr>`;
@@ -2111,14 +2176,10 @@ function renderCard() {
         </div>
       </div>
       <div class="stat-tiles">${tiles}</div>
-      <p class="small muted" id="cardNote">${settings.mode === 'plain' ? 'Без навыков, как выбрано в топе.' : 'С навыками, как выбрано в топе.'} Статы на 1 уровне, соперники из того же ранга и класса.</p>
+      <p class="small muted" id="cardNote">${settings.mode === 'plain' ? 'Без навыков, как выбрано в топе.' : 'С навыками, как выбрано в топе.'} Статы на 1 уровне, ${allClasses ? 'место и победы — среди того же ранга и класса, соперники — из того же ранга, все классы' : 'соперники из того же ранга и класса'}.</p>
     </div>
     ${skinBlock}
-    ${pool.length > 1 ? `<div class="stat-grid">
-      ${opponentTable('Самые неудобные соперники', hardest)}
-      ${opponentTable('Самые удобные соперники', easiest)}
-    </div>
-    <p class="small muted">${modeText} Удары считаются без навыков. За бой у каждого только 5 ударов, поэтому «больше 5» значит, что обычными ударами соперника не убить.</p>` : ''}
+    ${opponentBlock}
     ${historyBlock}`;
 }
 
@@ -2772,6 +2833,7 @@ function startContestLive(first) {
   contestLive = first && first.contest ? first : null;
   contestLiveAt = Date.now();
   setInterval(refreshContestLive, CONTEST_LIVE_EVERY);
+  setInterval(tickLiveLeft, 30 * 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshContestLive(); });
 }
 
@@ -2782,6 +2844,21 @@ function liveAgo(iso) {
   if (min < 1) return 'обновлено только что';
   if (min < 60) return `обновлено ${min} мин назад`;
   return `обновлено ${dateText(new Date(at))} ${new Date(at).toTimeString().slice(0, 5)}`;
+}
+
+// Сколько осталось до конца идущего конкурса (endsAt из /contest_end).
+function liveLeft(endsAt) {
+  const left = endsAt * 1000 - Date.now();
+  if (left <= 0) return 'время вышло, ждём итоги';
+  if (left < 60 * 1000) return 'конкурс заканчивается';
+  const min = Math.floor(left / 60000);
+  const h = Math.floor(min / 60);
+  return `до конца: ${[h ? `${h} ч` : '', min % 60 || !h ? `${min % 60} мин` : ''].filter(Boolean).join(' ')}`;
+}
+
+// Отсчёт меняется без перерисовки карточки.
+function tickLiveLeft() {
+  document.querySelectorAll('[data-ends]').forEach((el) => { el.textContent = `⏳ ${liveLeft(Number(el.dataset.ends))}`; });
 }
 
 const contestTime = (unix) => {
@@ -2831,7 +2908,7 @@ function renderContests() {
     const parts = contestStatsParts(now.stats, now.limit || 100);
     return `<article class="card live-card">
       <h2>🔴 Идёт сейчас: ${esc(now.name)}</h2>
-      <p class="small muted">${esc(liveAgo(contestLive.savedAt))}</p>
+      <p class="small muted">${now.endsAt ? `<b data-ends="${Number(now.endsAt)}">⏳ ${esc(liveLeft(now.endsAt))}</b> · ` : ''}${esc(liveAgo(contestLive.savedAt))}</p>
       ${parts.head}
       ${players.length ? contestTable(players.slice(0, CONTEST_SHOWN), note) : ''}
       ${rest.length ? `<details><summary class="small muted">Показать всех: ещё ${rest.length}</summary>${contestTable(rest, note)}</details>` : ''}
@@ -4059,6 +4136,10 @@ $('cardOut').addEventListener('click', async (e) => {
   } else if (e.target.closest('[data-card-skin]')) {
     collection[id] = { skin: !collection[id].skin };
     saveCollection();
+    renderCard();
+  } else if (e.target.closest('[data-card-scope]')) {
+    settings.cardScope = e.target.closest('[data-card-scope]').dataset.cardScope;
+    saveSettings();
     renderCard();
   } else if (e.target.closest('[data-card-compare]')) {
     compare.b = { ...compare.a };
