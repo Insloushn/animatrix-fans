@@ -387,6 +387,8 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .opp-scope .chip { white-space: nowrap; }
 .opp-classes { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0 0 10px; }
 .opp-cls { white-space: nowrap; font-weight: 600; }
+.cls-summary { display: grid; gap: 2px; }
+.cls-mark { font-style: normal; }
 .opp-cls:not(:last-child)::after { content: ' ·'; color: var(--muted); font-weight: 400; }
 .stat-card.wide { grid-column: 1 / -1; }
 .stat-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: start; }
@@ -523,6 +525,8 @@ details.card summary { cursor: pointer; font-weight: 500; }
       <div class="track" id="simTrack" hidden><span id="simBar"></span></div>
     </div>
     <p class="small muted" id="skinHint" hidden>🎭 Версии со скином стоят рядом по силе и места не занимают.</p>
+    <p class="notice" id="mixPlainNote" hidden>Без навыков разные классы сравниваются нечестно: остаётся только лечение Саппорта.</p>
+    <div class="cls-summary small" id="clsSummary" hidden></div>
     <div class="table-box"><table id="topTable" class="m-rows"></table></div>
     <p class="small muted" id="topHint"></p>
   </section>
@@ -833,7 +837,7 @@ function writeStore(key, value) {
 }
 
 const defaultSettings = () => ({
-  maxMoves: E.DEFAULTS.maxMoves, runs: 500, mode: 'skills', showSkins: true, showEvents: true, compareMode: 'both', cardScope: 'cls', titleSort: 'alpha', titleDir: 1, exportLimits: {},
+  maxMoves: E.DEFAULTS.maxMoves, runs: 500, mode: 'skills', showSkins: true, showEvents: true, compareMode: 'both', cardScope: 'cls', multiCls: false, topClasses: [], titleSort: 'alpha', titleDir: 1, exportLimits: {},
   formula: JSON.parse(JSON.stringify(E.DEFAULTS.formula)),
 });
 
@@ -860,6 +864,7 @@ const state = {
 const results = new Map();
 const pairRate = E.createPairRates();
 let simToken = 0;
+let simRun = { key: '', token: -1 };
 let lastTop = [];
 const compare = {
   a: { query: 'Бласт', level: 1, skin: false },
@@ -1257,6 +1262,7 @@ function computePlain(group, calc) {
 
 function runSimulation(group, calc, key, label, runs) {
   const token = ++simToken;
+  simRun = { key, token };
   const pool = numbered(group);
   const n = pool.length;
   const atk = new Array(n).fill(0);
@@ -1312,6 +1318,8 @@ function resultFor(group, calc, label, mode, size) {
     results.set(key, computePlain(group, calc));
     return results.get(key);
   }
+  // Та же группа уже считается: перерисовка (поиск, обновление базы) не начинает счёт заново.
+  if (simRun.key === key && simRun.token === simToken) return null;
   runSimulation(group, calc, key, label, runs);
   return null;
 }
@@ -1414,6 +1422,14 @@ function modeChipsHtml() {
     <button class="chip" data-events aria-pressed="${settings.showEvents}">${EVENT_MARK} Показывать ивент-карты</button>`;
 }
 
+// Топ сразу по нескольким классам — только у админа (tickets/admin-multiclass-top.md). Игроки видят один класс.
+const topAdmin = () => loaded && (!siteData || adminWanted());
+function topClasses() {
+  if (!topAdmin() || !settings.multiCls) return [state.cls];
+  const picked = E.CLASSES.filter((c) => (settings.topClasses || []).includes(c));
+  return picked.length ? picked : [state.cls];
+}
+
 function renderChips(active) {
   const ranks =E.RANKS.filter((r) => active.some((h) => h.rank === r));
   if (ranks.length && !ranks.includes(state.rank)) state.rank = ranks[0];
@@ -1421,10 +1437,13 @@ function renderChips(active) {
     const count = active.filter((h) => h.rank === r).length;
     return `<button class="chip" data-rank="${r}" aria-pressed="${r === state.rank}"><b>${r}</b><i>${count}</i></button>`;
   }).join('');
+  const picked = topClasses();
   $('classChips').innerHTML = E.CLASSES.map((c) => {
     const count = active.filter((h) => h.rank === state.rank && h.cls === c).length;
-    return `<button class="chip" data-cls="${c}" aria-pressed="${c === state.cls}">${ICONS[c]} ${c}<i>${count}</i></button>`;
-  }).join('');
+    return `<button class="chip" data-cls="${c}" aria-pressed="${picked.includes(c)}">${ICONS[c]} ${c}<i>${count}</i></button>`;
+  }).join('') + (topAdmin()
+    ? `<button class="chip" data-multi-cls aria-pressed="${settings.multiCls}" title="Только у админа: отмечать классы по одному и смотреть общий топ">➕ Несколько классов</button>`
+    : '');
   document.body.dataset.cls = state.cls;
   $('modeChips').innerHTML = modeChipsHtml();
 
@@ -1500,13 +1519,19 @@ function renderTop() {
   updateMoreBtn();
 
   const calc = calcFor(season);
-  const group = active.filter((h) => h.rank === state.rank && h.cls === state.cls);
-  const ranked = rankGroup(group, calc, 'Симулирую бои…', group.length);
+  const classes = topClasses();
+  const multi = classes.length > 1;
+  const group = active.filter((h) => h.rank === state.rank && classes.includes(h.cls));
+  const simLabel = multi
+    ? `Симулирую бои: ${fmt(numbered(group).length)} героев из ${classes.length} классов, по ${fmt(runsFor(group.length, 'skills'))} боёв на пару и сторону…`
+    : 'Симулирую бои…';
+  const ranked = rankGroup(group, calc, simLabel, group.length);
   const { result, tiebreak, order } = ranked;
 
   // Прошлый сезон считается после текущего, симуляция идёт только одна за раз.
+  // При нескольких классах сдвиг не считается: прошлый сезон удвоил бы и без того долгий расчёт.
   const prevId = compareSeasonId();
-  const prevSeason = seasonById(prevId);
+  const prevSeason = multi ? null : seasonById(prevId);
   let prevOrder = null;
   let prevPlaces = null;
   let prevAll = null;
@@ -1567,6 +1592,21 @@ function renderTop() {
   }
 
   const changes = prevOrder ? placeChanges(order, place, extraRows, prevOrder, prevPlaces, prevAll) : new Map();
+
+  // Сводка по классам: только обычные герои, места — в общем топе выбранных классов.
+  const summary = $('clsSummary');
+  summary.hidden = !(multi && result && order.length);
+  if (!summary.hidden) {
+    const quarter = Math.ceil(order.length / 4);
+    summary.innerHTML = `<div class="muted">Сводка по классам: топ-25 % — места 1–${quarter}, средний — процент побед против всех выбранных классов</div>` +
+      classes.map((c) => {
+        const own = order.filter((h) => h.cls === c);
+        const inTop = (n) => own.filter((h) => place.get(h.key) <= n).length;
+        const avg = own.length ? pct(own.reduce((sum, h) => sum + (stat(h) ? stat(h).overall : 0), 0) / own.length) : '—';
+        return `<div><b>${ICONS[c]} ${esc(c)}</b> (${own.length}): в топ-10 — ${inTop(10)}, в топ-25 % — ${inTop(quarter)}, средний ${avg}</div>`;
+      }).join('');
+  }
+  $('mixPlainNote').hidden = !(multi && settings.mode === 'plain');
 
   const value = {
     place: (h) => position.get(h.key),
@@ -1637,7 +1677,7 @@ function renderTop() {
       return `<tr data-row="${esc(E.heroId(h))}" class="has-lead${offTop ? ' skin-row' : ''}">
         <td class="left place m-lead">${placeCell}${tie}</td>
         ${hasChange ? `<td class="left m-meta">${moveCell(changes.get(h.key))}</td>` : ''}
-        <td class="left hero m-main"><strong>${esc(h.name)}${isOwned(h) ? '<span class="own" title="Есть в коллекции">✓</span>' : ''}</strong><span>${esc(h.title || 'Тайтл не указан')}${baseNote}</span></td>
+        <td class="left hero m-main"><strong>${multi ? `<i class="cls-mark" title="${esc(h.cls)}">${ICONS[h.cls]}</i> ` : ''}${esc(h.name)}${isOwned(h) ? '<span class="own" title="Есть в коллекции">✓</span>' : ''}</strong><span>${esc(h.title || 'Тайтл не указан')}${baseNote}</span></td>
         <td class="m-meta" data-label="💥">${fmt(h.bm)}</td><td class="m-meta" data-label="❤️">${fmt(h.hp)}</td>
         <td class="m-meta" data-label="Очки">${fmt(value.score(h))}${formulaNote}</td>
         <td class="m-meta" data-label="Нап.">${s ? pct(s.atk) : '—'}</td><td class="m-meta" data-label="Защ.">${s ? pct(s.def) : '—'}</td><td class="m-side">${overall}</td>
@@ -1652,7 +1692,8 @@ function renderTop() {
   // На телефоне заголовков нет, поэтому сортировка выбирается списком.
   const sortOptions = [['place', 'По месту'], ...(hasChange ? [['change', 'По сдвигу']] : []), ['overall', 'По победам'], ['bm', 'По БМ'], ['hp', 'По ЖВ'], ['score', 'По очкам формулы'], ['atk', 'По нападению'], ['def', 'По защите'], ['name', 'По имени']];
   $('topSort').innerHTML = sortOptions.map(([k, label]) => `<option value="${k}"${state.sort === k ? ' selected' : ''}>${label}</option>`).join('');
-  $('csv').hidden = !downloads || !shown.length;
+  // Выгрузка — по одному классу, смешанный топ не выгружается.
+  $('csv').hidden = !downloads || !shown.length || multi;
   lastTop = merged.map((h) => ({
     h,
     place: (h.isSkin && '🎭') || (h.event && EVENT_MARK) || place.get(h.key),
@@ -1665,7 +1706,8 @@ function renderTop() {
   hints.push(`Места считаются по базовым статам. Строка с 🎭 вместо места — та же карта со скином (+15%), строка с ${EVENT_MARK} — ивент-карта. Они стоят рядом по силе и не сдвигают номера других героев. Строки с 🎭 идут между собой в порядке тех же героев без скина, а их процент посчитан против героев без скина, поэтому он может идти не по убыванию. Герои с одинаковыми БМ и ЖВ делят место, знак ×2 показывает, сколько их.`);
   hints.push('Рост +30% от базы за уровень одинаков у всех, поэтому при равном уровне места не меняются.');
   if (season) hints.push(`Показан сохранённый сезон «${season.name}» с его настройками расчёта.`);
-  if (hasChange) hints.push(`Сдвиг: изменение места относительно сезона «${prevSeason.name}» внутри этого ранга и класса.`);
+  if (multi) hints.push('Несколько классов: места — в общем топе выбранных классов ранга, бои — между героями разных классов. Сдвиг относительно сезона и CSV при этом не показываются; выгрузка — по одному классу.');
+  else if (hasChange) hints.push(`Сдвиг: изменение места относительно сезона «${prevSeason.name}» внутри этого ранга и класса.`);
   else if (!seasons.length) hints.push('Сохрани сезон на вкладке «Сезоны», и здесь появится изменение мест.');
   hints.push('Нажми на героя, чтобы открыть его карточку.');
   $('topHint').textContent = hints.join(' ');
@@ -3923,8 +3965,28 @@ $('rankChips').addEventListener('click', (e) => {
   if (b) { state.rank = b.dataset.rank; renderTop(); }
 });
 $('classChips').addEventListener('click', (e) => {
+  if (e.target.closest('[data-multi-cls]')) {
+    settings.multiCls = !settings.multiCls;
+    const picked = topClasses();
+    if (!picked.includes(state.cls)) state.cls = picked[0];
+    saveSettings();
+    renderTop();
+    return;
+  }
   const b = e.target.closest('[data-cls]');
-  if (b) { state.cls = b.dataset.cls; renderTop(); }
+  if (!b) return;
+  if (topAdmin() && settings.multiCls) {
+    // Несколько классов: чип отмечается и снимается, последний класс снять нельзя.
+    const picked = new Set(topClasses());
+    if (picked.has(b.dataset.cls)) {
+      if (picked.size === 1) return;
+      picked.delete(b.dataset.cls);
+    } else picked.add(b.dataset.cls);
+    settings.topClasses = E.CLASSES.filter((c) => picked.has(c));
+    if (!picked.has(state.cls)) state.cls = settings.topClasses[0];
+    saveSettings();
+  } else state.cls = b.dataset.cls;
+  renderTop();
 });
 function onModeChip(e) {
   const mode = e.target.closest('[data-mode]');
