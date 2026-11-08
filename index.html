@@ -466,6 +466,24 @@ details.card summary { cursor: pointer; font-weight: 500; }
   .bar u { display: none; }
 }
 
+/* Картинки карт (tickets/hero-images.md): миниатюра 40×40 — размер задан заранее, строки не прыгают; в карточке — крупно. */
+.hero-thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex: none; background: var(--line); display: block; }
+.hero-pic-row { display: flex; align-items: flex-start; gap: 8px; }
+/* Телефон: в строках с колонкой слева (место, отметка) миниатюра — под ней, имя остаётся во всю ширину. */
+@media (max-width: 760px) {
+  table.m-rows tr.has-lead .hero-pic-row { display: block; }
+  table.m-rows tr.has-lead .hero-thumb { position: absolute; left: 13px; top: 52px; width: 34px; height: 34px; }
+  table.m-rows tr.has-lead:has(.hero-thumb) { min-height: 96px; }
+}
+.hero-pic-row > div { min-width: 0; }
+.hero-pic-row > div > span { display: block; }
+.card-pics { display: grid; justify-items: center; gap: 6px; margin: 12px 0; }
+.pic-box { width: min(100%, 360px); aspect-ratio: 4 / 3; border-radius: 10px; overflow: hidden; background: var(--panel); border: 1px solid var(--line); }
+.pic-box img { width: 100%; height: 100%; object-fit: contain; display: block; cursor: zoom-in; }
+.pic-nav { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; min-height: 30px; }
+.pic-zoom { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .88); display: grid; place-items: center; padding: 16px; cursor: zoom-out; }
+.pic-zoom[hidden] { display: none; }
+.pic-zoom img { max-width: 100%; max-height: 100%; object-fit: contain; }
 /* Профиль и «Игроки»: круглый аватар; под фото — заготовка (tickets/profile-settings.md), видна, пока фото нет. */
 .avatar { position: relative; flex: none; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; display: inline-grid; place-items: center; background: var(--accent); }
 .avatar.big { width: 72px; height: 72px; }
@@ -796,6 +814,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
     </div>
     <div class="stat-grid" id="statCharts"></div>
     <div class="stat-tip" id="statTip" hidden></div>
+    <div class="pic-zoom" id="picZoom" hidden role="dialog" aria-label="Картинка карты"><img alt=""></div>
   </section>
 
   <section class="view" id="view-heroes" hidden>
@@ -1818,7 +1837,7 @@ function renderTop() {
       return `<tr data-row="${esc(E.heroId(h))}" class="has-lead${offTop ? ' skin-row' : ''}">
         <td class="left place m-lead">${placeCell}${tie}</td>
         ${hasChange ? `<td class="left m-meta">${moveCell(changes.get(h.key))}</td>` : ''}
-        <td class="left hero m-main"><strong>${multi ? `<i class="cls-mark" title="${esc(h.cls)}">${ICONS[h.cls]}</i> ` : ''}${esc(h.name)}${isOwned(h) ? '<span class="own" title="Есть в коллекции">✓</span>' : ''}</strong><span>${esc(h.title || 'Тайтл не указан')}${baseNote}</span></td>
+        <td class="left hero m-main">${withThumb(h, `<strong>${multi ? `<i class="cls-mark" title="${esc(h.cls)}">${ICONS[h.cls]}</i> ` : ''}${esc(h.name)}${isOwned(h) ? '<span class="own" title="Есть в коллекции">✓</span>' : ''}</strong><span>${esc(h.title || 'Тайтл не указан')}${baseNote}</span>`, h.isSkin)}</td>
         <td class="m-meta" data-label="💥">${fmt(h.bm)}</td><td class="m-meta" data-label="❤️">${fmt(h.hp)}</td>
         <td class="m-meta" data-label="Очки">${fmt(value.score(h))}${formulaNote}</td>
         <td class="m-meta" data-label="Нап.">${s ? pct(s.atk) : '—'}</td><td class="m-meta" data-label="Защ.">${s ? pct(s.def) : '—'}</td><td class="m-side">${overall}</td>
@@ -2142,7 +2161,7 @@ async function copyImage(canvas) {
 
 // ---------- Карточка героя ----------
 
-const cardState = { id: '' };
+const cardState = { id: '', pic: 0 };
 let cardOptions = new Map();
 let cardListFor = null;
 const cardLabel = (h) => `${h.name} · ${h.rank} · ${h.title || E.NO_TITLE}`;
@@ -2151,6 +2170,7 @@ const openLink = (h, prefix = '') => `<button class="link-btn" data-open-card="$
 function openCard(id) {
   const before = { tab: currentTab(), card: cardState.id };
   cardState.id = id;
+  cardState.pic = 0;
   $('cardSearch').value = '';
   const hero = heroes.find((h) => E.heroId(h) === id);
   // В Telegram адрес хранит данные запуска, поэтому его не трогаем.
@@ -2278,6 +2298,20 @@ function renderCard() {
     + tile('💥 БМ', fmt(hero.bm)) + tile('❤️ ЖВ', fmt(hero.hp));
   const owned = isOwned(hero);
   const ownedSkin = owned && ownEntry(hero).skin;
+  // Картинки карты: без скина и все известные скины — листанием; нажатие — крупно. Свои скины — из cards.json.
+  const pics = heroPics(hero);
+  const picAt = pics.length ? ((cardState.pic % pics.length) + pics.length) % pics.length : 0;
+  const pic = pics[picAt];
+  const myId = myPlayerKey().slice(3);
+  const mySkins = siteData && cardsData && myId ? [...new Set(E.cardOwned(cardsData, myId).filter((x) => x[0] === E.heroCode(hero) && x[1]).map((x) => x[1]))] : [];
+  const picBlock = pic ? `<div class="card-pics">
+      <div class="pic-box"><img src="cards/${esc(pic.file)}.jpg" alt="${esc(hero.name)}${pic.skin ? `, скин ${esc(pic.skin)}` : ''}" data-pic-zoom="cards/${esc(pic.file)}.jpg"></div>
+      <div class="pic-nav">${pics.length > 1 ? '<button class="btn ghost mini" data-pic="-1" aria-label="Предыдущая картинка">◀</button>' : ''}
+        <span>${pic.skin ? `🎭 ${esc(pic.skin)}` : 'Без скина'}${pics.length > 1 ? ` · ${picAt + 1}/${pics.length}` : ''}</span>
+        ${pics.length > 1 ? '<button class="btn ghost mini" data-pic="1" aria-label="Следующая картинка">▶</button>' : ''}</div>
+    </div>` : '';
+  const picNote = siteData ? `${mySkins.length ? `<p class="small">🎭 Твои скины: ${mySkins.map(esc).join(', ')}</p>` : ''}
+      <p class="small muted">Картинки — из игры AniMatrix. Нет картинки — открой героя в чате с @Insloushn или перешли карту боту @AniMatrix_fansBot.</p>` : '';
   const skinBlock = version ? `<div class="card">
       <h2>🎭 Со скином (+15%)</h2>
       <div class="stat-tiles">${tile('💥 БМ', fmt(version.bm))}${tile('❤️ ЖВ', fmt(version.hp))}${skinStat ? tile('Победы', pct(skinStat.overall), `без скина ${stat ? pct(stat.overall) : '—'}`) : ''}</div>
@@ -2359,7 +2393,9 @@ function renderCard() {
           ${siteData ? `<button class="btn ghost mini" data-card-link>${tg && siteConfig.telegramLink ? 'Поделиться' : 'Скопировать ссылку'}</button>` : ''}
         </div>
       </div>
+      ${picBlock}
       <div class="stat-tiles">${tiles}</div>
+      ${picNote}
       <p class="small muted" id="cardNote">${settings.mode === 'plain' ? 'Без навыков, как выбрано в топе.' : 'С навыками, как выбрано в топе.'} Статы на 1 уровне, ${allClasses ? 'место и победы — среди того же ранга и класса, соперники — из того же ранга, все классы' : 'соперники из того же ранга и класса'}.</p>
     </div>
     ${skinBlock}
@@ -2427,9 +2463,9 @@ function renderColAccount() {
     <p class="small ${bad ? '' : 'muted'}" style="${bad ? 'color:var(--warn)' : ''}">${status}</p>
     ${cloudStatus.state === 'loadError' ? '<div><button class="btn ghost mini" id="cloudRetry">Повторить</button></div>' : ''}
     <p class="small muted">Коллекция привязана к твоему аккаунту Telegram: она хранится в облаке Telegram, не пропадёт при очистке телефона и появится на всех твоих устройствах, где ты открываешь это мини-приложение.</p>
-    ${pullStats ? `<div class="pull-auto">
-      <label><input type="checkbox" id="pullAutoToggle"${pullMark.on ? ' checked' : ''}${pullMark.done ? '' : ' disabled'}> 🎰 Отмечать карты из круток</label>
-      <p class="small muted">${pullMark.added ? `${esc(pullMarkText(pullMark.added))}. ` : ''}${esc(PULL_MARK_NOTE)}</p>
+    ${pullStats || cardsData ? `<div class="pull-auto">
+      <label><input type="checkbox" id="pullAutoToggle"${pullMark.on ? ' checked' : ''}${pullMark.done ? '' : ' disabled'}> 🎰 Отмечать карты из круток и из бота</label>
+      <p class="small muted">${pullMark.added ? `${esc(pullMarkText(pullMark.added))}. ` : ''}${cardMark.added ? `${esc(cardMarkText(cardMark.added))}. ` : ''}${esc(PULL_MARK_NOTE)}</p>
     </div>` : ''}`;
 }
 
@@ -2486,7 +2522,7 @@ function renderCollection() {
     return `<tr class="has-lead">
       <td class="left m-lead"><label class="skin-toggle"><input type="checkbox" data-own="${id}"${entry ? ' checked' : ''} aria-label="Есть в коллекции"></label></td>
       <td class="left m-side">${h.skin ? `<label class="skin-toggle"><input type="checkbox" data-own-skin="${id}"${entry && entry.skin ? ' checked' : ''}${entry ? '' : ' disabled'} aria-label="Есть скин"> 🎭</label>` : ''}</td>
-      <td class="left hero m-main">${openLink(h)}<span>${esc(h.title || E.NO_TITLE)}${fromPulls(h) ? ' · 🎰\u00a0из\u00a0круток' : ''}</span></td>
+      <td class="left hero m-main">${withThumb(h, `${openLink(h)}<span>${esc(h.title || E.NO_TITLE)}${fromPulls(h) ? ' · 🎰\u00a0из\u00a0круток' : fromCards(h) ? ' · 🃏\u00a0из\u00a0карт' : ''}</span>`, entry && entry.skin)}</td>
       <td class="left m-meta"><b>${h.rank}</b></td>
       <td class="left m-meta">${ICONS[h.cls]} ${esc(h.cls)}</td>
       <td class="m-meta" data-label="💥">${fmt(h.bm)}</td><td class="m-meta" data-label="❤️">${fmt(h.hp)}</td>
@@ -2928,8 +2964,8 @@ let playerDirCache = null;
 let gameNicks = new Map();
 const playerDir = () => {
   const c = playerDirCache;
-  if (c && c.records === records && c.contests === contests && c.live === contestLive && c.pulls === pullStats && c.nicks === gameNicks && c.profiles === profileView) return c.list;
-  playerDirCache = { records, contests, live: contestLive, pulls: pullStats, nicks: gameNicks, profiles: profileView, list: E.playerDirectory(records, contests, contestLive, pullStats, gameNicks, profileView) };
+  if (c && c.records === records && c.contests === contests && c.live === contestLive && c.pulls === pullStats && c.nicks === gameNicks && c.profiles === profileView && c.cards === cardsData) return c.list;
+  playerDirCache = { records, contests, live: contestLive, pulls: pullStats, nicks: gameNicks, profiles: profileView, cards: cardsData, list: E.playerDirectory(records, contests, contestLive, pullStats, gameNicks, profileView, cardsData) };
   return playerDirCache.list;
 };
 // Имя игрока на сайте: у кого есть ID и ник в игре — ник, иначе как пришло (имя Telegram или ник из рекорда).
@@ -3172,8 +3208,8 @@ function renderPlayers() {
       ${avatarHtml(p.key, p.name)}
       <span class="player-text"><b>${esc(p.name)}${p.key === me ? ' <span class="tag">это ты</span>' : ''}</b>
         <small>${(p.contests || p.records || p.live
-          ? [`конкурсов ${p.contests}`, `рекордов ${p.records}`, p.pulls > 0 ? `круток ${fmt(p.pulls)}` : '', p.live ? '🔴 в конкурсе' : '']
-          : [p.pulls > 0 ? `круток ${fmt(p.pulls)}` : '']).filter(Boolean).join(' · ')}</small></span>
+          ? [`конкурсов ${p.contests}`, `рекордов ${p.records}`, p.pulls > 0 ? `круток ${fmt(p.pulls)}` : '', p.cards > 0 ? `карт ${fmt(p.cards)}` : '', p.live ? '🔴 в конкурсе' : '']
+          : [p.pulls > 0 ? `круток ${fmt(p.pulls)}` : '', p.cards > 0 ? `карт ${fmt(p.cards)}` : '']).filter(Boolean).join(' · ')}</small></span>
     </button>`;
   const shownId = withId.slice(0, playersState.limit);
   const shownNo = noId.slice(0, Math.max(0, playersState.limit - withId.length));
@@ -3658,6 +3694,17 @@ function renderContests() {
 // ---------- 🎰 Крутки: общая статистика (pull-stats.json пишет бот, tickets/pull-stats.md) ----------
 // Нет файла — блока нет. Чаты и их названия видны всем.
 let pullStats = null;
+// Картинки карт и владельцы (cards.json пишет бот, tickets/hero-images.md). Только на сайте: картинки лежат рядом, в cards/.
+let cardsData = null;
+const heroPics = (h) => (siteData && cardsData ? E.cardImages(cardsData, E.heroCode(h)) : []);
+// Миниатюра: skin — сначала картинка со скином. Нет картинки — пусто, как раньше.
+function thumbHtml(h, skin) {
+  const pics = heroPics(h);
+  if (!pics.length) return '';
+  const pic = (skin && pics.find((x) => x.skin)) || pics.find((x) => !x.skin) || pics[0];
+  return `<img class="hero-thumb" src="cards/${esc(pic.file)}.s.jpg" width="40" height="40" alt="" loading="lazy" decoding="async">`;
+}
+const withThumb = (h, inner, skin) => { const t = thumbHtml(h, skin); return t ? `<div class="hero-pic-row">${t}<div>${inner}</div></div>` : inner; };
 const pullState = { chat: '' };
 const PULL_NOTE = 'Считается только в чатах, где есть @Insloushn — так устроены ограничения Telegram для ботов. Хотите статистику своего чата — напишите @Insloushn.';
 const PULL_SHOWN = 10;
@@ -4205,8 +4252,8 @@ function renderVerdict() {
     const h = side === 'a' ? a : b;
     const info = $(`${side}-info`);
     if (!info) return;
-    info.textContent = h
-      ? `${h.rank} · ${ICONS[h.cls]} ${h.cls} · БМ ${fmt(h.bm)} · ЖВ ${fmt(h.hp)}`
+    info.innerHTML = h
+      ? withThumb(h, esc(`${h.rank} · ${ICONS[h.cls]} ${h.cls} · БМ ${fmt(h.bm)} · ЖВ ${fmt(h.hp)}`), compare[side].skin)
       : 'Такого героя нет в базе';
   });
   $('compareModes').innerHTML = [['skills', 'С навыками'], ['plain', 'Без навыков'], ['both', 'Оба варианта']]
@@ -5026,6 +5073,9 @@ $('view-stats').addEventListener('pointermove', (e) => moveStatTip(e, e.target.c
 $('view-stats').addEventListener('focusin', (e) => moveStatTip(e, e.target.closest('[data-tip-value]')));
 $('view-stats').addEventListener('focusout', () => { $('statTip').hidden = true; });
 $('view-stats').addEventListener('pointerleave', () => { $('statTip').hidden = true; });
+// Картинка крупно: закрывается нажатием или Esc.
+$('picZoom').addEventListener('click', () => { $('picZoom').hidden = true; });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('picZoom').hidden) $('picZoom').hidden = true; });
 // Ссылка на героя работает из любой вкладки.
 document.querySelector('.wrap').addEventListener('click', (e) => {
   const link = e.target.closest('[data-open-card]');
@@ -5091,6 +5141,10 @@ $('cardOut').addEventListener('click', async (e) => {
   const hero = heroes.find((h) => E.heroId(h) === cardState.id);
   if (!hero) return;
   const id = E.heroId(hero);
+  const zoom = e.target.closest('[data-pic-zoom]');
+  if (zoom) { $('picZoom').firstElementChild.src = zoom.dataset.picZoom; $('picZoom').hidden = false; return; }
+  const step = e.target.closest('[data-pic]');
+  if (step) { cardState.pic += Number(step.dataset.pic); renderCard(); return; }
   if (e.target.closest('[data-card-own]')) {
     if (collection[id]) delete collection[id];
     else collection[id] = { skin: false };
@@ -5138,7 +5192,7 @@ $('colAccount').addEventListener('change', (e) => {
   if (e.target.id !== 'pullAutoToggle' || !tg) return;
   pullMark.on = e.target.checked;
   try { tg.CloudStorage.setItem('pullAuto', pullMark.on ? '1' : '0'); } catch (err) { /* облако недоступно */ }
-  if (pullMark.on) autoMarkPulls();
+  if (pullMark.on) autoMarkAll();
 });
 $('colTable').addEventListener('change', (e) => {
   const own = e.target.dataset.own;
@@ -5704,7 +5758,7 @@ function cloudLoad() {
       setCloudStatus('saved');
       if (!count || merge) cloudSave();
       renderRanking();
-      autoMarkPulls();
+      autoMarkAll();
     };
     if (!count) { finish({}); return; }
     const keys = Array.from({ length: count }, (_, i) => `col${i}`);
@@ -5720,7 +5774,7 @@ function cloudLoad() {
 // pullAuto — переключатель ('0' — выключен), pullN и pull0… — разобранные герои (E.packPullMarks). Отметки только добавляются.
 const pullMark = { on: true, done: null, added: 0 };
 let pullMarkParts = 0;
-const PULL_MARK_NOTE = 'Только крутки в чатах с @Insloushn и в конкурсах — остальные карты отмечай сам.';
+const PULL_MARK_NOTE = 'Только крутки и просмотр героев в чатах с @Insloushn, конкурсы и карты, пересланные или отправленные боту @AniMatrix_fansBot (команда /cards), — остальные карты отмечай сам.';
 const pullMarkText = (n) => `Из твоих круток ${n % 10 === 1 && n % 100 !== 11 ? 'отмечена' : 'отмечено'} ${n} ${plural(n, 'карта', 'карты', 'карт')}`;
 const fromPulls = (h) => !!(pullMark.done && pullMark.done[E.heroCode(h)] === true && isOwned(h));
 
@@ -5733,7 +5787,7 @@ function pullMarksLoad() {
       pullMark.done = E.unpackPullMarks(text);
       pullMarkParts = count;
       if (!$('view-collection').hidden) renderColAccount();
-      autoMarkPulls();
+      autoMarkAll();
     };
     if (!count) { finish(''); return; }
     const keys = Array.from({ length: count }, (_, i) => `pull${i}`);
@@ -5785,6 +5839,71 @@ function autoMarkPulls() {
   renderRanking();
 }
 
+// ---------- Автоотметка коллекции из карт (tickets/hero-images.md, п. 9) ----------
+// Как из круток: свой Telegram ID, только добавляет, тот же переключатель. Разобранное — в облаке Telegram рядом:
+// cardN и card0… (E.packPullMarks; «код*» — скин). Есть скин в cards.json — отмечается версия со скином.
+const cardMark = { done: null, added: 0 };
+let cardMarkParts = 0;
+const cardMarkText = (n) => `Из карт ${n % 10 === 1 && n % 100 !== 11 ? 'отмечена' : 'отмечено'} ${n} ${plural(n, 'карта', 'карты', 'карт')}`;
+const fromCards = (h) => !!(cardMark.done && cardMark.done[E.heroCode(h)] === true && isOwned(h));
+
+function cardMarksLoad() {
+  tg.CloudStorage.getItems(['cardN'], (error, values) => {
+    if (error || !values) return;
+    const count = parseInt(values.cardN, 10) || 0;
+    const finish = (text) => { cardMark.done = E.unpackPullMarks(text); cardMarkParts = count; autoMarkAll(); };
+    if (!count) { finish(''); return; }
+    const keys = Array.from({ length: count }, (_, i) => `card${i}`);
+    tg.CloudStorage.getItems(keys, (error2, parts) => {
+      if (error2 || !parts) return;
+      finish(keys.map((k) => parts[k] || '').join(''));
+    });
+  });
+}
+
+// Как коллекция: сначала части, счётчик частей последним.
+function cardMarksSave() {
+  const parts = E.chunkText(E.packPullMarks(cardMark.done), CLOUD_PART);
+  let waiting = parts.length;
+  let failed = false;
+  const finish = () => {
+    if (failed) return;
+    tg.CloudStorage.setItem('cardN', String(parts.length), (error) => {
+      if (error) return;
+      for (let i = parts.length; i < cardMarkParts; i += 1) tg.CloudStorage.removeItem(`card${i}`);
+      cardMarkParts = parts.length;
+    });
+  };
+  if (!waiting) { finish(); return; }
+  parts.forEach((part, i) => tg.CloudStorage.setItem(`card${i}`, part, (error) => {
+    if (error) failed = true;
+    waiting -= 1;
+    if (!waiting) finish();
+  }));
+}
+
+function autoMarkCards() {
+  if (!tg || !cloudReady || !cardMark.done || !pullMark.done || !pullMark.on || !heroes.length || !cardsData) return;
+  const owned = E.cardOwned(cardsData, myPlayerKey().slice(3));
+  if (!owned.length) return;
+  const plan = E.cardAutoMark(collection, owned, cardMark.done, heroes);
+  if (E.packPullMarks(plan.done) === E.packPullMarks(cardMark.done)) return;
+  plan.add.forEach((id) => { collection[id] = { skin: false }; });
+  plan.skins.forEach((id) => { collection[id] = { ...collection[id], skin: true }; });
+  cardMark.done = plan.done;
+  if (plan.add.length || plan.skins.length) {
+    cardMark.added += plan.add.length;
+    saveCollection();
+    const text = `🃏 ${plan.add.length ? cardMarkText(plan.add.length) : 'Из карт отмечены скины'}${plan.add.length && plan.skins.length ? `, скинов: ${plan.skins.length}` : ''}`;
+    notify(text);
+    setTimeout(() => { if ($('notice').textContent === text) notify(''); }, 8000);
+  }
+  cardMarksSave();
+  renderRanking();
+}
+
+function autoMarkAll() { autoMarkPulls(); autoMarkCards(); }
+
 function initTelegram(app) {
   tg = app;
   document.body.classList.add('telegram');
@@ -5800,7 +5919,7 @@ function initTelegram(app) {
   renderHome(); // карточка «Мой профиль»
   syncTabbar();
   $('colWhere').textContent = 'В Telegram коллекция хранится в твоём облаке Telegram и появляется на всех твоих устройствах. Код нужен, только чтобы перенести её в обычный браузер.';
-  if (app.isVersionAtLeast && app.isVersionAtLeast('6.9')) { cloudLoad(); if (pullStats) pullMarksLoad(); profilePendingLoad(); }
+  if (app.isVersionAtLeast && app.isVersionAtLeast('6.9')) { cloudLoad(); if (pullStats || cardsData) pullMarksLoad(); if (cardsData) cardMarksLoad(); profilePendingLoad(); }
   const start = app.initDataUnsafe && app.initDataUnsafe.start_param;
   const hero = start && heroByCode(start);
   if (hero) openCard(E.heroId(hero));
@@ -5850,6 +5969,7 @@ renderAll();
     if (site) site.contests = ((await loadJson('contests.json')) || {}).contests || [];
     if (site) startContestLive(await loadJson(`contest-live.json?t=${Date.now()}`));
     if (site) pullStats = await loadJson('pull-stats.json');
+    if (site) cardsData = await loadJson(`cards.json?t=${Date.now()}`);
     if (site) gameNicks = E.gameNickMap(await loadJson(`nicks.json?t=${Date.now()}`));
     if (site) { profileFile = E.profileMap(await loadJson(`profiles.json?t=${Date.now()}`)); rebuildProfiles(); }
     if (site) startPublic(site);

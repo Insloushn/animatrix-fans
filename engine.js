@@ -1294,10 +1294,11 @@
   // pullData — pull-stats.json: игроки только с крутками тоже в списке (имя оттуда — если другого нет), pulls — круток всего.
   // nicks — gameNickMap(nicks.json): у игрока с ID имя — ник в игре, tgName — имя Telegram, past — прошлые ники.
   // profiles — profileMap(profiles.json): передана — имя Telegram только у включивших, прошлые ники — кроме скрывших.
-  function playerDirectory(events, contests, live, pullData, nicks, profiles) {
+  // cardData — cards.json: владельцы карт тоже в списке, cards — сколько их героев видели.
+  function playerDirectory(events, contests, live, pullData, nicks, profiles, cardData) {
     const map = new Map();
     const get = (key, id) => {
-      if (!map.has(key)) map.set(key, { key, id: id ? String(id) : '', name: '', nameAt: '', tgName: '', tgAt: '', since: '', last: '', contests: 0, records: 0, pulls: 0, live: null });
+      if (!map.has(key)) map.set(key, { key, id: id ? String(id) : '', name: '', nameAt: '', tgName: '', tgAt: '', since: '', last: '', contests: 0, records: 0, pulls: 0, cards: 0, live: null });
       return map.get(key);
     };
     const touch = (p, name, at, fromTelegram) => {
@@ -1339,6 +1340,12 @@
       p.pulls = Number(x.pulls) || 0;
       if (!p.name && x.name) p.name = String(x.name);
       if (!p.tgName && x.name) p.tgName = String(x.name);
+    });
+    Object.keys((cardData && cardData.owners) || {}).forEach((id) => {
+      if (!/^\d+$/.test(id)) return;
+      const p = get(`id:${id}`, id);
+      p.cards = new Set(cardOwned(cardData, id).map((x) => x[0])).size;
+      if (!p.name) p.name = (nicks && nicks.get && nicks.get(id) && nicks.get(id).nick) || `ID ${id}`;
     });
     return [...map.values()].map(({ nameAt, tgAt, ...p }) => {
       const nick = p.id && nicks && nicks.get ? nicks.get(p.id) : null;
@@ -1473,6 +1480,51 @@
       if (!collection[id]) add.push(id);
     });
     return { add, done: next };
+  }
+
+  // ---------- Картинки карт и коллекция из карт (cards.json пишет бот, tickets/hero-images.md) ----------
+
+  // Картинки героя по коду: сначала без скина, потом скины по имени. file — имя без .jpg (миниатюра — file + '.s').
+  function cardImages(data, code) {
+    const x = data && data.images && data.images[code];
+    if (!x) return [];
+    const list = x.img ? [{ file: String(code), skin: '' }] : [];
+    Object.keys(x.skins || {}).sort((a, b) => a.localeCompare(b, 'ru')).forEach((skin) => {
+      const file = String(x.skins[skin] || '');
+      if (/^[0-9a-z]+(~[A-Za-z0-9]+)?$/.test(file)) list.push({ file, skin });
+    });
+    return list;
+  }
+
+  // Карты игрока из cards.json: [[код, скин или '', уровень]]. Нет — пустой список.
+  function cardOwned(data, id) {
+    const list = data && data.owners && data.owners[String(id || '')];
+    return Array.isArray(list) ? list.filter((x) => Array.isArray(x) && x[0]) : [];
+  }
+
+  // Автоотметка из карт — как из круток: только добавляет. done — разобранное (код → true, если добавили карты;
+  // «код*» — скин). Есть хоть один скин у игрока — отмечается версия со скином. Снятое вручную само не вернётся.
+  function cardAutoMark(collection, owned, done, heroes) {
+    const byCode = new Map((heroes || []).map((h) => [heroCode(h), h]));
+    const next = { ...(done || {}) };
+    const add = [];
+    const skins = [];
+    const have = (id) => !!collection[id] || add.includes(id);
+    (owned || []).forEach(([code, skin]) => {
+      const hero = byCode.get(code);
+      if (!hero) return;
+      const id = heroId(hero);
+      if (!(code in next)) {
+        next[code] = !collection[id];
+        if (!collection[id]) add.push(id);
+      }
+      const key = `${code}*`;
+      if (!skin || !hero.skin || key in next || !have(id)) return;
+      const hasSkin = collection[id] ? !!collection[id].skin : false;
+      next[key] = !hasSkin;
+      if (!hasSkin) skins.push(id);
+    });
+    return { add, skins, done: next };
   }
 
   // Разобранные герои для облака Telegram: коды через запятую, «+» — карту добавили крутки.
@@ -1741,7 +1793,7 @@
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
     AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, profileStartCode, parseProfileCode,
-    pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks,
+    pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, cardOwned, cardAutoMark,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
     CLASSES, RANKS, DEFAULTS, NO_TITLE, SKIN_BONUS, fight, duel, plainFight, formulaScore,
