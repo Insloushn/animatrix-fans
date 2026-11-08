@@ -466,10 +466,34 @@ details.card summary { cursor: pointer; font-weight: 500; }
   .bar u { display: none; }
 }
 
-/* Профиль и «Игроки»: круглый аватар, под ним буква имени — видна, пока картинки нет. */
-.avatar { position: relative; flex: none; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; display: inline-grid; place-items: center; background: var(--accent); color: var(--on-accent); font: 600 17px/1 var(--display); }
-.avatar.big { width: 72px; height: 72px; font-size: 30px; }
+/* Профиль и «Игроки»: круглый аватар; под фото — заготовка (tickets/profile-settings.md), видна, пока фото нет. */
+.avatar { position: relative; flex: none; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; display: inline-grid; place-items: center; background: var(--accent); }
+.avatar.big { width: 72px; height: 72px; }
+.avatar svg { width: 100%; height: 100%; display: block; }
 .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* «⚙️ Настройки профиля»: только свой профиль в мини-приложении. */
+.profile-settings summary { cursor: pointer; font: 600 16px var(--display); list-style: none; }
+.profile-settings summary::-webkit-details-marker { display: none; }
+.profile-settings summary::after { content: ' ▾'; color: var(--muted); }
+.profile-settings[open] summary::after { content: ' ▴'; }
+.profile-settings[open] summary { margin-bottom: 10px; }
+.prof-set { display: grid; gap: 10px; }
+.prof-set h3 { margin: 4px 0 0; font-size: 14px; }
+.prof-set .check { padding-bottom: 0; font-size: 14px; }
+.prof-preview { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; }
+.prof-preview b { overflow-wrap: anywhere; }
+.av-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 52px)); gap: 8px; }
+.av-colors { display: flex; flex-wrap: wrap; gap: 8px; }
+.av-pick, .av-color { all: unset; box-sizing: border-box; cursor: pointer; border-radius: 50%; border: 2px solid transparent; padding: 2px; display: grid; place-items: center; }
+.av-pick .avatar { width: 100%; height: auto; aspect-ratio: 1; }
+.av-color { width: 36px; height: 36px; }
+.av-color span { width: 100%; height: 100%; border-radius: 50%; }
+.av-pick.on, .av-color.on { border-color: var(--accent); }
+.av-pick:focus-visible, .av-color:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.av-off .av-grid, .av-off .av-colors { opacity: .55; }
+.av-src { display: flex; flex-wrap: wrap; gap: 8px; }
+.av-src .btn.on { border-color: var(--accent); color: var(--accent); }
+.prof-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .profile-head { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 14px; }
 .profile-head h2 { font-size: 20px; overflow-wrap: anywhere; }
 .profile-head .actions, .profile-head #profileShareNote { grid-column: 1 / -1; }
@@ -2904,8 +2928,8 @@ let playerDirCache = null;
 let gameNicks = new Map();
 const playerDir = () => {
   const c = playerDirCache;
-  if (c && c.records === records && c.contests === contests && c.live === contestLive && c.pulls === pullStats && c.nicks === gameNicks) return c.list;
-  playerDirCache = { records, contests, live: contestLive, pulls: pullStats, nicks: gameNicks, list: E.playerDirectory(records, contests, contestLive, pullStats, gameNicks) };
+  if (c && c.records === records && c.contests === contests && c.live === contestLive && c.pulls === pullStats && c.nicks === gameNicks && c.profiles === profileView) return c.list;
+  playerDirCache = { records, contests, live: contestLive, pulls: pullStats, nicks: gameNicks, profiles: profileView, list: E.playerDirectory(records, contests, contestLive, pullStats, gameNicks, profileView) };
   return playerDirCache.list;
 };
 // Имя игрока на сайте: у кого есть ID и ник в игре — ник, иначе как пришло (имя Telegram или ник из рекорда).
@@ -2919,14 +2943,101 @@ const tgUserName = () => {
 const menuTabs = () => ['home', 'top', 'contests', 'profile', 'records', 'collection', 'card', 'compare', 'players', 'stats', 'news', 'antistress'];
 const tabShown = (tab) => { const b = document.querySelector(`nav [data-tab="${tab}"]`); return !!b && !b.hidden; };
 
-// Аватар: буква имени на цвете акцента, сверху — картинка, если она есть. Свою картинку в Telegram берём сразу из Telegram.
-function avatarHtml(key, name, big) {
+// ---------- Настройки профиля (tickets/profile-settings.md) ----------
+// profiles.json пишет бот по команде игрока; своё выбранное, пока бот его не записал, — из облака Telegram.
+const PROFILE_BOT = 'https://t.me/AniMatrix_fansBot';
+const PROFILE_PENDING_TTL = 30 * 60 * 1000; // не дошло за полчаса — бот команду не получил, показываем как в файле
+let profileFile = new Map();
+let profilePending = null; // { tg, past, av, at }
+let profileView = new Map();
+const profileDraft = { open: false, s: null, name: '' };
+const sameProfile = (a, b) => a.tg === b.tg && a.past === b.past && a.av === b.av;
+function rebuildProfiles() {
+  const me = myPlayerKey().slice(3);
+  if (profilePending && me && (sameProfile(E.profileOf(profileFile, me), profilePending) || Date.now() - profilePending.at > PROFILE_PENDING_TTL)) {
+    profilePending = null;
+    try { tg.CloudStorage.removeItem('profileSet'); } catch (e) { /* облако недоступно */ }
+  }
+  const map = new Map(profileFile);
+  if (profilePending && me) map.set(me, { tg: profilePending.tg, past: profilePending.past, av: profilePending.av });
+  profileView = map;
+}
+const profileFor = (key) => E.profileOf(profileView, key && key.startsWith('id:') ? key.slice(3) : '');
+
+// Аватар: выбранная игроком заготовка → фото (своё из Telegram, чужое — avatars/<ID>.jpg от бота) → заготовка по ID
+// (без ID — по нику). Заготовка лежит под фото: нет файла — видна она. pr — настройки для предпросмотра.
+function avatarHtml(key, name, big, pr) {
   const id = key && key.startsWith('id:') ? key.slice(3) : '';
-  const letter = (String(name || '').trim().match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase();
+  const set = pr || profileFor(key);
+  const preset = E.avatarPreset(set.av) || E.avatarPreset(E.avatarSeedCode(id || key || name));
   const user = tgUser();
-  const own = user && user.photo_url && key === myPlayerKey() ? user.photo_url : '';
-  const src = own || (siteData && /^\d+$/.test(id) ? `avatars/${id}.jpg` : '');
-  return `<span class="avatar${big ? ' big' : ''}" aria-hidden="true"><span>${esc(letter)}</span>${src ? `<img src="${esc(src)}" alt="" loading="lazy" decoding="async" data-avatar>` : ''}</span>`;
+  const own = !set.av && user && user.photo_url && key === myPlayerKey() ? user.photo_url : '';
+  const src = set.av ? '' : own || (siteData && /^\d+$/.test(id) ? `avatars/${id}.jpg` : '');
+  return `<span class="avatar${big ? ' big' : ''}" style="background:${preset.background}" aria-hidden="true">${preset.svg}${src ? `<img src="${esc(src)}" alt="" loading="lazy" decoding="async" data-avatar>` : ''}</span>`;
+}
+const figColor = (fig, color) => { const list = E.AVATAR_FIG_COLORS[fig - 1]; return list.includes(color) ? color : list[0]; };
+const presetHtml = (code) => { const a = E.avatarPreset(code); return `<span class="avatar" style="background:${a.background}" aria-hidden="true">${a.svg}</span>`; };
+
+// Блок настроек: черновик в profileDraft.s, предпросмотр сразу, «Сохранить» — ссылка в бота.
+function profileSettingsBody() {
+  const s = profileDraft.s;
+  const name = profileDraft.name;
+  // Рисунок в выбранном цвете, если этот цвет у него есть; иначе — в его основном.
+  const figs = E.AVATAR_FIG_NAMES.map((n, i) => {
+    const code = E.avatarCode(i + 1, figColor(i + 1, s.color));
+    return `<button type="button" class="av-pick${s.av === code ? ' on' : ''}" data-av-fig="${i + 1}" aria-pressed="${s.av === code}" title="${esc(n)}" aria-label="${esc(n)}">${presetHtml(code)}</button>`;
+  }).join('');
+  // Цвета — только те 3, что есть у выбранного рисунка.
+  const colors = E.AVATAR_FIG_COLORS[s.fig - 1].map((n) => { const c = E.AVATAR_COLORS[n - 1]; return `<button type="button" class="av-color${s.color === n ? ' on' : ''}" data-av-color="${n}" aria-pressed="${s.color === n}" title="${esc(c.name)}" aria-label="${esc(c.name)}"><span style="background:linear-gradient(135deg, ${c.from}, ${c.to})"></span></button>`; }).join('');
+  const tgName = tgUserName();
+  return `<div class="prof-set${s.av ? '' : ' av-off'}">
+      <div class="prof-preview">${avatarHtml(myPlayerKey(), name, true, s)}<span><b>${esc(name)}</b>${s.tg && tgName ? `<br><span class="small muted">в Telegram: ${esc(tgName)}</span>` : ''}<br><span class="small muted">так тебя видят другие</span></span></div>
+      <label class="check"><input type="checkbox" data-prof-tg${s.tg ? ' checked' : ''}> Показывать имя Telegram</label>
+      <label class="check"><input type="checkbox" data-prof-past${s.past ? ' checked' : ''}> Показывать прошлые ники</label>
+      <h3>Аватар</h3>
+      <div class="av-src"><button type="button" class="btn ghost mini${s.av ? '' : ' on'}" data-av-tg aria-pressed="${!s.av}">Из Telegram</button><button type="button" class="btn ghost mini${s.av ? ' on' : ''}" data-av-fig="${s.fig}" aria-pressed="${!!s.av}">Заготовка</button></div>
+      <div class="av-grid">${figs}</div>
+      <div class="av-colors">${colors}</div>
+      <div class="prof-actions"><button type="button" class="btn" data-prof-save>Сохранить</button><span class="small muted">Сохранится через бота, на сайте — через 1–2 минуты</span></div>
+    </div>`;
+}
+function profileSettingsHtml(name) {
+  if (!profileDraft.s) {
+    const cur = profileFor(myPlayerKey());
+    const a = E.parseAvatarCode(cur.av) || E.parseAvatarCode(E.avatarSeedCode(myPlayerKey().slice(3)));
+    profileDraft.s = { ...cur, fig: a.fig, color: a.color };
+  }
+  profileDraft.name = name;
+  return `<details class="card profile-settings" id="profileSettings"${profileDraft.open ? ' open' : ''}><summary>⚙️ Настройки профиля</summary><div id="profileSettingsBody">${profileSettingsBody()}</div></details>`;
+}
+function profileSettingsRedraw() {
+  const box = $('profileSettingsBody');
+  if (box) box.innerHTML = profileSettingsBody();
+}
+function profileSave() {
+  const s = profileDraft.s;
+  if (!s || !tg) return;
+  const set = { tg: !!s.tg, past: !!s.past, av: s.av || '' };
+  profilePending = { ...set, at: Date.now() };
+  try { tg.CloudStorage.setItem('profileSet', JSON.stringify(profilePending)); } catch (e) { /* облако недоступно */ }
+  rebuildProfiles();
+  renderPlayerViews();
+  tg.openTelegramLink(`${PROFILE_BOT}?start=${E.profileStartCode(set)}`);
+}
+// Своё выбранное из облака Telegram: до появления в profiles.json показываем его, чтобы не прыгало.
+function profilePendingLoad() {
+  try {
+    tg.CloudStorage.getItem('profileSet', (error, value) => {
+      if (error || !value) return;
+      try {
+        const x = JSON.parse(value);
+        profilePending = { tg: x.tg === true, past: x.past !== false, av: E.parseAvatarCode(x.av) ? x.av : '', at: Number(x.at) || 0 };
+      } catch (e) { return; }
+      rebuildProfiles();
+      profileDraft.s = null;
+      renderPlayerViews();
+    });
+  } catch (e) { /* облако недоступно */ }
 }
 // Ник ведёт в профиль; без ключа — просто текст.
 const playerNameLink = (key, name) => (key ? `<button class="link-btn" data-player="${esc(key)}">${esc(shownName(key, name))}</button>` : esc(name));
@@ -2988,7 +3099,7 @@ function renderProfile() {
       <div><button class="btn mini" data-go="players">👥 Все игроки</button></div>`;
     return;
   }
-  const p = E.playerProfile(records, contests, contestLive, key, pullStats, gameNicks);
+  const p = E.playerProfile(records, contests, contestLive, key, pullStats, gameNicks, profileView);
   const mine = key === me;
   const pp = E.pullPlayer(pullStats, key); // общая статистика круток (pull-stats.json)
   const name = p.name || (pp && pp.name) || (mine ? tgUserName() : '') || (key.startsWith('n:') ? key.slice(2) : 'Игрок');
@@ -3008,6 +3119,7 @@ function renderProfile() {
       </div>
       <p class="small muted" id="profileShareNote"></p>
     </div>`;
+  const settingsBox = mine && tg ? profileSettingsHtml(name) : '';
   const luck = E.pullLuck(pp, (pullStats && pullStats.luckMin) || 50);
   const pulls = pp && pp.pulls ? `<div class="card">
       <h2>🎰 Крутки</h2>
@@ -3019,7 +3131,7 @@ function renderProfile() {
       <p class="small muted">Только крутки в чатах, где есть @Insloushn. Удача — средние очки за крутку против среднего по всем.</p>
     </div>` : '';
   if (p.empty) {
-    $('profileOut').innerHTML = `${back}${head}${pulls || '<p class="empty">Пока пусто: участвуй в конкурсах и пересылай итоги ивентов боту @AniMatrix_fansBot.</p>'}`;
+    $('profileOut').innerHTML = `${back}${head}${settingsBox}${pulls || '<p class="empty">Пока пусто: участвуй в конкурсах и пересылай итоги ивентов боту @AniMatrix_fansBot.</p>'}`;
     return;
   }
   const tiles = `<div class="stat-tiles live-tiles">
@@ -3044,7 +3156,7 @@ function renderProfile() {
       <span>${b.rank <= 3 ? recPlace(b.rank) : `№${b.rank}`} <b>${esc(recEventName(b.event))}</b> — ${esc(recValue(b.event, b.value))}</span>
       <span>${b.rank}-е место из ${b.of}</span>
     </li>`).join('');
-  $('profileOut').innerHTML = `${back}${head}${tiles}${live}${pulls}
+  $('profileOut').innerHTML = `${back}${head}${settingsBox}${tiles}${live}${pulls}
     ${p.contests.length ? `<div class="card"><h2>🎲 Конкурсы</h2><ol class="best-list rec-best">${contestRows}</ol></div>` : ''}
     ${p.records.best.length ? `<div class="card"><h2>🥇 Рекорды</h2>${REC_DISCLAIMER}<ol class="best-list rec-best">${recRows}</ol></div>` : ''}`;
 }
@@ -3154,7 +3266,7 @@ function renderHome() {
   // Мой профиль — только в Telegram, где известен свой ID.
   const me = myPlayerKey();
   if (me) {
-    const p = E.playerProfile(records, contests, contestLive, me, pullStats, gameNicks);
+    const p = E.playerProfile(records, contests, contestLive, me, pullStats, gameNicks, profileView);
     const name = p.name || tgUserName() || 'Игрок';
     const line = [p.tiles.bestPlace ? `лучшее место: №${p.tiles.bestPlace}` : '', `конкурсов: ${p.tiles.contests}`, p.live ? `сейчас №${p.live.place}` : ''].filter(Boolean).join(' · ');
     parts.push(card('👤 Мой профиль', 'profile', `<button class="player-row home-me" data-go="profile">${avatarHtml(me, name)}<span class="player-text"><b>${esc(name)}</b><small>${esc(line)}</small></span></button>`));
@@ -4928,6 +5040,23 @@ document.querySelector('.wrap').addEventListener('click', (e) => {
   // Открытый список прошлых ников закрывается нажатием в любом другом месте.
   document.querySelectorAll('.past-nicks.open').forEach((box) => { if (!past || box !== past.parentElement) { box.classList.remove('open'); box.firstElementChild.setAttribute('aria-expanded', 'false'); } });
   if (past) { const box = past.parentElement; box.classList.toggle('open'); past.setAttribute('aria-expanded', String(box.classList.contains('open'))); return; }
+  const fig = e.target.closest('[data-av-fig]');
+  if (fig && profileDraft.s) {
+    profileDraft.s.fig = Number(fig.dataset.avFig);
+    profileDraft.s.color = figColor(profileDraft.s.fig, profileDraft.s.color);
+    profileDraft.s.av = E.avatarCode(profileDraft.s.fig, profileDraft.s.color);
+    profileSettingsRedraw();
+    return;
+  }
+  const color = e.target.closest('[data-av-color]');
+  if (color && profileDraft.s) {
+    profileDraft.s.color = Number(color.dataset.avColor);
+    if (profileDraft.s.av) profileDraft.s.av = E.avatarCode(profileDraft.s.fig, profileDraft.s.color);
+    profileSettingsRedraw();
+    return;
+  }
+  if (e.target.closest('[data-av-tg]') && profileDraft.s) { profileDraft.s.av = ''; profileSettingsRedraw(); return; }
+  if (e.target.closest('[data-prof-save]')) { profileSave(); return; }
   if (e.target.closest('[data-profile-share]')) {
     const key = profileState.key || myPlayerKey();
     const link = playerLink(key);
@@ -4938,8 +5067,14 @@ document.querySelector('.wrap').addEventListener('click', (e) => {
     $('profileShareNote').textContent = copyRich(link) ? 'Ссылка скопирована.' : `Ссылка: ${link}`;
   }
 });
-// Нет картинки аватара — остаётся буква.
+// Нет картинки аватара — остаётся заготовка под ней.
 document.addEventListener('error', (e) => { if (e.target.matches && e.target.matches('img[data-avatar]')) e.target.remove(); }, true);
+$('profileOut').addEventListener('change', (e) => {
+  if (!profileDraft.s) return;
+  if (e.target.matches('[data-prof-tg]')) { profileDraft.s.tg = e.target.checked; profileSettingsRedraw(); }
+  if (e.target.matches('[data-prof-past]')) { profileDraft.s.past = e.target.checked; profileSettingsRedraw(); }
+});
+$('profileOut').addEventListener('toggle', (e) => { if (e.target.id === 'profileSettings') profileDraft.open = e.target.open; }, true);
 $('playersSearch').addEventListener('input', (e) => { playersState.search = e.target.value; playersState.limit = PLAYERS_SHOWN; renderPlayers(); });
 $('cardSearch').addEventListener('input', (e) => {
   const id = cardOptions.get(e.target.value);
@@ -5665,7 +5800,7 @@ function initTelegram(app) {
   renderHome(); // карточка «Мой профиль»
   syncTabbar();
   $('colWhere').textContent = 'В Telegram коллекция хранится в твоём облаке Telegram и появляется на всех твоих устройствах. Код нужен, только чтобы перенести её в обычный браузер.';
-  if (app.isVersionAtLeast && app.isVersionAtLeast('6.9')) { cloudLoad(); if (pullStats) pullMarksLoad(); }
+  if (app.isVersionAtLeast && app.isVersionAtLeast('6.9')) { cloudLoad(); if (pullStats) pullMarksLoad(); profilePendingLoad(); }
   const start = app.initDataUnsafe && app.initDataUnsafe.start_param;
   const hero = start && heroByCode(start);
   if (hero) openCard(E.heroId(hero));
@@ -5716,6 +5851,7 @@ renderAll();
     if (site) startContestLive(await loadJson(`contest-live.json?t=${Date.now()}`));
     if (site) pullStats = await loadJson('pull-stats.json');
     if (site) gameNicks = E.gameNickMap(await loadJson(`nicks.json?t=${Date.now()}`));
+    if (site) { profileFile = E.profileMap(await loadJson(`profiles.json?t=${Date.now()}`)); rebuildProfiles(); }
     if (site) startPublic(site);
     else startLocal(offline);
     return;

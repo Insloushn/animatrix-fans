@@ -1165,6 +1165,119 @@
     return map;
   }
 
+  // ---------- Аватары-заготовки и настройки профиля (tickets/profile-settings.md) ----------
+  // Свои эмблемы, рисуются кодом: 12 рисунков, у каждого 3 цвета из 7 (36 вариантов), код «a<рисунок>-<цвет>» (a01-1 … a12-2).
+  // F — цвет рисунка, D — тёмный край фона (прорези). Без id внутри SVG: одинаковых аватаров на странице много.
+  const AVATAR_FIGS = [
+    // 01 Кицунэ
+    (F, D) => `<path fill="${F}" d="M13 13 L27 24 H37 L51 13 L49 33 Q47 46 32 53 Q17 46 15 33 Z"/><path fill="${D}" d="M17 19 L24 25 L18 30 Z M47 19 L40 25 L46 30 Z M21 35 Q25 33 29 37 Q25 39 21 35 Z M43 35 Q39 33 35 37 Q39 39 43 35 Z M32 26 Q34.5 29 32 33 Q29.5 29 32 26 Z M26.5 27.5 Q28 29.5 27 31 Q25.5 29.5 26.5 27.5 Z M37.5 27.5 Q36 29.5 37 31 Q38.5 29.5 37.5 27.5 Z"/><circle fill="${D}" cx="32" cy="46" r="2.6"/>`,
+    // 02 Кошка
+    (F, D) => `<path fill="${F}" d="M14 50 Q11 34 18 26 L16 11 L28 20 Q32 19 36 20 L48 11 L46 26 Q53 34 50 50 Q32 58 14 50 Z"/><path fill="${D}" d="M19 16 L20 24 L25 20 Z M45 16 L44 24 L39 20 Z M29 41 H35 L32 44.5 Z"/><circle fill="${D}" cx="24" cy="35" r="4.4"/><circle fill="${D}" cx="40" cy="35" r="4.4"/><circle fill="${F}" cx="25.6" cy="33.4" r="1.5"/><circle fill="${F}" cx="41.6" cy="33.4" r="1.5"/><path fill="none" stroke="${D}" stroke-width="1.6" stroke-linecap="round" d="M27 46.5 Q32 49.5 37 46.5"/>`,
+    // 03 Они
+    (F, D) => `<path fill="${F}" d="M19 22 L13 7 L27 18 Q32 16.5 37 18 L51 7 L45 22 Q49 30 47 42 Q44 54 32 56 Q20 54 17 42 Q15 30 19 22 Z"/><path fill="${D}" d="M20 28 L30 32 L28 36 L21 34 Z M44 28 L34 32 L36 36 L43 34 Z M22 42 Q32 39 42 42 L39 49 Q32 51 25 49 Z"/><path fill="${F}" d="M25.5 41.2 L28 46 L30 40.4 Z M38.5 41.2 L36 46 L34 40.4 Z"/>`,
+    // 04 Катана
+    (F, D) => `<g transform="rotate(45 32 32)"><path fill="${F}" d="M29.6 38 V12 Q30 6 34.6 3 V38 Z"/><path fill="${D}" d="M32.6 36 V9 L33.6 7.6 V36 Z" opacity=".55"/><ellipse fill="${F}" cx="32" cy="40.5" rx="8.5" ry="2.8"/><rect fill="${F}" x="29.3" y="43" width="5.4" height="17" rx="1.6"/><path fill="${D}" d="M32 45 L34 47.5 L32 50 L30 47.5 Z M32 51.5 L34 54 L32 56.5 L30 54 Z"/></g>`,
+    // 05 Сакура
+    (F, D) => `${[0, 72, 144, 216, 288].map((a) => `<path fill="${F}" transform="rotate(${a} 32 32)" d="M32 31 C23 25 23 13 28.5 9 L32 12.5 L35.5 9 C41 13 41 25 32 31 Z"/>`).join('')}<circle fill="${D}" cx="32" cy="32" r="5"/><circle fill="${F}" cx="32" cy="32" r="2"/>`,
+    // 06 Луна
+    (F, D) => `<path fill="${F}" d="M26.2 15.2 A19 19 0 1 0 47.3 39 A16 16 0 0 1 26.2 15.2 Z"/><path fill="${F}" d="M44 10 L45.6 14.4 L50 16 L45.6 17.6 L44 22 L42.4 17.6 L38 16 L42.4 14.4 Z"/><circle fill="${F}" cx="52" cy="26" r="1.8"/>`,
+    // 07 Кристалл
+    (F, D) => `<path fill="${F}" d="M22 10 H42 L52 23 L32 56 L12 23 Z"/><path fill="none" stroke="${D}" stroke-width="2.2" stroke-linejoin="round" d="M12 23 H52 M22 10 L27 23 L32 56 L37 23 L42 10"/>`,
+    // 08 Дракон
+    (F, D) => `<path fill="${F}" d="M9 55 L13 40 Q15 31 22 27 L9 16 L25 22 L17 7 L31 20 Q40 19 46 24 L57 26 Q59 30 56 33 L45 34 L53 38 Q52 42 47 43 L37 41 Q32 47 29 56 Z"/><path fill="${F}" d="M13 40 L6 39 L13.5 35 L7.5 31 L16 30.5 Z"/><path fill="${D}" d="M33 26 Q38 24 41 27 Q37 30 33 26 Z M51.5 27.6 L54.5 28.4 L53 30.2 Z M45 34 L36 35.5 L45.5 36.5 Z"/><path fill="none" stroke="${D}" stroke-width="1.8" stroke-linecap="round" d="M22 33 Q26 37 23 43 M27 31 Q31 35 29 40"/>`,
+    // 09 Пламя
+    (F, D) => `<path fill="${F}" d="M33 5 C37 15 49 22 47 38 C46 50 39 57 32 57 C24 57 17 50 17 40 C17 31 23 27 25 18 C29 22 30 27 29.5 31 C34 25 35 15 33 5 Z"/><path fill="${D}" d="M33 32 C37 38 40 43 38 48 C37 51.5 34.5 53 32 53 C28.5 53 26 50.5 26 47 C26 42 31 39 33 32 Z"/>`,
+    // 10 Звезда
+    (F, D) => `<path fill="${F}" d="M32 8 L38.2 23.8 L55 24.6 L42 35.2 L46.4 51.6 L32 42.4 L17.6 51.6 L22 35.2 L9 24.6 L25.8 23.8 Z"/><path fill="${D}" transform="matrix(.62 0 0 .62 12.2 12.8)" d="M32 21 L35 29 L43.5 29.4 L36.9 34.7 L39.1 43 L32 38.3 L24.9 43 L27.1 34.7 L20.5 29.4 L29 29 Z"/>`,
+    // 11 Корона
+    (F, D) => `<path fill="${F}" d="M13 44 L10 20 L22 31 L32 13 L42 31 L54 20 L51 44 Z"/><rect fill="${F}" x="13" y="46.5" width="38" height="7" rx="2"/><circle fill="${F}" cx="10" cy="18" r="3"/><circle fill="${F}" cx="32" cy="11" r="3"/><circle fill="${F}" cx="54" cy="18" r="3"/><circle fill="${D}" cx="32" cy="36" r="3.6"/><circle fill="${D}" cx="21" cy="50" r="1.8"/><circle fill="${D}" cx="32" cy="50" r="1.8"/><circle fill="${D}" cx="43" cy="50" r="1.8"/>`,
+    // 12 Призрак
+    (F, D) => `<path fill="${F}" d="M17 55 V30 C17 17 24 10 32 10 C40 10 47 17 47 30 V55 L42 50.5 L37 55 L32 50.5 L27 55 L22 50.5 Z"/><ellipse fill="${D}" cx="26" cy="29" rx="3.2" ry="4.4"/><ellipse fill="${D}" cx="38" cy="29" rx="3.2" ry="4.4"/><ellipse fill="${D}" cx="32" cy="40" rx="3.4" ry="4"/>`
+  ];
+  const AVATAR_FIG_NAMES = ['Кицунэ', 'Кошка', 'Они', 'Катана', 'Сакура', 'Луна', 'Кристалл', 'Дракон', 'Пламя', 'Звезда', 'Корона', 'Призрак'];
+  // Фон — градиент от светлого к тёмному (края глубокие, чтобы рисунок читался); рисунок — светлый тон в пару к фону
+  // (дополнительный цвет или классическая пара: багрянец — шампань, тёмный — золото).
+  const AVATAR_COLORS = [
+    { name: 'Фуксия', from: '#ff5aa5', to: '#a3125f', fg: '#a8f7de' },
+    { name: 'Кобальт', from: '#3d5cf5', to: '#111866', fg: '#a9dcff' },
+    { name: 'Изумруд', from: '#2cc08c', to: '#074a37', fg: '#ffc4d8' },
+    { name: 'Медь', from: '#d9814f', to: '#7a2c12', fg: '#aeeef0' },
+    { name: 'Аметист', from: '#b65cff', to: '#47118a', fg: '#c6ffb0' },
+    { name: 'Багрянец', from: '#ef4a5c', to: '#700a22', fg: '#ffe2a6' },
+    { name: 'Золото', from: '#3b4058', to: '#11131d', fg: '#f3c66b' },
+  ];
+  // У каждого рисунка — 3 лучших цвета (номера AVATAR_COLORS), первый — основной. Другие сочетания не принимаются.
+  const AVATAR_FIG_COLORS = [
+    [1, 3, 6], [1, 3, 6], [1, 3, 6], // кицунэ, кошка, они
+    [6, 2, 7], [6, 2, 7], // катана, сакура
+    [2, 5, 7], [2, 5, 7], // луна, кристалл
+    [4, 3, 6], [4, 3, 6], // дракон, пламя
+    [7, 5, 2], [7, 5, 2], [5, 7, 2], // звезда, корона, призрак
+  ];
+
+  const avatarCode = (fig, color) => `a${String(fig).padStart(2, '0')}-${color}`;
+  // «a07-3» → { fig: 7, color: 3 }; чужое — null.
+  function parseAvatarCode(code) {
+    const m = String(code || '').match(/^a(\d{2})-(\d)$/);
+    if (!m) return null;
+    const fig = Number(m[1]);
+    const color = Number(m[2]);
+    return fig >= 1 && fig <= AVATAR_FIGS.length && AVATAR_FIG_COLORS[fig - 1].includes(color) ? { fig, color } : null;
+  }
+  // Заготовка по Telegram ID (или по нику у игрока без ID): у одного игрока всегда одна и та же.
+  function avatarSeedCode(seed) {
+    let h = 0x811c9dc5; // FNV-1a
+    const s = String(seed || '');
+    for (let i = 0; i < s.length; i += 1) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    const fig = h % AVATAR_FIGS.length;
+    const colors = AVATAR_FIG_COLORS[fig];
+    return avatarCode(fig + 1, colors[Math.floor(h / AVATAR_FIGS.length) % colors.length]);
+  }
+  // Рисунок заготовки: фон (для style) и SVG. Неверный код — null.
+  function avatarPreset(code) {
+    const a = parseAvatarCode(code);
+    if (!a) return null;
+    const c = AVATAR_COLORS[a.color - 1];
+    return {
+      background: `linear-gradient(135deg, ${c.from}, ${c.to})`,
+      svg: `<svg viewBox="0 0 64 64" aria-hidden="true">${AVATAR_FIGS[a.fig - 1](c.fg, c.to)}</svg>`,
+      name: `${AVATAR_FIG_NAMES[a.fig - 1]}, ${c.name.toLowerCase()}`,
+    };
+  }
+
+  // Настройки профиля из profiles.json (пишет бот): ID → { tg, past, av }. Хранятся только отличия от умолчаний:
+  // имя Telegram скрыто (tg 0), прошлые ники видны (past 1), аватар из Telegram (av '').
+  const PROFILE_DEFAULTS = { tg: false, past: true, av: '' };
+  function profileMap(data) {
+    const map = new Map();
+    const src = (data && data.profiles && typeof data.profiles === 'object') ? data.profiles : {};
+    Object.entries(src).forEach(([id, x]) => {
+      if (!/^\d+$/.test(id) || !x || typeof x !== 'object') return;
+      map.set(id, { tg: x.tg === 1, past: x.past !== 0, av: parseAvatarCode(x.av) ? x.av : '' });
+    });
+    return map;
+  }
+  const profileOf = (profiles, id) => ({ ...PROFILE_DEFAULTS, ...((id && profiles && profiles.get && profiles.get(String(id))) || {}) });
+
+  // Код для бота: «set_tg0_past1_a07-2», аватар из Telegram — «avtg». Не больше 64 символов [A-Za-z0-9_-].
+  const profileStartCode = (s) => `set_tg${s.tg ? 1 : 0}_past${s.past ? 1 : 0}_${s.av || 'avtg'}`;
+  // Разбор кода из /start: { tg?, past?, av? } — только названные части; неверный код — null.
+  function parseProfileCode(code) {
+    const s = String(code || '');
+    if (s.length > 64 || !/^[A-Za-z0-9_-]+$/.test(s) || !s.startsWith('set_')) return null;
+    const parts = s.slice(4).split('_');
+    const out = {};
+    for (const part of parts) {
+      let m;
+      if ((m = part.match(/^tg([01])$/))) out.tg = m[1] === '1';
+      else if ((m = part.match(/^past([01])$/))) out.past = m[1] === '1';
+      else if (part === 'avtg') out.av = '';
+      else if (parseAvatarCode(part)) out.av = part;
+      else return null;
+    }
+    return Object.keys(out).length ? out : null;
+  }
+
   // Поиск игрока (без регистра — это удобство): по имени на сайте, имени Telegram и прошлым никам.
   const playerMatches = (p, q) => !q || [p.name, p.tgName, ...((p.past || []).map((x) => x.nick))].some((n) => n && normName(n).includes(q));
 
@@ -1180,7 +1293,8 @@
   // Все игроки: имя (последнее известное), с какого времени, конкурсы, число записей в рекордах, идущий конкурс.
   // pullData — pull-stats.json: игроки только с крутками тоже в списке (имя оттуда — если другого нет), pulls — круток всего.
   // nicks — gameNickMap(nicks.json): у игрока с ID имя — ник в игре, tgName — имя Telegram, past — прошлые ники.
-  function playerDirectory(events, contests, live, pullData, nicks) {
+  // profiles — profileMap(profiles.json): передана — имя Telegram только у включивших, прошлые ники — кроме скрывших.
+  function playerDirectory(events, contests, live, pullData, nicks, profiles) {
     const map = new Map();
     const get = (key, id) => {
       if (!map.has(key)) map.set(key, { key, id: id ? String(id) : '', name: '', nameAt: '', tgName: '', tgAt: '', since: '', last: '', contests: 0, records: 0, pulls: 0, live: null });
@@ -1229,7 +1343,12 @@
     return [...map.values()].map(({ nameAt, tgAt, ...p }) => {
       const nick = p.id && nicks && nicks.get ? nicks.get(p.id) : null;
       if (!nick) return { ...p, tgName: '', past: [] };
-      return { ...p, name: nick.nick, tgName: p.tgName && p.tgName !== nick.nick ? p.tgName : '', past: nick.past || [] };
+      const pr = profiles ? profileOf(profiles, p.id) : null;
+      return {
+        ...p, name: nick.nick,
+        tgName: p.tgName && p.tgName !== nick.nick && (!pr || pr.tg) ? p.tgName : '',
+        past: pr && !pr.past ? [] : nick.past || [],
+      };
     })
       .sort((a, b) => (b.contests + b.records + (b.live ? 1 : 0)) - (a.contests + a.records + (a.live ? 1 : 0))
         || b.last.localeCompare(a.last) || b.pulls - a.pulls || a.name.localeCompare(b.name, 'ru'));
@@ -1258,8 +1377,8 @@
   }
 
   // Профиль игрока: шапка, плитки, идущий конкурс, все конкурсы и рекорды.
-  function playerProfile(events, contests, live, key, pullData, nicks) {
-    const info = playerDirectory(events, contests, live, pullData, nicks).find((p) => p.key === key)
+  function playerProfile(events, contests, live, key, pullData, nicks, profiles) {
+    const info = playerDirectory(events, contests, live, pullData, nicks, profiles).find((p) => p.key === key)
       || { key, id: key.startsWith('id:') ? key.slice(3) : '', name: '', tgName: '', past: [], since: '', last: '', contests: 0, records: 0, pulls: 0, live: null };
     const id = key.startsWith('id:') ? key.slice(3) : '';
     const liveContest = live && live.contest;
@@ -1621,6 +1740,7 @@
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
+    AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, profileStartCode, parseProfileCode,
     pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
