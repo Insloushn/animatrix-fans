@@ -469,7 +469,8 @@ details.card summary { cursor: pointer; font-weight: 500; }
 }
 
 /* Картинки карт (tickets/hero-images.md): миниатюра 40×40 — размер задан заранее, строки не прыгают; в карточке — крупно. */
-.hero-thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex: none; background: var(--line); display: block; }
+/* Карта целиком, без обрезки: у SSS картинка горизонтальная (16:9), у остальных — 3:4. */
+.hero-thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: contain; flex: none; background: var(--line); display: block; }
 .hero-pic-row { display: flex; align-items: flex-start; gap: 8px; }
 /* Телефон: в строках с колонкой слева (место, отметка) миниатюра — под ней, имя остаётся во всю ширину. */
 @media (max-width: 760px) {
@@ -480,8 +481,8 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .hero-pic-row > div { min-width: 0; }
 .hero-pic-row > div > span { display: block; }
 .card-pics { display: grid; justify-items: center; gap: 6px; margin: 12px 0; }
-.pic-box { width: min(100%, 360px); aspect-ratio: 4 / 3; border-radius: 10px; overflow: hidden; background: var(--panel); border: 1px solid var(--line); }
-.pic-box img { width: 100%; height: 100%; object-fit: contain; display: block; cursor: zoom-in; }
+.pic-box { width: min(100%, 360px); border-radius: 10px; overflow: hidden; background: var(--panel); border: 1px solid var(--line); display: grid; place-items: center; min-height: 120px; }
+.pic-box img { width: 100%; height: auto; max-height: min(70vh, 480px); object-fit: contain; display: block; cursor: zoom-in; }
 .pic-nav { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; min-height: 30px; }
 .pic-zoom { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .88); display: grid; place-items: center; padding: 16px; cursor: zoom-out; }
 .pic-zoom[hidden] { display: none; }
@@ -561,9 +562,11 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 14px 12px; }
 .cat-tile { all: unset; box-sizing: border-box; display: grid; gap: 3px; align-content: start; cursor: pointer; min-width: 0; border-radius: 10px; padding: 4px; }
 .cat-tile:hover, .cat-tile:focus-visible { background: var(--tint); }
+.cat-tile.wide { grid-column: span 2; }
+.cat-tile.wide .cat-pic { aspect-ratio: 3 / 2; } /* высота — почти как у соседних 3:4 */
 .cat-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .cat-pic { position: relative; display: block; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; border: 2px solid var(--rk); background: var(--panel); }
-.cat-pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cat-pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; } /* SSS (16:9) — целиком, с полями */
 .cat-pic.none { display: grid; place-items: center; background: color-mix(in srgb, var(--rk) 12%, var(--panel)); }
 .cat-pic.none svg { width: 46%; height: auto; color: var(--rk); opacity: .55; }
 .cat-marks { position: absolute; top: 4px; right: 4px; display: flex; gap: 3px; }
@@ -3791,7 +3794,8 @@ function catTileHtml({ h, pic, skinPic, mine }) {
   const inner = pic
     ? `<img src="cards/${esc(pic.file)}.s.jpg" width="240" height="320" alt="" loading="lazy" decoding="async">`
     : CAT_SILHOUETTE;
-  return `<button class="cat-tile" data-open-card="${esc(E.heroId(h))}" data-rank="${esc(h.rank)}" title="${esc(`${h.name} · ${h.rank} · ${h.cls} · ${h.title || E.NO_TITLE}`)}">
+  // SSS — горизонтальная карта (16:9): плитка в две колонки, чтобы карта была крупной и целиком.
+  return `<button class="cat-tile${pic && h.rank === 'SSS' ? ' wide' : ''}" data-open-card="${esc(E.heroId(h))}" data-rank="${esc(h.rank)}" title="${esc(`${h.name} · ${h.rank} · ${h.cls} · ${h.title || E.NO_TITLE}`)}">
     <span class="cat-pic${pic ? '' : ' none'}">${inner}${marks ? `<span class="cat-marks">${marks}</span>` : ''}</span>
     <b>${esc(h.name)}</b><small>${esc(h.rank)} · ${ICONS[h.cls]}<span class="cat-cls"> ${esc(h.cls)}</span></small>
   </button>`;
