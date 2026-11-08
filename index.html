@@ -104,21 +104,36 @@ html.theme-anim, html.theme-anim *:not(.theme-thumb):not(.theme-thumb *) {
   header #saveStatus:not(:empty)::before { content: "· "; }
 }
 
-/* На ПК в строке — сколько разделов влезает, остальные — в «Ещё ▾» (tickets/desktop-tabs.md); прокрутки вбок нет. */
-.nav-row { position: relative; }
-nav { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow: hidden; }
-nav button {
-  background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted);
+/* На ПК разделы — группами с выпадающим списком (tickets/site-v2-shell.md); в группе открытого раздела — его название. */
+.wrap { position: relative; }
+.nav-groups { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
+.nav-g {
+  background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted); border-radius: 8px 8px 0 0;
   font: 500 14px var(--body); padding: 8px 12px; cursor: pointer; white-space: nowrap; flex: none;
 }
-nav button[aria-selected="true"], nav .nav-more.on { color: var(--fg); border-bottom-color: var(--accent); }
-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-nav button.nav-over { display: none; }
+.nav-g:hover, .nav-g[aria-expanded="true"] { color: var(--fg); background: var(--tint); }
+.nav-g.on { color: var(--fg); border-bottom-color: var(--accent); }
+.nav-g:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.nav-g .caret { font-size: 11px; opacity: .7; margin-left: 2px; }
+/* Выпадающий список группы и меню аватара: место под кнопкой считает страница. */
 .nav-drop {
-  position: absolute; right: 0; top: calc(100% + 4px); z-index: 40; width: min(340px, 100%);
+  position: absolute; left: 0; top: 0; z-index: 40; width: min(340px, calc(100vw - 24px));
   max-height: calc(100dvh - 120px); overflow-y: auto; display: grid; gap: 2px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px; box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
 }
+.nav-drop a.menu-item { color: inherit; text-decoration: none; }
+.me-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; min-width: 0; }
+.me-head b { overflow-wrap: anywhere; }
+/* Аватар в шапке: свой (в Telegram) или значок. */
+.me-btn {
+  all: unset; box-sizing: border-box; flex: none; align-self: center; display: inline-grid; place-items: center; cursor: pointer;
+  width: 40px; height: 40px; border-radius: 50%; border: 2px solid transparent;
+}
+.me-btn .avatar { width: 34px; height: 34px; }
+.me-btn .me-icon { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--line); font-size: 18px; line-height: 1; }
+.me-btn:hover, .me-btn[aria-expanded="true"] { border-color: var(--line); }
+.me-btn.on { border-color: var(--accent); }
+.me-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* На телефоне вкладки уезжали за край ленты, поэтому там вместо них кнопка меню, которая всегда под рукой. */
 .mobile-bar { display: none; }
@@ -146,30 +161,17 @@ nav button.nav-over { display: none; }
 .menu-item b { font-weight: 600; }
 .menu-item small { color: var(--muted); font-size: 12px; line-height: 1.3; }
 .menu-group { color: var(--muted); font-size: 12px; padding: 8px 12px 2px; }
-.menu-btn {
-  all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
-  padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); font: 500 14px var(--body);
-}
-.menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.burger { position: relative; width: 18px; height: 14px; display: inline-block; }
-.burger i { position: absolute; left: 0; width: 18px; height: 2px; border-radius: 2px; background: currentColor; transition: transform .22s ease, opacity .18s ease, top .22s ease; }
-.burger i:nth-child(1) { top: 0; }
-.burger i:nth-child(2) { top: 6px; }
-.burger i:nth-child(3) { top: 12px; }
-.menu-btn[aria-expanded="true"] .burger i:nth-child(1) { top: 6px; transform: rotate(45deg); }
-.menu-btn[aria-expanded="true"] .burger i:nth-child(2) { opacity: 0; }
-.menu-btn[aria-expanded="true"] .burger i:nth-child(3) { top: 6px; transform: rotate(-45deg); }
 @media (max-width: 760px) {
-  nav[role="tablist"], .nav-drop { display: none; }
+  .nav-groups, header .me-btn { display: none; }
   .mobile-bar {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     position: sticky; top: 0; z-index: 30; background: var(--bg);
-    margin: 0 -16px; padding: 8px 16px; border-bottom: 1px solid var(--line);
+    margin: 0 -16px; padding: 6px 16px; border-bottom: 1px solid var(--line);
   }
   .mobile-title { font: 500 16px/1.2 var(--display); min-width: 0; overflow-wrap: anywhere; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .menu-sheet, .menu-backdrop, .menu-panel, .burger i { transition: none; }
+  .menu-sheet, .menu-backdrop, .menu-panel { transition: none; }
 }
 
 /* На телефоне строки таблиц становятся карточками: главное крупно, остальное мелкой строкой ниже. */
@@ -552,6 +554,38 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .home-sub { margin: 4px 0 0; font-size: 14px; }
 .home-me { padding: 4px 0; }
 .home-me:hover { background: none; }
+/* «🃏 Карты»: сетка миниатюр 3:4, рамка — цвет ранга; на ПК 6–8 в ряд, на телефоне 3. */
+.cat-head { display: grid; gap: 8px; }
+.cat-head .track { max-width: none; height: 8px; border-radius: 4px; }
+.cat-head .track span { border-radius: 4px; }
+.cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 14px 12px; }
+.cat-tile { all: unset; box-sizing: border-box; display: grid; gap: 3px; align-content: start; cursor: pointer; min-width: 0; border-radius: 10px; padding: 4px; }
+.cat-tile:hover, .cat-tile:focus-visible { background: var(--tint); }
+.cat-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cat-pic { position: relative; display: block; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; border: 2px solid var(--rk); background: var(--panel); }
+.cat-pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cat-pic.none { display: grid; place-items: center; background: color-mix(in srgb, var(--rk) 12%, var(--panel)); }
+.cat-pic.none svg { width: 46%; height: auto; color: var(--rk); opacity: .55; }
+.cat-marks { position: absolute; top: 4px; right: 4px; display: flex; gap: 3px; }
+.cat-marks span { font-size: 13px; line-height: 1; padding: 3px; border-radius: 6px; background: rgba(10, 8, 18, .6); }
+.cat-tile b { font-weight: 600; font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; }
+.cat-tile small { color: var(--muted); font-size: 12px; }
+.cat-tile[data-rank="SSS"] { --rk: #e0a526; }
+.cat-tile[data-rank="SS"] { --rk: #e5487a; }
+.cat-tile[data-rank="S"] { --rk: #9b5de5; }
+.cat-tile[data-rank="A"] { --rk: #3a86ff; }
+.cat-tile[data-rank="B"] { --rk: #2a9d8f; }
+.cat-tile[data-rank="C"] { --rk: #57a64a; }
+.cat-tile[data-rank="D"] { --rk: #8d99ae; }
+.cat-tile[data-rank="E"], .cat-tile[data-rank="F"] { --rk: #7d7890; }
+@media (max-width: 760px) {
+  .cat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 6px; }
+  .cat-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cat-tools #catSearch { grid-column: 1 / -1; }
+  .cat-cls { display: none; } /* на телефоне класс — значком */
+}
+/* Переход из меню аватара к блоку: на телефоне блок не прячется под строкой с названием раздела. */
+#profileSettings, #colAdvice { scroll-margin-top: 64px; }
 .home-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(150px, calc(50% - 5px)), 1fr)); gap: 10px; }
 .home-tile { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer; min-width: 0; }
 .home-tile span { font-size: 22px; line-height: 1; }
@@ -562,7 +596,6 @@ details.card summary { cursor: pointer; font-weight: 500; }
 /* Нижние вкладки на телефоне вместо меню «Разделы»; «Ещё» открывает меню снизу. */
 .tabbar { display: none; }
 @media (max-width: 760px) {
-  .mobile-bar .menu-btn { display: none; }
   body { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
   .tabbar {
     display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
@@ -574,6 +607,10 @@ details.card summary { cursor: pointer; font-weight: 500; }
   .tabbar button[aria-current="page"], .tabbar button[aria-expanded="true"] { color: var(--accent); background: var(--tint); }
   .tabbar button[aria-current="page"] span, .tabbar button[aria-expanded="true"] span { filter: none; opacity: 1; }
   .tabbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  /* Свой аватар на вкладке «Профиль»: не серый, у открытой — обводка. */
+  .tabbar .bar-av, .tabbar button[aria-current="page"] .bar-av { filter: none; opacity: 1; display: grid; place-items: center; height: 23px; }
+  .tabbar .bar-av .avatar { width: 22px; height: 22px; }
+  .tabbar button[aria-current="page"] .bar-av .avatar { box-shadow: 0 0 0 2px var(--accent); }
   .menu-sheet.from-bar .menu-panel { top: auto; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); max-height: calc(100dvh - 130px); transform: translateY(10px) scale(.98); transform-origin: bottom right; }
   .menu-sheet.from-bar.open .menu-panel { transform: none; }
 }
@@ -594,11 +631,14 @@ details.card summary { cursor: pointer; font-weight: 500; }
           <svg class="moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg>
         </span>
       </button>
+      <button class="me-btn" data-me-btn aria-haspopup="menu" aria-expanded="false" aria-controls="navDrop" aria-label="Мой профиль и коллекция"></button>
     </div>
   </header>
 
   <div class="nav-row">
-  <nav role="tablist">
+  <nav class="nav-groups" id="navGroups" aria-label="Разделы сайта"></nav>
+  <!-- Список разделов: какие есть и какой открыт. На экран не выводится — разделы показывают группы, меню аватара и нижние вкладки. -->
+  <div id="tabList" hidden>
     <button role="tab" data-tab="home" aria-selected="false">Главная</button>
     <button role="tab" data-tab="top" aria-selected="true">Топ</button>
     <button role="tab" data-tab="contests" aria-selected="false">Конкурсы</button>
@@ -606,6 +646,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <button role="tab" data-tab="records" aria-selected="false">Рекорды игроков</button>
     <button role="tab" data-tab="collection" aria-selected="false">Моя коллекция</button>
     <button role="tab" data-tab="card" aria-selected="false">Карточка героя</button>
+    <button role="tab" data-tab="cards" aria-selected="false" id="cardsTab" hidden>Карты</button>
     <button role="tab" data-tab="compare" aria-selected="false">Сравнение</button>
     <button role="tab" data-tab="players" aria-selected="false">Игроки</button>
     <button role="tab" data-tab="stats" aria-selected="false">Статистика</button>
@@ -615,19 +656,15 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <button role="tab" data-tab="add" aria-selected="false" data-admin>Добавить героев</button>
     <button role="tab" data-tab="export" aria-selected="false" data-admin>Выгрузка</button>
     <button role="tab" data-tab="rules" aria-selected="false" data-admin>Правила боя</button>
-    <button class="nav-more" id="navMore" aria-haspopup="menu" aria-expanded="false" aria-controls="navDrop" hidden><span id="navMoreLabel">Ещё</span> ▾</button>
-  </nav>
-  <div class="nav-drop" id="navDrop" role="menu" aria-label="Остальные разделы" hidden></div>
   </div>
+  </div>
+  <div class="nav-drop" id="navDrop" role="menu" hidden></div>
 
   <div class="mobile-bar">
     <span class="mobile-title" id="currentTabLabel">Топ</span>
-    <button class="menu-btn" id="menuBtn" aria-expanded="false" aria-controls="menuSheet">
-      <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
-      Разделы
-    </button>
+    <button class="me-btn" data-me-btn aria-haspopup="menu" aria-expanded="false" aria-controls="navDrop" aria-label="Мой профиль и коллекция"></button>
   </div>
-  <div class="menu-sheet" id="menuSheet">
+  <div class="menu-sheet from-bar" id="menuSheet">
     <div class="menu-backdrop" data-menu-close></div>
     <div class="menu-panel" id="menuPanel" role="menu" aria-label="Разделы сайта"></div>
   </div>
@@ -764,6 +801,24 @@ details.card summary { cursor: pointer; font-weight: 500; }
   <section class="view" id="view-players" hidden>
     <div class="tools"><input id="playersSearch" type="search" placeholder="Найти игрока" aria-label="Найти игрока"><span class="small muted" id="playersCount"></span></div>
     <div id="playersOut" class="view"></div>
+  </section>
+
+  <section class="view" id="view-cards" hidden>
+    <div class="card cat-head" id="catHead"></div>
+    <div class="tools cat-tools">
+      <input id="catSearch" type="search" placeholder="Имя героя или тайтл" aria-label="Найти карту по имени или тайтлу">
+      <select id="catRank" aria-label="Ранг"></select>
+      <select id="catCls" aria-label="Класс"></select>
+      <select id="catTitle" aria-label="Тайтл"></select>
+      <select id="catPic" aria-label="Картинка"><option value="">🖼 Все карты</option><option value="yes">🖼 С картинкой</option><option value="no">🖼 Без картинки</option></select>
+    </div>
+    <div class="chips" id="catChips" aria-label="Ещё фильтры">
+      <button class="chip" data-cat-flag="skin" aria-pressed="false">🎭 Со скином</button>
+      <button class="chip" data-cat-flag="mine" aria-pressed="false">📚 Есть у меня</button>
+    </div>
+    <p class="small muted" id="catCount"></p>
+    <div class="cat-grid" id="catGrid"></div>
+    <div id="catMore"></div>
   </section>
 
   <section class="view" id="view-records" hidden>
@@ -1886,6 +1941,7 @@ function renderRanking() {
   else if (!$('view-card').hidden) renderCard();
   else if (!$('view-news').hidden) renderNews();
   else if (!$('view-collection').hidden) renderCollection();
+  else if (!$('view-cards').hidden) renderCards();
   else renderTop();
 }
 
@@ -2975,9 +3031,7 @@ const tgUserName = () => {
   const user = tgUser();
   return user ? [user.first_name, user.last_name].filter(Boolean).join(' ') : '';
 };
-// Пункты меню для игроков — по важности, как в строке разделов на ПК (tickets/desktop-tabs.md).
-const menuTabs = () => ['home', 'top', 'contests', 'profile', 'records', 'collection', 'card', 'compare', 'players', 'stats', 'news', 'antistress'];
-const tabShown = (tab) => { const b = document.querySelector(`nav [data-tab="${tab}"]`); return !!b && !b.hidden; };
+const tabShown = (tab) => { const b = document.querySelector(`#tabList [data-tab="${tab}"]`); return !!b && !b.hidden; };
 
 // ---------- Настройки профиля (tickets/profile-settings.md) ----------
 // profiles.json пишет бот по команде игрока; своё выбранное, пока бот его не записал, — из облака Telegram.
@@ -3113,6 +3167,7 @@ function goBack() {
 
 // Данные игроков обновились — открытый профиль или список перерисовываются.
 function renderPlayerViews() {
+  renderMe();
   renderProfile();
   renderPlayers();
   renderHome();
@@ -3225,7 +3280,6 @@ function renderPlayers() {
 // ---------- Главная и нижние вкладки (tickets/site-home-tabs.md) ----------
 // Главная — раздел по умолчанию на сайте игроков; в claude.ai страница открывается на «Топе».
 const BAR_TABS = ['home', 'top', 'contests', 'profile'];
-let menuFromBar = false; // меню открыто из «Ещё»: без разделов, которые уже есть внизу
 
 // Какая нижняя вкладка подсвечена. «Профиль» без Telegram ведёт в «Игроки».
 function barTab(tab) {
@@ -3233,6 +3287,7 @@ function barTab(tab) {
   const me = myPlayerKey();
   if (tab === 'profile' && me && (profileState.key || me) === me) return 'profile';
   if (tab === 'players' && !me) return 'profile';
+  if (tab === 'collection') return ''; // коллекция — в меню аватара, не в «Ещё»
   return 'more';
 }
 function syncTabbar(tab = currentTab()) {
@@ -3331,8 +3386,9 @@ function renderHome() {
     : '<p class="small muted">Отметь свои карты — увидишь личный топ и кого качать.</p>'));
 
   // Разделы плитками.
-  const tiles = ['top', 'compare', 'card', 'collection', 'players', 'stats', 'records', 'antistress'].filter(tabShown)
-    .map((t) => `<button class="home-tile" data-go="${t}"><span aria-hidden="true">${TAB_INFO[t].icon}</span><b>${esc(TAB_INFO[t].label)}</b></button>`).join('');
+  const cardsNote = () => { const n = E.cardCounts(heroes, cardsData); return `Карты: собрано ${fmt(n.withPic)} из ${fmt(n.heroes)}`; };
+  const tiles = ['top', 'compare', 'card', 'cards', 'collection', 'players', 'stats', 'records'].filter(tabShown)
+    .map((t) => `<button class="home-tile" data-go="${t}"><span aria-hidden="true">${TAB_INFO[t].icon}</span><b>${esc(t === 'cards' ? cardsNote() : TAB_INFO[t].label)}</b></button>`).join('');
   parts.push(`<div class="home-tiles">${tiles}</div>`);
   $('homeOut').innerHTML = parts.join('');
 }
@@ -3705,6 +3761,74 @@ function thumbHtml(h, skin) {
   return `<img class="hero-thumb" src="cards/${esc(pic.file)}.s.jpg" width="40" height="40" alt="" loading="lazy" decoding="async">`;
 }
 const withThumb = (h, inner, skin) => { const t = thumbHtml(h, skin); return t ? `<div class="hero-pic-row">${t}<div>${inner}</div></div>` : inner; };
+
+// ---------- «🃏 Карты»: каталог картинками (tickets/site-v2-shell.md, часть 2) ----------
+const CAT_PAGE = 60;
+const catState = { q: '', rank: '', cls: '', title: '', pic: '', skin: false, mine: false, limit: CAT_PAGE };
+const CAT_SILHOUETTE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="7.5" r="4.5"/><path d="M3 22c0-5 4-8.5 9-8.5s9 3.5 9 8.5z"/></svg>';
+let catStrengthCache = null;
+
+// Сила внутри ранга — место в топе своего класса (как в «Топе»); группа ещё не посчитана — порядок по очкам формулы.
+function catStrength() {
+  const sig = [heroes, settings.mode, results.size].join('|');
+  if (catStrengthCache && catStrengthCache.heroes === heroes && catStrengthCache.sig === sig) return catStrengthCache.map;
+  const map = new Map();
+  const score = (h) => E.formulaScore(h, settings.formula);
+  E.RANKS.forEach((rank) => E.CLASSES.forEach((cls) => {
+    const group = heroes.filter((h) => h.rank === rank && h.cls === cls);
+    if (!group.length) return;
+    const ranked = knownRanked(group);
+    const places = ranked ? E.sharedPlaces(ranked.order, sameStats) : null;
+    const byScore = [...group].sort((a, b) => score(b) - score(a));
+    group.forEach((h) => map.set(h.key, (places && places.get(h.key)) || group.length + byScore.indexOf(h) + 1));
+  }));
+  catStrengthCache = { heroes, sig, map };
+  return map;
+}
+
+function catTileHtml({ h, pic, skinPic, mine }) {
+  const marks = `${skinPic ? '<span title="Есть картинка скина">🎭</span>' : ''}${mine ? '<span title="Есть у меня">📚</span>' : ''}`;
+  const inner = pic
+    ? `<img src="cards/${esc(pic.file)}.s.jpg" width="240" height="320" alt="" loading="lazy" decoding="async">`
+    : CAT_SILHOUETTE;
+  return `<button class="cat-tile" data-open-card="${esc(E.heroId(h))}" data-rank="${esc(h.rank)}" title="${esc(`${h.name} · ${h.rank} · ${h.cls} · ${h.title || E.NO_TITLE}`)}">
+    <span class="cat-pic${pic ? '' : ' none'}">${inner}${marks ? `<span class="cat-marks">${marks}</span>` : ''}</span>
+    <b>${esc(h.name)}</b><small>${esc(h.rank)} · ${ICONS[h.cls]}<span class="cat-cls"> ${esc(h.cls)}</span></small>
+  </button>`;
+}
+
+function renderCards() {
+  if ($('view-cards').hidden) return;
+  if (!loaded) { $('catGrid').innerHTML = '<p class="empty">Загружаю…</p>'; return; }
+  const n = E.cardCounts(heroes, cardsData);
+  $('catHead').innerHTML = `<p>Собрано картинок: <b>${fmt(n.withPic)}</b> из ${fmt(n.heroes)} героев · скинов: <b>${fmt(n.skins)}</b></p>
+    <div class="track" role="progressbar" aria-label="Собрано картинок" aria-valuemin="0" aria-valuemax="${n.heroes}" aria-valuenow="${n.withPic}"><span style="width:${n.heroes ? n.withPic / n.heroes * 100 : 0}%"></span></div>
+    <p class="small muted">Карт не хватает — пришли свои: <a href="${BOT_CARDS_LINK}" target="_blank" rel="noopener" data-tg-link>/cards в @AniMatrix_fansBot</a></p>`;
+  // Списки фильтров заполняются один раз; выбранное остаётся.
+  const fill = (id, options) => {
+    const el = $(id);
+    const html = options.map(([v, label]) => `<option value="${esc(v)}">${esc(label)}</option>`).join('');
+    if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+    el.value = catState[{ catRank: 'rank', catCls: 'cls', catTitle: 'title' }[id]];
+  };
+  fill('catRank', [['', 'Все ранги'], ...E.RANKS.map((r) => [r, r])]);
+  fill('catCls', [['', 'Все классы'], ...E.CLASSES.map((c) => [c, `${ICONS[c]} ${c}`])]);
+  fill('catTitle', [['', 'Все тайтлы'], ...[...new Set(heroes.map((h) => h.title || E.NO_TITLE))].sort((a, b) => a.localeCompare(b, 'ru')).map((t) => [t, t])]);
+  $('catPic').value = catState.pic;
+  $('catChips').querySelectorAll('[data-cat-flag]').forEach((b) => b.setAttribute('aria-pressed', String(!!catState[b.dataset.catFlag])));
+  const strength = catStrength();
+  const list = E.cardCatalog(heroes, cardsData, catState, { owned: isOwned, strength: (h) => strength.get(h.key) || 0 });
+  const shown = list.slice(0, catState.limit);
+  $('catCount').textContent = list.length === heroes.length ? `Карт: ${fmt(list.length)}` : `Найдено: ${fmt(list.length)} из ${fmt(heroes.length)}`;
+  $('catGrid').innerHTML = shown.length ? shown.map(catTileHtml).join('') : '<p class="empty">Таких карт нет. Измени фильтры.</p>';
+  const left = list.length - shown.length;
+  $('catMore').innerHTML = left > 0 ? `<button class="btn ghost" data-cat-more>Показать ещё, осталось ${fmt(left)}</button>` : '';
+}
+
+function catSet(patch) {
+  Object.assign(catState, patch, { limit: CAT_PAGE });
+  renderCards();
+}
 const pullState = { chat: '' };
 const PULL_NOTE = 'Считается только в чатах, где есть @Insloushn — так устроены ограничения Telegram для ботов. Хотите статистику своего чата — напишите @Insloushn.';
 const PULL_SHOWN = 10;
@@ -4620,7 +4744,7 @@ function renderAll() {
 }
 
 const currentTab = () => {
-  const selected = document.querySelector('nav [aria-selected="true"]');
+  const selected = document.querySelector('#tabList [aria-selected="true"]');
   return selected ? selected.dataset.tab : 'top';
 };
 
@@ -4639,15 +4763,16 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
   if (tab === 'profile') renderProfile();
   if (tab === 'players') renderPlayers();
   if (tab === 'home') renderHome();
-  document.querySelectorAll('nav [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  document.querySelectorAll('#tabList [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   $('currentTabLabel').textContent = (TAB_INFO[tab] || {}).label || '';
   closeMenu(false);
-  closeNavDrop(false);
-  layoutNav();
-  ['top', 'compare', 'card', 'collection', 'news', 'records', 'contests', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
+  closeDrop(false);
+  renderNav();
+  ['top', 'compare', 'card', 'cards', 'collection', 'news', 'records', 'contests', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
   if (tab === 'records') renderRecords();
   if (tab === 'contests') renderContests();
   if (tab === 'card') renderCard();
+  if (tab === 'cards') renderCards();
   if (tab === 'collection') renderCollection();
   if (tab === 'news') renderNews();
   if (tab === 'stats') renderStats();
@@ -4669,17 +4794,13 @@ function armed(button) {
   return false;
 }
 
-document.querySelector('nav').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-tab]');
-  if (b) goTab(b.dataset.tab);
-});
-
 // Пункты меню повторяют вкладки: скрытые для игроков разделы в меню тоже не попадают.
 const TAB_INFO = {
   home: { icon: '🏠', label: 'Главная', note: 'Конкурс, новое в сезоне, свежие рекорды' },
   top: { icon: '🏆', label: 'Топ', note: 'Лучшие герои ранга и класса' },
   compare: { icon: '⚔️', label: 'Сравнение', note: 'Бой двух героев один на один' },
   card: { icon: '🃏', label: 'Карточка героя', note: 'Место, соперники и история по сезонам' },
+  cards: { icon: '🃏', label: 'Карты', note: 'Все карты картинками: поиск и фильтры' },
   collection: { icon: '📚', label: 'Моя коллекция', note: 'Отметь свои карты и смотри личный топ' },
   news: { icon: '📰', label: 'Новости сезона', note: 'Новые герои, скины и кто сдвинулся' },
   profile: { icon: '👤', label: 'Профиль', note: 'Твои конкурсы и рекорды' },
@@ -4694,29 +4815,24 @@ const TAB_INFO = {
   export: { icon: '📤', label: 'Выгрузка', note: 'Топы для статей Telegram' },
 };
 
+// Меню «Ещё» нижних вкладок: разделы в порядке групп шапки, без тех, что уже есть внизу.
 function renderMenu() {
-  const shown = [...document.querySelectorAll('nav [data-tab]')].filter((b) => !(b.hasAttribute('data-admin') && document.body.classList.contains('public')));
-  const tabs = shown.map((b) => b.dataset.tab);
   const item = (tab) => {
     const info = TAB_INFO[tab];
     return `<button class="menu-item" role="menuitem" data-go="${tab}"${tab === currentTab() ? ' aria-current="page"' : ''}>
-      <span class="icon" aria-hidden="true">${info.icon}</span><b>${tab === 'profile' ? 'Мой профиль' : info.label}</b><small>${info.note}</small>
+      <span class="icon" aria-hidden="true">${info.icon}</span><b>${info.label}</b><small>${info.note}</small>
     </button>`;
   };
-  const players = menuTabs().filter((t) => tabs.includes(t) && tabShown(t) && !(menuFromBar && BAR_TABS.includes(t)));
-  const admin = tabs.filter((t) => !menuTabs().includes(t));
-  $('menuPanel').innerHTML = players.map(item).join('')
-    + (admin.length ? `<div class="menu-group">Для владельца</div>${admin.map(item).join('')}` : '');
+  $('menuPanel').innerHTML = E.navGroups(navTabsShown()).map((g) => {
+    const tabs = g.tabs.filter((t) => !BAR_TABS.includes(t));
+    return tabs.length ? `<div class="menu-group">${g.label}</div>${tabs.map(item).join('')}` : '';
+  }).join('');
 }
 
-// fromBar: меню «Ещё» из нижних вкладок — открывается снизу.
-function openMenu(fromBar) {
-  menuFromBar = !!fromBar;
+function openMenu() {
   renderMenu();
-  $('menuSheet').classList.toggle('from-bar', menuFromBar);
-  $('menuSheet').style.setProperty('--menu-top', `${Math.round($('menuBtn').getBoundingClientRect().bottom + 8)}px`);
   $('menuSheet').classList.add('open');
-  $(menuFromBar ? 'tabMore' : 'menuBtn').setAttribute('aria-expanded', 'true');
+  $('tabMore').setAttribute('aria-expanded', 'true');
   const current = $('menuPanel').querySelector('[aria-current="page"]') || $('menuPanel').querySelector('.menu-item');
   if (current) current.focus({ preventScroll: true });
 }
@@ -4724,9 +4840,8 @@ function openMenu(fromBar) {
 function closeMenu(returnFocus) {
   if (!$('menuSheet').classList.contains('open')) return;
   $('menuSheet').classList.remove('open');
-  $('menuBtn').setAttribute('aria-expanded', 'false');
   $('tabMore').setAttribute('aria-expanded', 'false');
-  if (returnFocus) $(menuFromBar ? 'tabMore' : 'menuBtn').focus({ preventScroll: true });
+  if (returnFocus) $('tabMore').focus({ preventScroll: true });
 }
 
 // Нижние вкладки: нажатие на активную — наверх страницы; «Ещё» — остальные разделы.
@@ -4735,7 +4850,7 @@ $('tabbar').addEventListener('click', (e) => {
   if (!b) return;
   if (b.dataset.bar === 'more') {
     if ($('menuSheet').classList.contains('open')) closeMenu(true);
-    else openMenu(true);
+    else { closeDrop(false); openMenu(); }
     return;
   }
   if (b.getAttribute('aria-current') === 'page' && !$('menuSheet').classList.contains('open')) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
@@ -4744,10 +4859,6 @@ $('tabbar').addEventListener('click', (e) => {
   window.scrollTo(0, 0);
 });
 
-$('menuBtn').addEventListener('click', () => {
-  if ($('menuSheet').classList.contains('open')) closeMenu(true);
-  else openMenu();
-});
 $('menuSheet').addEventListener('click', (e) => {
   const go = e.target.closest('[data-go]');
   if (go) {
@@ -4765,92 +4876,152 @@ document.addEventListener('keydown', (e) => {
     if (next) { next.focus(); e.preventDefault(); }
   }
 });
-// ---------- Строка разделов на ПК и «Ещё ▾» (tickets/desktop-tabs.md) ----------
-const navEl = document.querySelector('nav[role="tablist"]');
-let navOver = []; // разделы, которые не влезли в строку и ушли в «Ещё»
-const navTabsShown = () => [...navEl.querySelectorAll('[data-tab]')].filter((b) => !b.hidden && !(b.hasAttribute('data-admin') && document.body.classList.contains('public')));
 
-// Раскладка за один проход до отрисовки: всё показать, измерить, лишнее с конца — в «Ещё».
-function layoutNav() {
-  const tabs = navTabsShown();
-  const more = $('navMore');
+// ---------- Шапка: группы разделов и меню аватара (tickets/site-v2-shell.md, часть 1) ----------
+// Разделы, открытые этому посетителю: скрытые и админские на сайте игроков не попадают.
+const navTabsShown = () => [...document.querySelectorAll('#tabList [data-tab]')]
+  .filter((b) => !b.hidden && !(b.hasAttribute('data-admin') && document.body.classList.contains('public'))).map((b) => b.dataset.tab);
+const BOT_CARDS_LINK = 'https://t.me/AniMatrix_fansBot?start=cards';
+const miniappLink = () => siteConfig.telegramLink || 'https://t.me/AniMatrix_fansBot/Fans';
+const ownProfileOpen = (tab) => tab === 'profile' && !!myPlayerKey() && (profileState.key || myPlayerKey()) === myPlayerKey();
+let dropOwner = null; // кнопка, которая открыла выпадающий список: группа или аватар
+
+// Группы в шапке ПК; в группе открытого раздела — его название.
+function renderNav() {
   const cur = currentTab();
-  const focused = document.activeElement === more; // при замере кнопка на миг скрывается — фокус вернуть
-  tabs.forEach((b) => b.classList.remove('nav-over'));
-  more.hidden = true;
-  more.classList.remove('on');
-  $('navMoreLabel').textContent = 'Ещё';
-  navOver = [];
-  const room = navEl.clientWidth;
-  if (room) {
-    const gap = parseFloat(getComputedStyle(navEl).columnGap) || 0;
-    const widths = tabs.map((b) => b.getBoundingClientRect().width);
-    const upTo = (k) => widths.slice(0, k).reduce((a, w) => a + w + gap, 0);
-    if (Math.ceil(upTo(tabs.length) - gap) > room) {
-      more.hidden = false;
-      let k = tabs.length - 1;
-      const fit = () => { const w = more.getBoundingClientRect().width; while (k > 0 && Math.ceil(upTo(k) + w) > room) k--; };
-      fit();
-      const active = tabs.slice(k).find((b) => b.dataset.tab === cur);
-      if (active) { $('navMoreLabel').textContent = active.textContent; more.classList.add('on'); fit(); }
-      tabs.slice(k).forEach((b) => b.classList.add('nav-over'));
-      navOver = tabs.slice(k).map((b) => b.dataset.tab);
-    }
-  }
-  if (focused && !more.hidden) more.focus({ preventScroll: true });
-  if (!$('navDrop').hidden) renderNavDrop();
+  const curGroup = E.navGroupOf(cur);
+  const owner = dropOwner && dropOwner.dataset.group;
+  $('navGroups').innerHTML = E.navGroups(navTabsShown()).map((g) => {
+    const on = g.id === curGroup;
+    if (!g.menu) return `<button class="nav-g${on ? ' on' : ''}" data-go="${g.tabs[0]}"${on ? ' aria-current="page"' : ''}>${g.icon} ${g.label}</button>`;
+    const shown = on ? `${TAB_INFO[cur].icon} ${TAB_INFO[cur].label}` : `${g.icon} ${g.label}`;
+    return `<button class="nav-g${on ? ' on' : ''}" data-group="${g.id}" aria-haspopup="menu" aria-expanded="${owner === g.id}" aria-controls="navDrop">${shown}<span class="caret" aria-hidden="true"> ▾</span></button>`;
+  }).join('');
+  if (owner) dropOwner = $('navGroups').querySelector(`[data-group="${owner}"]`);
+  renderMe();
 }
 
-function renderNavDrop() {
-  const item = (tab) => {
-    const info = TAB_INFO[tab];
-    const label = navEl.querySelector(`[data-tab="${tab}"]`).textContent;
-    return `<button class="menu-item" role="menuitem" data-go="${tab}"${tab === currentTab() ? ' aria-current="page"' : ''}>
-      <span class="icon" aria-hidden="true">${info.icon}</span><b>${label}</b><small>${info.note}</small>
-    </button>`;
-  };
-  const isAdmin = (tab) => navEl.querySelector(`[data-tab="${tab}"]`).hasAttribute('data-admin');
-  const players = navOver.filter((t) => !isAdmin(t));
-  const admin = navOver.filter(isAdmin);
-  $('navDrop').innerHTML = players.map(item).join('')
-    + (admin.length ? `<div class="menu-group">Для владельца</div>${admin.map(item).join('')}` : '');
+// Свой аватар: в шапке, в строке телефона и на нижней вкладке «Профиль». Не в Telegram — значок.
+function renderMe() {
+  const me = myPlayerKey();
+  const pic = me ? avatarHtml(me, tgUserName()) : '<span class="me-icon" aria-hidden="true">👤</span>';
+  const cur = currentTab();
+  const on = cur === 'collection' || ownProfileOpen(cur);
+  document.querySelectorAll('[data-me-btn]').forEach((b) => {
+    if (b.dataset.pic !== pic) { b.innerHTML = pic; b.dataset.pic = pic; }
+    b.classList.toggle('on', on);
+  });
+  const bar = $('tabbar').querySelector('[data-bar="profile"] span');
+  const barPic = me ? avatarHtml(me, tgUserName()) : '👤';
+  if (bar.dataset.pic !== barPic) { bar.innerHTML = barPic; bar.dataset.pic = barPic; bar.classList.toggle('bar-av', !!me); }
 }
 
-function openNavDrop() {
-  renderNavDrop();
-  $('navDrop').hidden = false;
-  $('navMore').setAttribute('aria-expanded', 'true');
-  const first = $('navDrop').querySelector('[aria-current="page"]') || $('navDrop').querySelector('.menu-item');
+const dropItem = (attrs, icon, label, note, current) => `<button class="menu-item" role="menuitem" ${attrs}${current ? ' aria-current="page"' : ''}>
+    <span class="icon" aria-hidden="true">${icon}</span><b>${label}</b><small>${note}</small>
+  </button>`;
+const dropLink = (href, icon, label, note) => `<a class="menu-item" role="menuitem" href="${esc(href)}" target="_blank" rel="noopener" data-tg-link>
+    <span class="icon" aria-hidden="true">${icon}</span><b>${label}</b><small>${note}</small>
+  </a>`;
+
+function groupDropHtml(id) {
+  const g = E.navGroups(navTabsShown()).find((x) => x.id === id);
+  const cur = currentTab();
+  return g ? g.tabs.map((t) => dropItem(`data-go="${t}"`, TAB_INFO[t].icon, TAB_INFO[t].label, TAB_INFO[t].note, t === cur)).join('') : '';
+}
+
+// Меню аватара: личное. Вне Telegram своего ID нет — коллекция и ссылка на мини-приложение.
+function meDropHtml() {
+  const me = myPlayerKey();
+  const cur = currentTab();
+  const collection = dropItem('data-go="collection"', '📚', 'Моя коллекция', TAB_INFO.collection.note, cur === 'collection');
+  if (!me) return `${collection}${dropLink(miniappLink(), '✈️', 'Открыть в Telegram', 'Свой профиль, аватар и коллекция в облаке Telegram')}`;
+  const name = shownName(me, '') || tgUserName() || 'Игрок';
+  return `<div class="me-head" role="presentation">${avatarHtml(me, name)}<b>${esc(name)}</b></div>
+    ${dropItem('data-go="profile"', '👤', 'Мой профиль', TAB_INFO.profile.note, ownProfileOpen(cur))}
+    ${collection}
+    ${dropItem('data-me="advice"', '💪', 'Кого качать', 'Кого из своих карт прокачать первым')}
+    ${dropItem('data-me="settings"', '⚙️', 'Настройки профиля', 'Имя, прошлые ники и аватар')}
+    ${dropLink(BOT_CARDS_LINK, '🃏', 'Отправить карты', 'Картинки карт и коллекция — через @AniMatrix_fansBot')}`;
+}
+
+// Список под кнопкой: у группы — от её левого края, у аватара — до правого края; в пределах страницы.
+function openDrop(btn) {
+  const drop = $('navDrop');
+  closeMenu(false);
+  if (dropOwner && dropOwner !== btn) dropOwner.setAttribute('aria-expanded', 'false');
+  dropOwner = btn;
+  drop.innerHTML = btn.dataset.group ? groupDropHtml(btn.dataset.group) : meDropHtml();
+  drop.setAttribute('aria-label', btn.dataset.group ? `Разделы: ${(E.NAV_GROUPS.find((g) => g.id === btn.dataset.group) || {}).label}` : 'Моё');
+  drop.hidden = false;
+  const box = document.querySelector('.wrap').getBoundingClientRect();
+  const r = btn.getBoundingClientRect();
+  const w = drop.offsetWidth;
+  const left = btn.dataset.group ? r.left - box.left : r.right - box.left - w;
+  drop.style.left = `${Math.round(Math.max(Math.min(0, box.width - w), Math.min(left, box.width - w)))}px`;
+  drop.style.top = `${Math.round(r.bottom - box.top + 6)}px`;
+  btn.setAttribute('aria-expanded', 'true');
+  const first = drop.querySelector('[aria-current="page"]') || drop.querySelector('.menu-item');
   if (first) first.focus({ preventScroll: true });
 }
 
-function closeNavDrop(returnFocus) {
+function closeDrop(returnFocus) {
   if ($('navDrop').hidden) return;
   $('navDrop').hidden = true;
-  $('navMore').setAttribute('aria-expanded', 'false');
-  if (returnFocus && !$('navMore').hidden) $('navMore').focus({ preventScroll: true });
+  const owner = dropOwner;
+  dropOwner = null;
+  if (!owner) return;
+  owner.setAttribute('aria-expanded', 'false');
+  if (returnFocus && owner.isConnected) owner.focus({ preventScroll: true });
 }
 
-$('navMore').addEventListener('click', () => {
-  if ($('navDrop').hidden) openNavDrop();
-  else closeNavDrop(true);
+// «Кого качать» и «Настройки профиля» — раздел и сразу нужный блок.
+function meAction(what) {
+  if (what === 'advice') {
+    goTab('collection');
+    window.scrollTo(0, 0);
+    if ($('colAdvice').innerHTML.trim()) $('colAdvice').scrollIntoView({ block: 'start' });
+    return;
+  }
+  if (what === 'settings') {
+    profileDraft.open = true;
+    goTab('profile');
+    const box = $('profileSettings');
+    if (box) { box.open = true; box.scrollIntoView({ block: 'start' }); }
+  }
+}
+
+$('navGroups').addEventListener('click', (e) => {
+  const g = e.target.closest('[data-group]');
+  if (!g) return;
+  if (dropOwner === g && !$('navDrop').hidden) closeDrop(true);
+  else openDrop(g);
 });
+document.querySelectorAll('[data-me-btn]').forEach((b) => b.addEventListener('click', () => {
+  if (dropOwner === b && !$('navDrop').hidden) closeDrop(true);
+  else openDrop(b);
+}));
 $('navDrop').addEventListener('click', (e) => {
+  const link = e.target.closest('[data-tg-link]');
+  if (link) {
+    closeDrop(false);
+    if (tg && /^https:\/\/t\.me\//.test(link.href)) { e.preventDefault(); tg.openTelegramLink(link.href); }
+    return;
+  }
   const go = e.target.closest('[data-go]');
-  if (!go) return;
-  closeNavDrop(true);
-  goTab(go.dataset.go);
-  window.scrollTo(0, 0);
+  const me = e.target.closest('[data-me]');
+  if (!go && !me) return;
+  closeDrop(false);
+  if (go) { goTab(go.dataset.go); window.scrollTo(0, 0); } else meAction(me.dataset.me);
 });
 document.addEventListener('click', (e) => {
-  if (!$('navDrop').hidden && !e.target.closest('#navDrop, #navMore')) closeNavDrop(false);
+  if (!$('navDrop').hidden && !e.target.closest('#navDrop, [data-group], [data-me-btn]')) closeDrop(false);
 });
 $('navDrop').addEventListener('focusout', (e) => {
-  if (e.relatedTarget && !e.relatedTarget.closest('#navDrop, #navMore')) closeNavDrop(false);
+  if (e.relatedTarget && !e.relatedTarget.closest('#navDrop, [data-group], [data-me-btn]')) closeDrop(false);
 });
 document.addEventListener('keydown', (e) => {
   if ($('navDrop').hidden) return;
-  if (e.key === 'Escape') { closeNavDrop(true); e.preventDefault(); return; }
+  if (e.key === 'Escape') { closeDrop(true); e.preventDefault(); return; }
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     const items = [...$('navDrop').querySelectorAll('.menu-item')];
     const at = items.indexOf(document.activeElement);
@@ -4858,9 +5029,9 @@ document.addEventListener('keydown', (e) => {
     if (next) { next.focus(); e.preventDefault(); }
   }
 });
-if (window.ResizeObserver) new ResizeObserver(() => layoutNav()).observe(navEl);
-else window.addEventListener('resize', layoutNav);
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutNav);
+// Ширина окна изменилась — открытый список закрывается, чтобы не висел мимо своей кнопки (высота меняется и от прокрутки).
+let dropWidth = window.innerWidth;
+window.addEventListener('resize', () => { if (window.innerWidth !== dropWidth) { dropWidth = window.innerWidth; closeDrop(false); } });
 
 $('rankChips').addEventListener('click', (e) => {
   const b = e.target.closest('[data-rank]');
@@ -5083,9 +5254,13 @@ document.querySelector('.wrap').addEventListener('click', (e) => {
   const player = e.target.closest('[data-player]');
   if (player) { openPlayer(player.dataset.player); return; }
   const go = e.target.closest('[data-go]');
-  if (go && !go.closest('#menuSheet')) { goTab(go.dataset.go); window.scrollTo(0, 0); return; }
+  if (go && !go.closest('#menuSheet, #navDrop')) { goTab(go.dataset.go); window.scrollTo(0, 0); return; }
   if (e.target.closest('[data-go-back]')) { goBack(); return; }
   if (e.target.closest('[data-players-more]')) { playersState.limit += PLAYERS_SHOWN; renderPlayers(); return; }
+  if (e.target.closest('[data-cat-more]')) { catState.limit += CAT_PAGE; renderCards(); return; }
+  // Ссылка в бота внутри мини-приложения — средствами Telegram (меню аватара обрабатывает свои ссылки само).
+  const tgLink = e.target.closest('a[data-tg-link]');
+  if (tgLink && tg && !tgLink.closest('#navDrop') && /^https:\/\/t\.me\//.test(tgLink.href)) { e.preventDefault(); tg.openTelegramLink(tgLink.href); return; }
   const past = e.target.closest('[data-past-nicks]');
   // Открытый список прошлых ников закрывается нажатием в любом другом месте.
   document.querySelectorAll('.past-nicks.open').forEach((box) => { if (!past || box !== past.parentElement) { box.classList.remove('open'); box.firstElementChild.setAttribute('aria-expanded', 'false'); } });
@@ -5125,6 +5300,12 @@ $('profileOut').addEventListener('change', (e) => {
   if (e.target.matches('[data-prof-past]')) { profileDraft.s.past = e.target.checked; profileSettingsRedraw(); }
 });
 $('profileOut').addEventListener('toggle', (e) => { if (e.target.id === 'profileSettings') profileDraft.open = e.target.open; }, true);
+$('catSearch').addEventListener('input', (e) => catSet({ q: e.target.value }));
+$('catRank').addEventListener('change', (e) => catSet({ rank: e.target.value }));
+$('catCls').addEventListener('change', (e) => catSet({ cls: e.target.value }));
+$('catTitle').addEventListener('change', (e) => catSet({ title: e.target.value }));
+$('catPic').addEventListener('change', (e) => catSet({ pic: e.target.value }));
+$('catChips').addEventListener('click', (e) => { const b = e.target.closest('[data-cat-flag]'); if (b) catSet({ [b.dataset.catFlag]: !catState[b.dataset.catFlag] }); });
 $('playersSearch').addEventListener('input', (e) => { playersState.search = e.target.value; playersState.limit = PLAYERS_SHOWN; renderPlayers(); });
 $('cardSearch').addEventListener('input', (e) => {
   const id = cardOptions.get(e.target.value);
@@ -5774,7 +5955,7 @@ function cloudLoad() {
 // pullAuto — переключатель ('0' — выключен), pullN и pull0… — разобранные герои (E.packPullMarks). Отметки только добавляются.
 const pullMark = { on: true, done: null, added: 0 };
 let pullMarkParts = 0;
-const PULL_MARK_NOTE = 'Только крутки и просмотр героев в чатах с @Insloushn, конкурсы и карты, пересланные или отправленные боту @AniMatrix_fansBot (команда /cards), — остальные карты отмечай сам.';
+const PULL_MARK_NOTE = 'Только крутки и просмотр героев в чатах с @Insloushn, конкурсы и карты, пересланные или отправленные боту @AniMatrix_fansBot (команда /cards), — остальные карты отмечай сам. Новые карты появляются через 1–2 минуты.';
 const pullMarkText = (n) => `Из твоих круток ${n % 10 === 1 && n % 100 !== 11 ? 'отмечена' : 'отмечено'} ${n} ${plural(n, 'карта', 'карты', 'карт')}`;
 const fromPulls = (h) => !!(pullMark.done && pullMark.done[E.heroCode(h)] === true && isOwned(h));
 
@@ -5831,7 +6012,7 @@ function autoMarkPulls() {
   if (plan.add.length) {
     pullMark.added += plan.add.length;
     saveCollection();
-    const text = `🎰 ${pullMarkText(plan.add.length)}`;
+    const text = markFresh ? `🎰 +${plan.add.length} ${plural(plan.add.length, 'карта', 'карты', 'карт')} в коллекции` : `🎰 ${pullMarkText(plan.add.length)}`;
     notify(text);
     setTimeout(() => { if ($('notice').textContent === text) notify(''); }, 8000);
   }
@@ -5894,7 +6075,8 @@ function autoMarkCards() {
   if (plan.add.length || plan.skins.length) {
     cardMark.added += plan.add.length;
     saveCollection();
-    const text = `🃏 ${plan.add.length ? cardMarkText(plan.add.length) : 'Из карт отмечены скины'}${plan.add.length && plan.skins.length ? `, скинов: ${plan.skins.length}` : ''}`;
+    const added = plan.add.length ? (markFresh ? `+${plan.add.length} ${plural(plan.add.length, 'карта', 'карты', 'карт')} в коллекции` : cardMarkText(plan.add.length)) : 'Из карт отмечены скины';
+    const text = `🃏 ${added}${plan.add.length && plan.skins.length ? `, скинов: ${plan.skins.length}` : ''}`;
     notify(text);
     setTimeout(() => { if ($('notice').textContent === text) notify(''); }, 8000);
   }
@@ -5903,6 +6085,62 @@ function autoMarkCards() {
 }
 
 function autoMarkAll() { autoMarkPulls(); autoMarkCards(); }
+
+// ---------- Файлы бота без перезагрузки (tickets/live-refresh.md) ----------
+// cards.json, nicks.json, profiles.json, pull-stats.json перечитываются: раз в 2 минуты, при возврате на страницу (не чаще раза
+// в 30 с) и 5 минут каждые 30 с после ссылки в бота за картами. Страница скрыта или сеть подвела — ничего не меняется.
+const BOT_FILES = ['pull-stats.json', 'cards.json', 'nicks.json', 'profiles.json'];
+const BOT_FILES_EVERY = 2 * 60 * 1000;
+const BOT_FILES_GAP = 30 * 1000;
+const BOT_FILES_FAST = 5 * 60 * 1000;
+const botFiles = { at: 0, busy: false, fastUntil: 0, text: {} };
+let markFresh = false; // всплывашка «+N карт в коллекции» — у отметок после перечитывания
+
+async function loadText(name) {
+  try {
+    const response = await fetch(name, { cache: 'no-cache' });
+    return response.ok ? await response.text() : null;
+  } catch (e) { return null; }
+}
+
+async function refreshBotFiles() {
+  if (!siteData || document.hidden || botFiles.busy || Date.now() - botFiles.at < BOT_FILES_GAP) return;
+  botFiles.busy = true;
+  botFiles.at = Date.now();
+  const texts = await Promise.all(BOT_FILES.map((name) => loadText(`${name}?t=${botFiles.at}`)));
+  botFiles.busy = false;
+  const fresh = {};
+  BOT_FILES.forEach((name, i) => {
+    if (texts[i] === null || texts[i] === botFiles.text[name]) return;
+    try { fresh[name] = JSON.parse(texts[i]); } catch (e) { return; } // файл дописывается — возьмём в следующий раз
+    botFiles.text[name] = texts[i];
+  });
+  if (!Object.keys(fresh).length) return;
+  if (fresh['pull-stats.json']) pullStats = fresh['pull-stats.json'];
+  if (fresh['cards.json']) cardsData = fresh['cards.json'];
+  if (fresh['nicks.json']) gameNicks = E.gameNickMap(fresh['nicks.json']);
+  if (fresh['profiles.json']) { profileFile = E.profileMap(fresh['profiles.json']); rebuildProfiles(); }
+  // Разобранное в облаке ещё не читали (при открытии файлов не было) — прочитать; оно само запустит автоотметку.
+  if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9')) {
+    if (!pullMark.done && (pullStats || cardsData)) pullMarksLoad();
+    if (!cardMark.done && cardsData) cardMarksLoad();
+  }
+  markFresh = true;
+  autoMarkAll();
+  markFresh = false;
+  // Открытый раздел перерисовывается из своего состояния: фильтры, поиск и открытая карточка остаются, прокрутка — тоже.
+  renderRanking();
+  renderPlayerViews();
+  renderStats();
+}
+
+function startBotFiles() {
+  botFiles.at = Date.now(); // файлы только что прочитаны при открытии
+  setInterval(() => { if (Date.now() < botFiles.fastUntil || Date.now() - botFiles.at >= BOT_FILES_EVERY) refreshBotFiles(); }, BOT_FILES_GAP);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshBotFiles(); });
+  // Пошёл в бота за картами — несколько минут проверяем чаще.
+  document.addEventListener('click', (e) => { if (e.target.closest('a[href*="start=cards"]')) botFiles.fastUntil = Date.now() + BOT_FILES_FAST; }, true);
+}
 
 function initTelegram(app) {
   tg = app;
@@ -5914,8 +6152,9 @@ function initTelegram(app) {
   if (!saved) { pageTheme = app.colorScheme === 'light' ? 'light' : 'dark'; showTheme(); }
   paintTelegram();
   app.BackButton.onClick(goBack);
+  try { app.onEvent('activated', () => refreshBotFiles()); } catch (e) { /* старый клиент Telegram */ }
   $('profileTab').hidden = !myPlayerKey();
-  layoutNav();
+  renderNav();
   renderHome(); // карточка «Мой профиль»
   syncTabbar();
   $('colWhere').textContent = 'В Telegram коллекция хранится в твоём облаке Telegram и появляется на всех твоих устройствах. Код нужен, только чтобы перенести её в обычный браузер.';
@@ -5923,7 +6162,7 @@ function initTelegram(app) {
   const start = app.initDataUnsafe && app.initDataUnsafe.start_param;
   const hero = start && heroByCode(start);
   if (hero) openCard(E.heroId(hero));
-  if (start === 'records' || start === 'contests') showTab(start);
+  if (start === 'records' || start === 'contests' || start === 'cards') showTab(start);
   const playerId = start && start.match(/^p_(\d+)$/);
   if (playerId) openPlayer(`id:${playerId[1]}`);
 }
@@ -5940,7 +6179,8 @@ function startPublic(site) {
   siteData = site;
   canWrite = false;
   document.body.classList.add('public');
-  layoutNav();
+  $('cardsTab').hidden = false; // картинки карт лежат только на сайте
+  renderNav();
   settings = { ...settings, ...site.settings };
   site.seasons.forEach((s) => seasonDocs.set(s.id, s.docs));
   seasons = site.seasons.map(({ docs: _skip, ...rest }) => rest).filter((s) => s.complete).sort((a, b) => String(a.savedAt).localeCompare(String(b.savedAt)));
@@ -5952,6 +6192,7 @@ function startPublic(site) {
   routeHash();
   window.addEventListener('hashchange', routeHash);
   maybeTelegram();
+  startBotFiles();
   if (!gcLast) trackView(viewPath(currentTab()));
 }
 
@@ -5968,7 +6209,7 @@ renderAll();
     if (site) site.records = ((await loadJson('records.json')) || {}).events || site.records || [];
     if (site) site.contests = ((await loadJson('contests.json')) || {}).contests || [];
     if (site) startContestLive(await loadJson(`contest-live.json?t=${Date.now()}`));
-    if (site) pullStats = await loadJson('pull-stats.json');
+    if (site) pullStats = await loadJson(`pull-stats.json?t=${Date.now()}`);
     if (site) cardsData = await loadJson(`cards.json?t=${Date.now()}`);
     if (site) gameNicks = E.gameNickMap(await loadJson(`nicks.json?t=${Date.now()}`));
     if (site) { profileFile = E.profileMap(await loadJson(`profiles.json?t=${Date.now()}`)); rebuildProfiles(); }

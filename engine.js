@@ -1482,6 +1482,22 @@
     return { add, done: next };
   }
 
+  // ---------- Разделы сайта группами (tickets/site-v2-shell.md, часть 1) ----------
+  // Порядок групп в шапке на ПК и в «Ещё» на телефоне. menu — группа с выпадающим списком. Профиль и коллекция — в меню аватара.
+  const NAV_GROUPS = [
+    { id: 'home', icon: '🏠', label: 'Главная', menu: false, tabs: ['home'] },
+    { id: 'heroes', icon: '🏆', label: 'Герои', menu: true, tabs: ['top', 'compare', 'card', 'cards', 'news'] },
+    { id: 'contests', icon: '🎲', label: 'Конкурсы', menu: false, tabs: ['contests'] },
+    { id: 'players', icon: '👥', label: 'Игроки', menu: true, tabs: ['players', 'ratings', 'records', 'stats'] },
+    { id: 'more', icon: '☰', label: 'Ещё', menu: true, tabs: ['antistress', 'heroes', 'seasons', 'add', 'export', 'rules'] },
+  ];
+  // Группы только с открытыми разделами (shown — какие видны этому посетителю); пустая группа не показывается.
+  function navGroups(shown) {
+    const open = new Set(shown || []);
+    return NAV_GROUPS.map((g) => ({ ...g, tabs: g.tabs.filter((t) => open.has(t)) })).filter((g) => g.tabs.length);
+  }
+  const navGroupOf = (tab) => (NAV_GROUPS.find((g) => g.tabs.includes(tab)) || { id: '' }).id;
+
   // ---------- Картинки карт и коллекция из карт (cards.json пишет бот, tickets/hero-images.md) ----------
 
   // Картинки героя по коду: сначала без скина, потом скины по имени. file — имя без .jpg (миниатюра — file + '.s').
@@ -1525,6 +1541,30 @@
       if (!hasSkin) skins.push(id);
     });
     return { add, skins, done: next };
+  }
+
+  // ---------- Каталог «🃏 Карты» (tickets/site-v2-shell.md, часть 2) ----------
+  // Сколько картинок собрано: героев с картинкой без скина (из всех героев сайта) и картинок скинов.
+  function cardCounts(heroes, data) {
+    const images = (data && data.images) || {};
+    const withPic = (heroes || []).filter((h) => images[heroCode(h)] && images[heroCode(h)].img).length;
+    const skins = (heroes || []).reduce((n, h) => n + cardImages(data, heroCode(h)).filter((x) => x.skin).length, 0);
+    return { heroes: (heroes || []).length, withPic, skins };
+  }
+
+  // Плитки каталога: фильтр и порядок — ранг (SSS → F), затем сила (strength: меньше — сильнее, как место в топе),
+  // затем имя. f: { q, rank, cls, title, pic: ''|'yes'|'no', skin, mine }; owned(h) — своя карта.
+  function cardCatalog(heroes, data, f = {}, { owned = () => false, strength = () => 0 } = {}) {
+    const q = normName(f.q || '');
+    const list = (heroes || []).map((h) => {
+      const pics = cardImages(data, heroCode(h));
+      return { h, pic: pics.find((x) => !x.skin) || pics[0] || null, hasImg: pics.some((x) => !x.skin), skinPic: pics.some((x) => x.skin), mine: !!owned(h) };
+    }).filter((x) => (!q || normName(x.h.name).includes(q) || normName(x.h.title || '').includes(q))
+      && (!f.rank || x.h.rank === f.rank) && (!f.cls || x.h.cls === f.cls) && (!f.title || (x.h.title || NO_TITLE) === f.title)
+      && (f.pic !== 'yes' || x.hasImg) && (f.pic !== 'no' || !x.hasImg) && (!f.skin || x.skinPic) && (!f.mine || x.mine));
+    const s = new Map(list.map((x) => [x, strength(x.h)]));
+    return list.sort((a, b) => RANKS.indexOf(a.h.rank) - RANKS.indexOf(b.h.rank) || s.get(a) - s.get(b)
+      || a.h.name.localeCompare(b.h.name, 'ru'));
   }
 
   // Разобранные герои для облака Telegram: коды через запятую, «+» — карту добавили крутки.
@@ -1794,6 +1834,7 @@
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
     AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, profileStartCode, parseProfileCode,
     pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, cardOwned, cardAutoMark,
+    NAV_GROUPS, navGroups, navGroupOf, cardCounts, cardCatalog,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
     CLASSES, RANKS, DEFAULTS, NO_TITLE, SKIN_BONUS, fight, duel, plainFight, formulaScore,
