@@ -474,6 +474,18 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .profile-head h2 { font-size: 20px; overflow-wrap: anywhere; }
 .profile-head .actions, .profile-head #profileShareNote { grid-column: 1 / -1; }
 .profile-head #profileShareNote:empty { display: none; }
+.profile-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.profile-tg { margin-top: 2px; }
+/* «Прошлые ники» (tickets/game-nicks.md): по нажатию, на ПК — и по наведению. */
+.past-nicks { position: relative; display: inline-block; vertical-align: middle; }
+.past-btn { all: unset; cursor: pointer; font: 500 12px var(--body); color: var(--muted); padding: 2px 6px; border-radius: 10px; border: 1px solid var(--line); }
+.past-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.past-pop { display: none; position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; min-width: 220px; max-width: min(280px, calc(100vw - 48px));
+  background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
+  font: 400 13px/1.45 var(--body); margin: 0; list-style: none; }
+.past-pop li { overflow-wrap: anywhere; }
+.past-nicks.open .past-pop { display: block; }
+@media (hover: hover) { .past-nicks:hover .past-pop { display: block; } }
 .player-list { padding: 4px; gap: 0; }
 .player-row { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 8px; cursor: pointer; min-width: 0; }
 .player-row + .player-row { border-top: 1px solid var(--line); }
@@ -2861,7 +2873,7 @@ const recDate = (iso) => {
 const recPlace = (place) => ({ 1: '🥇', 2: '🥈', 3: '🥉' }[place] ? `<span class="rec-medal" title="${place} место">${{ 1: '🥇', 2: '🥈', 3: '🥉' }[place]}</span>` : String(place));
 
 // Ник ведёт в профиль игрока на сайте.
-const recPlayerLink = (row) => `<button class="link-btn" data-rec-player="${esc(E.recordPlayerKey(row))}">${esc(row.player)}</button>`;
+const recPlayerLink = (row) => { const key = E.recordPlayerKey(row); return `<button class="link-btn" data-rec-player="${esc(key)}">${esc(shownName(key, row.player))}</button>`; };
 
 
 const myPlayerKey = () => {
@@ -2888,12 +2900,16 @@ const profileState = { key: '' };
 const PLAYERS_SHOWN = 50;
 const playersState = { search: '', limit: PLAYERS_SHOWN };
 let playerDirCache = null;
+// Ники в игре (nicks.json пишет бот, tickets/game-nicks.md): ID → { nick, past }. Нет файла — имена как раньше.
+let gameNicks = new Map();
 const playerDir = () => {
   const c = playerDirCache;
-  if (c && c.records === records && c.contests === contests && c.live === contestLive && c.pulls === pullStats) return c.list;
-  playerDirCache = { records, contests, live: contestLive, pulls: pullStats, list: E.playerDirectory(records, contests, contestLive, pullStats) };
+  if (c && c.records === records && c.contests === contests && c.live === contestLive && c.pulls === pullStats && c.nicks === gameNicks) return c.list;
+  playerDirCache = { records, contests, live: contestLive, pulls: pullStats, nicks: gameNicks, list: E.playerDirectory(records, contests, contestLive, pullStats, gameNicks) };
   return playerDirCache.list;
 };
+// Имя игрока на сайте: у кого есть ID и ник в игре — ник, иначе как пришло (имя Telegram или ник из рекорда).
+const shownName = (key, name) => { const x = key && key.startsWith('id:') ? gameNicks.get(key.slice(3)) : null; return x ? x.nick : name; };
 const tgUser = () => (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
 const tgUserName = () => {
   const user = tgUser();
@@ -2913,7 +2929,7 @@ function avatarHtml(key, name, big) {
   return `<span class="avatar${big ? ' big' : ''}" aria-hidden="true"><span>${esc(letter)}</span>${src ? `<img src="${esc(src)}" alt="" loading="lazy" decoding="async" data-avatar>` : ''}</span>`;
 }
 // Ник ведёт в профиль; без ключа — просто текст.
-const playerNameLink = (key, name) => (key ? `<button class="link-btn" data-player="${esc(key)}">${esc(name)}</button>` : esc(name));
+const playerNameLink = (key, name) => (key ? `<button class="link-btn" data-player="${esc(key)}">${esc(shownName(key, name))}</button>` : esc(name));
 
 function openPlayer(key) {
   if (!key) return;
@@ -2955,6 +2971,13 @@ function renderPlayerViews() {
   renderHome();
 }
 
+// Кнопка «ⓘ прошлые ники» у ника в профиле: список «ник · до ДД.ММ.ГГГГ», до 10 последних.
+function pastNicksHtml(past) {
+  if (!past || !past.length) return '';
+  const items = past.slice(0, 10).map((x) => `<li>${esc(x.nick)}${x.last ? ` <span class="muted">· до ${esc(recDate(x.last))}</span>` : ''}</li>`).join('');
+  return `<span class="past-nicks"><button type="button" class="past-btn" data-past-nicks aria-expanded="false" aria-controls="pastNicks">ⓘ прошлые ники</button><ul class="past-pop" id="pastNicks" role="tooltip">${items}</ul></span>`;
+}
+
 function renderProfile() {
   if ($('view-profile').hidden) return;
   const me = myPlayerKey();
@@ -2965,7 +2988,7 @@ function renderProfile() {
       <div><button class="btn mini" data-go="players">👥 Все игроки</button></div>`;
     return;
   }
-  const p = E.playerProfile(records, contests, contestLive, key, pullStats);
+  const p = E.playerProfile(records, contests, contestLive, key, pullStats, gameNicks);
   const mine = key === me;
   const pp = E.pullPlayer(pullStats, key); // общая статистика круток (pull-stats.json)
   const name = p.name || (pp && pp.name) || (mine ? tgUserName() : '') || (key.startsWith('n:') ? key.slice(2) : 'Игрок');
@@ -2975,7 +2998,8 @@ function renderProfile() {
   const head = `<div class="card profile-head">
       ${avatarHtml(key, name, true)}
       <div class="profile-name">
-        <h2>${esc(name)}${mine ? ' <span class="tag">это ты</span>' : ''}</h2>
+        <div class="profile-title"><h2>${esc(name)}${mine ? ' <span class="tag">это ты</span>' : ''}</h2>${pastNicksHtml(p.past)}</div>
+        ${p.tgName ? `<p class="small muted profile-tg">в Telegram: ${esc(p.tgName)}</p>` : ''}
         <p class="small muted">${since ? `в AniMatrix Fans с ${esc(since)}` : pp && pp.pulls ? 'пока только крутки' : 'пока без результатов'}${p.id ? '' : ' · без Telegram'}</p>
       </div>
       <div class="actions">
@@ -3028,7 +3052,7 @@ function renderProfile() {
 function renderPlayers() {
   if ($('view-players').hidden) return;
   const q = E.normName(playersState.search);
-  const all = playerDir().filter((p) => !q || E.normName(p.name).includes(q));
+  const all = playerDir().filter((p) => E.playerMatches(p, q)); // и по нику, и по имени Telegram, и по прошлым никам
   const withId = all.filter((p) => p.id);
   const noId = all.filter((p) => !p.id);
   const me = myPlayerKey();
@@ -3130,7 +3154,7 @@ function renderHome() {
   // Мой профиль — только в Telegram, где известен свой ID.
   const me = myPlayerKey();
   if (me) {
-    const p = E.playerProfile(records, contests, contestLive, me, pullStats);
+    const p = E.playerProfile(records, contests, contestLive, me, pullStats, gameNicks);
     const name = p.name || tgUserName() || 'Игрок';
     const line = [p.tiles.bestPlace ? `лучшее место: №${p.tiles.bestPlace}` : '', `конкурсов: ${p.tiles.contests}`, p.live ? `сейчас №${p.live.place}` : ''].filter(Boolean).join(' · ');
     parts.push(card('👤 Мой профиль', 'profile', `<button class="player-row home-me" data-go="profile">${avatarHtml(me, name)}<span class="player-text"><b>${esc(name)}</b><small>${esc(line)}</small></span></button>`));
@@ -3168,7 +3192,7 @@ function renderHome() {
 // По каждому ивенту один топ из всех сохранённых списков: у игрока берётся лучший результат.
 // Если игрок из поиска не попал в топ, его строка показывается под топом со своим местом.
 function recTopsHtml(q) {
-  const hit = (p) => q && E.normName(p.player).includes(q);
+  const hit = (p) => q && (E.normName(p.player).includes(q) || E.normName(shownName(p.key, p.player)).includes(q));
   const leaders = E.recordLeaders(records).sort((a, b) => recEventOrder(a.title) - recEventOrder(b.title));
   return leaders.map((l) => {
     const unit = recInfo(l.title).unitInfo;
@@ -4900,6 +4924,10 @@ document.querySelector('.wrap').addEventListener('click', (e) => {
   if (go && !go.closest('#menuSheet')) { goTab(go.dataset.go); window.scrollTo(0, 0); return; }
   if (e.target.closest('[data-go-back]')) { goBack(); return; }
   if (e.target.closest('[data-players-more]')) { playersState.limit += PLAYERS_SHOWN; renderPlayers(); return; }
+  const past = e.target.closest('[data-past-nicks]');
+  // Открытый список прошлых ников закрывается нажатием в любом другом месте.
+  document.querySelectorAll('.past-nicks.open').forEach((box) => { if (!past || box !== past.parentElement) { box.classList.remove('open'); box.firstElementChild.setAttribute('aria-expanded', 'false'); } });
+  if (past) { const box = past.parentElement; box.classList.toggle('open'); past.setAttribute('aria-expanded', String(box.classList.contains('open'))); return; }
   if (e.target.closest('[data-profile-share]')) {
     const key = profileState.key || myPlayerKey();
     const link = playerLink(key);
@@ -5468,7 +5496,7 @@ function routeHash() {
   if (player) {
     let value = '';
     try { value = decodeURIComponent(player[1]); } catch (e) { return; }
-    openPlayer(/^\d+$/.test(value) ? `id:${value}` : value);
+    openPlayer(/^\d+$/.test(value) ? `id:${value}` : E.resolvePlayerKey(playerDir(), value));
   }
 }
 
@@ -5687,6 +5715,7 @@ renderAll();
     if (site) site.contests = ((await loadJson('contests.json')) || {}).contests || [];
     if (site) startContestLive(await loadJson(`contest-live.json?t=${Date.now()}`));
     if (site) pullStats = await loadJson('pull-stats.json');
+    if (site) gameNicks = E.gameNickMap(await loadJson(`nicks.json?t=${Date.now()}`));
     if (site) startPublic(site);
     else startLocal(offline);
     return;

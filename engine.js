@@ -1074,8 +1074,8 @@
     return found ? found.name : '';
   }
 
-  // Игрок узнаётся по Telegram ID из ссылки бота, а без ссылки по нику.
-  const recordPlayerKey = (row) => (row.tgId ? `id:${row.tgId}` : `n:${normName(row.player)}`);
+  // Игрок узнаётся по Telegram ID из ссылки бота, а без ссылки по нику — точно, с регистром: «Inslide» и «inslide» — разные люди.
+  const recordPlayerKey = (row) => (row.tgId ? `id:${row.tgId}` : `n:${String(row.player || '').trim()}`);
   const recordEventKey = (title) => normName(cleanRecordName(title));
 
   // Рекорды за всё время: по каждому ивенту лучший результат каждого игрока, сильнейшие сверху.
@@ -1148,17 +1148,48 @@
     return same.length === 1 ? String(same[0].id) : '';
   }
 
+  // Ники в игре из nicks.json (пишет бот, tickets/game-nicks.md) → Map(ID → { nick, past: [{ nick, last }] }).
+  // Нет файла — пустая карта. Один текущий ник у двух ID (ошибка разбора) — у обоих ника нет: показывается имя Telegram.
+  function gameNickMap(data) {
+    const map = new Map();
+    const src = (data && data.nicks && typeof data.nicks === 'object') ? data.nicks : {};
+    const ok = (x) => x && typeof x.nick === 'string' && x.nick.trim();
+    const count = new Map();
+    Object.entries(src).forEach(([id, x]) => { if (/^\d+$/.test(id) && ok(x)) count.set(x.nick, (count.get(x.nick) || 0) + 1); });
+    Object.entries(src).forEach(([id, x]) => {
+      if (!/^\d+$/.test(id) || !ok(x) || count.get(x.nick) > 1) return;
+      const past = (Array.isArray(x.past) ? x.past : []).filter((y) => ok(y) && y.nick !== x.nick).slice(0, 10)
+        .map((y) => ({ nick: y.nick, last: String(y.last || '') }));
+      map.set(id, { nick: x.nick, past });
+    });
+    return map;
+  }
+
+  // Поиск игрока (без регистра — это удобство): по имени на сайте, имени Telegram и прошлым никам.
+  const playerMatches = (p, q) => !q || [p.name, p.tgName, ...((p.past || []).map((x) => x.nick))].some((n) => n && normName(n).includes(q));
+
+  // Старая ссылка #player= со строчным ником (ключи без ID раньше были без регистра): точный ключ — он, иначе ник
+  // без регистра, если такой игрок ровно один. Не нашёлся — ключ как есть.
+  function resolvePlayerKey(list, key) {
+    const k = String(key || '');
+    if (!k.startsWith('n:') || (list || []).some((p) => p.key === k)) return k;
+    const same = (list || []).filter((p) => p.key.startsWith('n:') && normName(p.key.slice(2)) === normName(k.slice(2)));
+    return same.length === 1 ? same[0].key : k;
+  }
+
   // Все игроки: имя (последнее известное), с какого времени, конкурсы, число записей в рекордах, идущий конкурс.
   // pullData — pull-stats.json: игроки только с крутками тоже в списке (имя оттуда — если другого нет), pulls — круток всего.
-  function playerDirectory(events, contests, live, pullData) {
+  // nicks — gameNickMap(nicks.json): у игрока с ID имя — ник в игре, tgName — имя Telegram, past — прошлые ники.
+  function playerDirectory(events, contests, live, pullData, nicks) {
     const map = new Map();
     const get = (key, id) => {
-      if (!map.has(key)) map.set(key, { key, id: id ? String(id) : '', name: '', nameAt: '', since: '', last: '', contests: 0, records: 0, pulls: 0, live: null });
+      if (!map.has(key)) map.set(key, { key, id: id ? String(id) : '', name: '', nameAt: '', tgName: '', tgAt: '', since: '', last: '', contests: 0, records: 0, pulls: 0, live: null });
       return map.get(key);
     };
-    const touch = (p, name, at) => {
+    const touch = (p, name, at, fromTelegram) => {
       if (name && at >= p.nameAt) { p.name = name; p.nameAt = at; }
       if (!p.name && name) p.name = name;
+      if (fromTelegram && name && (at >= p.tgAt || !p.tgName)) { p.tgName = name; p.tgAt = at; }
       if (at && (!p.since || at < p.since)) p.since = at;
       if (at > p.last) p.last = at;
     };
@@ -1177,7 +1208,7 @@
       (c.players || []).forEach((x) => {
         const p = get(`id:${x.id}`, x.id);
         p.contests += 1;
-        touch(p, x.name, contestAt(c));
+        touch(p, x.name, contestAt(c), true);
       });
     });
     if (liveContest && !(contests || []).some((c) => c.id === liveContest.id)) {
@@ -1185,7 +1216,7 @@
       (liveContest.players || []).forEach((x, i) => {
         const p = get(`id:${x.id}`, x.id);
         p.live = { place: x.place || i + 1, points: x.points, pulls: x.pulls, of: liveContest.players.length };
-        touch(p, x.name, at);
+        touch(p, x.name, at, true);
       });
     }
     Object.entries((pullData && pullData.players) || {}).forEach(([id, x]) => {
@@ -1193,8 +1224,13 @@
       const p = get(`id:${id}`, id);
       p.pulls = Number(x.pulls) || 0;
       if (!p.name && x.name) p.name = String(x.name);
+      if (!p.tgName && x.name) p.tgName = String(x.name);
     });
-    return [...map.values()].map(({ nameAt, ...p }) => p)
+    return [...map.values()].map(({ nameAt, tgAt, ...p }) => {
+      const nick = p.id && nicks && nicks.get ? nicks.get(p.id) : null;
+      if (!nick) return { ...p, tgName: '', past: [] };
+      return { ...p, name: nick.nick, tgName: p.tgName && p.tgName !== nick.nick ? p.tgName : '', past: nick.past || [] };
+    })
       .sort((a, b) => (b.contests + b.records + (b.live ? 1 : 0)) - (a.contests + a.records + (a.live ? 1 : 0))
         || b.last.localeCompare(a.last) || b.pulls - a.pulls || a.name.localeCompare(b.name, 'ru'));
   }
@@ -1222,9 +1258,9 @@
   }
 
   // Профиль игрока: шапка, плитки, идущий конкурс, все конкурсы и рекорды.
-  function playerProfile(events, contests, live, key, pullData) {
-    const info = playerDirectory(events, contests, live, pullData).find((p) => p.key === key)
-      || { key, id: key.startsWith('id:') ? key.slice(3) : '', name: '', since: '', last: '', contests: 0, records: 0, pulls: 0, live: null };
+  function playerProfile(events, contests, live, key, pullData, nicks) {
+    const info = playerDirectory(events, contests, live, pullData, nicks).find((p) => p.key === key)
+      || { key, id: key.startsWith('id:') ? key.slice(3) : '', name: '', tgName: '', past: [], since: '', last: '', contests: 0, records: 0, pulls: 0, live: null };
     const id = key.startsWith('id:') ? key.slice(3) : '';
     const liveContest = live && live.contest;
     const list = id ? (contests || []).filter((c) => !(liveContest && c.id === liveContest.id)).map((c) => {
@@ -1245,7 +1281,7 @@
     const places = list.map((c) => c.place).filter(Boolean);
     const recPlaces = rec.best.map((b) => b.rank);
     return {
-      key, id, name: info.name || rec.name, since: info.since,
+      key, id, name: info.name || rec.name, tgName: info.tgName || '', past: info.past || [], since: info.since,
       tiles: {
         contests: list.length,
         bestPlace: places.length ? Math.min(...places) : null,
@@ -1584,7 +1620,7 @@
     packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, chunkText, hitsToKill, seasonNews,
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
-    legendOwnerId, playerDirectory, playerProfile, hallOfFame,
+    legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
     pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
