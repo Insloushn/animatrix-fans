@@ -556,6 +556,12 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .home-me { padding: 4px 0; }
 .home-me:hover { background: none; }
 /* «🃏 Карты»: сетка миниатюр 3:4, рамка — цвет ранга; на ПК 6–8 в ряд, на телефоне 3. */
+/* «📊 Рейтинги»: место, аватар, ник, значение справа; своя строка подсвечена. */
+.rate-place { flex: none; width: 30px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); }
+.rate-row .player-text { flex: 1 1 auto; }
+.rate-value { flex: none; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rate-me { background: var(--tint); box-shadow: inset 3px 0 0 var(--accent); }
+.rate-gap { text-align: center; color: var(--muted); font-size: 12px; padding: 2px 0; }
 .cat-head { display: grid; gap: 8px; }
 .cat-head .track { max-width: none; height: 8px; border-radius: 4px; }
 .cat-head .track span { border-radius: 4px; }
@@ -652,6 +658,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <button role="tab" data-tab="cards" aria-selected="false" id="cardsTab" hidden>Карты</button>
     <button role="tab" data-tab="compare" aria-selected="false">Сравнение</button>
     <button role="tab" data-tab="players" aria-selected="false">Игроки</button>
+    <button role="tab" data-tab="ratings" aria-selected="false">Рейтинги</button>
     <button role="tab" data-tab="stats" aria-selected="false">Статистика</button>
     <button role="tab" data-tab="news" aria-selected="false">Новости сезона</button>
     <button role="tab" data-tab="heroes" aria-selected="false" data-admin>Герои и скины</button>
@@ -804,6 +811,12 @@ details.card summary { cursor: pointer; font-weight: 500; }
   <section class="view" id="view-players" hidden>
     <div class="tools"><input id="playersSearch" type="search" placeholder="Найти игрока" aria-label="Найти игрока"><span class="small muted" id="playersCount"></span></div>
     <div id="playersOut" class="view"></div>
+  </section>
+
+  <section class="view" id="view-ratings" hidden>
+    <div class="chips" id="rateTabs" role="tablist" aria-label="Рейтинг"></div>
+    <p class="small muted" id="rateNote"></p>
+    <div id="rateOut" class="view"></div>
   </section>
 
   <section class="view" id="view-cards" hidden>
@@ -1005,7 +1018,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=c64926d787"></script>
+<script src="engine.js?v=a17b59b856"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -3172,6 +3185,7 @@ function goBack() {
 function renderPlayerViews() {
   renderMe();
   renderProfile();
+  renderRatings();
   renderPlayers();
   renderHome();
 }
@@ -3764,6 +3778,53 @@ function thumbHtml(h, skin) {
   return `<img class="hero-thumb" src="cards/${esc(pic.file)}.s.jpg" width="40" height="40" alt="" loading="lazy" decoding="async">`;
 }
 const withThumb = (h, inner, skin) => { const t = thumbHtml(h, skin); return t ? `<div class="hero-pic-row">${t}<div>${inner}</div></div>` : inner; };
+
+// ---------- «📊 Рейтинги» (tickets/site-v2-shell.md, часть 3) ----------
+const RATE_SHOWN = 50;
+const rateState = { tab: 'contests' };
+const RATE_TABS = [['contests', '🏆 Конкурсы'], ['legends', '💎 Легендарки'], ['luck', '🍀 Удача'], ['records', '🥇 Рекорды'], ['collectors', '📚 Коллекционеры'], ['helpers', '🖼 Помощники']];
+const rateNote = (tab) => ({
+  contests: 'Побед в конкурсах круток (1 место), при равенстве — подиумов, затем лучшее место.',
+  legends: 'SSS и SS за всё время по общей статистике круток; при равенстве выше тот, у кого больше SSS.',
+  luck: `Удача в крутках, как в профиле: считается от ${(pullStats && pullStats.luckMin) || 50} круток, выше — везучее.`,
+  records: 'Первых мест в ивентах (лучший результат игрока в каждом ивенте), при равенстве — мест в топ-3.',
+  collectors: 'Разных героев из круток и карт, присланных боту @AniMatrix_fansBot.',
+  helpers: 'Сколько картинок карт и скинов появилось на сайте благодаря игроку.',
+}[tab]);
+let rateCache = null;
+const ratingsData = () => {
+  const c = rateCache;
+  if (c && c.contests === contests && c.pulls === pullStats && c.records === records && c.cards === cardsData && c.heroes === heroes) return c.data;
+  rateCache = { contests, pulls: pullStats, records, cards: cardsData, heroes, data: E.ratings({ contests, pulls: pullStats, events: records, cards: cardsData, heroes }) };
+  return rateCache.data;
+};
+
+function renderRatings() {
+  if ($('view-ratings').hidden) return;
+  if (!loaded) { $('rateOut').innerHTML = '<p class="empty">Загружаю…</p>'; return; }
+  const all = ratingsData();
+  const tabs = RATE_TABS.filter(([id]) => all[id]);
+  if (!tabs.some(([id]) => id === rateState.tab)) rateState.tab = tabs[0][0];
+  $('rateTabs').innerHTML = tabs.map(([id, label]) => `<button class="chip" role="tab" data-rate="${id}" aria-selected="${id === rateState.tab}" aria-pressed="${id === rateState.tab}">${label}</button>`).join('');
+  $('rateNote').textContent = rateNote(rateState.tab);
+  const rows = all[rateState.tab];
+  const me = myPlayerKey();
+  const names = new Map(playerDir().map((p) => [p.key, p.name]));
+  const nameOf = (r) => shownName(r.key, names.get(r.key) || r.name || (r.key.startsWith('id:') ? `ID ${r.key.slice(3)}` : r.key.slice(2)));
+  const row = (r) => {
+    const name = nameOf(r);
+    return `<button class="player-row rate-row${r.key === me ? ' rate-me' : ''}" data-player="${esc(r.key)}">
+      <span class="rate-place">${recPlace(r.place)}</span>${avatarHtml(r.key, name)}
+      <span class="player-text"><b>${esc(name)}${r.key === me ? ' <span class="tag">это ты</span>' : ''}</b><small>${esc(r.note)}</small></span>
+      <b class="rate-value">${esc(r.value)}</b>
+    </button>`;
+  };
+  const top = rows.slice(0, RATE_SHOWN);
+  const mine = me && !top.some((r) => r.key === me) ? rows.find((r) => r.key === me) : null;
+  $('rateOut').innerHTML = rows.length
+    ? `<div class="card player-list">${top.map(row).join('')}${mine ? `<div class="rate-gap">…</div>${row(mine)}` : ''}</div>`
+    : '<p class="empty">Пока пусто: здесь появятся игроки, когда будут данные.</p>';
+}
 
 // ---------- «🃏 Карты»: каталог картинками (tickets/site-v2-shell.md, часть 2) ----------
 const CAT_PAGE = 60;
@@ -4772,11 +4833,12 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
   closeMenu(false);
   closeDrop(false);
   renderNav();
-  ['top', 'compare', 'card', 'cards', 'collection', 'news', 'records', 'contests', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
+  ['top', 'compare', 'card', 'cards', 'ratings', 'collection', 'news', 'records', 'contests', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
   if (tab === 'records') renderRecords();
   if (tab === 'contests') renderContests();
   if (tab === 'card') renderCard();
   if (tab === 'cards') renderCards();
+  if (tab === 'ratings') renderRatings();
   if (tab === 'collection') renderCollection();
   if (tab === 'news') renderNews();
   if (tab === 'stats') renderStats();
@@ -4809,6 +4871,7 @@ const TAB_INFO = {
   news: { icon: '📰', label: 'Новости сезона', note: 'Новые герои, скины и кто сдвинулся' },
   profile: { icon: '👤', label: 'Профиль', note: 'Твои конкурсы и рекорды' },
   players: { icon: '👥', label: 'Игроки', note: 'Все участники конкурсов и рекордов' },
+  ratings: { icon: '📊', label: 'Рейтинги', note: 'Лучшие игроки: конкурсы, легендарки, удача, рекорды' },
   records: { icon: '🥇', label: 'Рекорды игроков', note: 'Лучшие результаты в ивентах и событиях бота' },
   contests: { icon: '🎲', label: 'Конкурсы', note: 'Итоги конкурсов круток и лучшие за всё время' },
   stats: { icon: '📊', label: 'Статистика', note: 'Доли рангов, классов и аниме' },
@@ -5304,6 +5367,7 @@ $('profileOut').addEventListener('change', (e) => {
   if (e.target.matches('[data-prof-past]')) { profileDraft.s.past = e.target.checked; profileSettingsRedraw(); }
 });
 $('profileOut').addEventListener('toggle', (e) => { if (e.target.id === 'profileSettings') profileDraft.open = e.target.open; }, true);
+$('rateTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-rate]'); if (b) { rateState.tab = b.dataset.rate; renderRatings(); } });
 $('catSearch').addEventListener('input', (e) => catSet({ q: e.target.value }));
 $('catRank').addEventListener('change', (e) => catSet({ rank: e.target.value }));
 $('catCls').addEventListener('change', (e) => catSet({ cls: e.target.value }));
@@ -6166,7 +6230,7 @@ function initTelegram(app) {
   const start = app.initDataUnsafe && app.initDataUnsafe.start_param;
   const hero = start && heroByCode(start);
   if (hero) openCard(E.heroId(hero));
-  if (start === 'records' || start === 'contests' || start === 'cards') showTab(start);
+  if (start === 'records' || start === 'contests' || start === 'cards' || start === 'ratings') showTab(start);
   const playerId = start && start.match(/^p_(\d+)$/);
   if (playerId) openPlayer(`id:${playerId[1]}`);
 }

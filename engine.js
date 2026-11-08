@@ -1567,6 +1567,71 @@
       || a.h.name.localeCompare(b.h.name, 'ru'));
   }
 
+  // ---------- «📊 Рейтинги» (tickets/site-v2-shell.md, часть 3) ----------
+  // Только из файлов сайта. Строка: { key, name, place, value, note }; одинаковый счёт — одно место. Пустая вкладка — [].
+  // Вкладки «Помощники» нет (null), пока в cards.json нет поля credits.
+  function rankRows(rows, cmp) {
+    const sorted = rows.sort((a, b) => cmp(a, b) || String(a.name).localeCompare(String(b.name), 'ru'));
+    return sorted.map((r, i) => ({ ...r, place: sorted.findIndex((x) => cmp(x, r) === 0) + 1 }));
+  }
+  function ratings({ contests, pulls, events, cards, heroes } = {}) {
+    const keyOf = (id, name) => (id ? `id:${id}` : `n:${String(name || '').trim()}`);
+    const pullPlayers = Object.entries((pulls && pulls.players) || {});
+    const nameOf = new Map(pullPlayers.map(([id, p]) => [`id:${id}`, p.name || '']));
+
+    // Конкурсы: побед, затем подиумов, затем лучшее место. Итоги — свежие сверху, имя — из последнего.
+    const byContest = new Map();
+    (contests || []).forEach((c) => (c.players || []).forEach((p) => {
+      const key = keyOf(p.id, p.name);
+      const x = byContest.get(key) || { key, name: p.name || '', wins: 0, podiums: 0, best: Infinity };
+      if (p.place === 1) x.wins += 1;
+      if (p.place >= 1 && p.place <= 3) x.podiums += 1;
+      if (p.place >= 1) x.best = Math.min(x.best, p.place);
+      byContest.set(key, x);
+    }));
+    const contestRows = rankRows([...byContest.values()].filter((x) => x.best < Infinity),
+      (a, b) => b.wins - a.wins || b.podiums - a.podiums || a.best - b.best)
+      .map((x) => ({ key: x.key, name: x.name, place: x.place, value: `🥇 ${x.wins}`, note: `подиумов ${x.podiums} · лучшее место №${x.best}` }));
+
+    // Легендарки: SSS + SS из общей статистики круток; при равенстве важнее SSS.
+    const legendRows = rankRows(pullPlayers.map(([id, p]) => ({ key: `id:${id}`, name: p.name || '', sss: p.sss || 0, ss: p.ss || 0 }))
+      .filter((x) => x.sss + x.ss > 0), (a, b) => (b.sss + b.ss) - (a.sss + a.ss) || b.sss - a.sss)
+      .map((x) => ({ key: x.key, name: x.name, place: x.place, value: String(x.sss + x.ss), note: `SSS ${x.sss} · SS ${x.ss}` }));
+
+    // Удача: как в профиле, от luckMin круток; «мало данных» не показывается.
+    const min = (pulls && pulls.luckMin) || 50;
+    const luckRows = rankRows(pullPlayers.map(([id, p]) => ({ key: `id:${id}`, name: p.name || '', pulls: p.pulls || 0, luck: pullLuck(p, min) }))
+      .filter((x) => x.luck.value != null), (a, b) => b.luck.value - a.luck.value)
+      .map((x) => ({ key: x.key, name: x.name, place: x.place, value: x.luck.num, note: `${x.luck.note} · круток ${x.pulls}` }));
+
+    // Рекорды: первых мест по ивентам (лучший результат игрока в ивенте), затем мест в топ-3.
+    const byRecord = new Map();
+    recordLeaders(events || []).forEach((g) => g.players.filter((p) => p.place <= 3).forEach((p) => {
+      const x = byRecord.get(p.key) || { key: p.key, name: p.player, firsts: 0, top3: 0 };
+      if (p.place === 1) x.firsts += 1;
+      x.top3 += 1;
+      byRecord.set(p.key, x);
+    }));
+    const recordRows = rankRows([...byRecord.values()], (a, b) => b.firsts - a.firsts || b.top3 - a.top3)
+      .map((x) => ({ key: x.key, name: x.name, place: x.place, value: `🥇 ${x.firsts}`, note: `в топ-3: ${x.top3}` }));
+
+    // Коллекционеры: разные герои из круток и присланных карт, без повторов.
+    const byCode = new Map((heroes || []).map((h) => [heroCode(h), heroId(h)]));
+    const owned = new Map();
+    const add = (id, heroIdValue) => { if (!owned.has(id)) owned.set(id, new Set()); owned.get(id).add(heroIdValue); };
+    pullPlayers.forEach(([id, p]) => pullHeroIds(pulls, p, heroes).forEach((h) => add(id, h)));
+    Object.keys((cards && cards.owners) || {}).forEach((id) => cardOwned(cards, id).forEach(([code]) => { if (byCode.has(code)) add(id, byCode.get(code)); }));
+    const collectorRows = rankRows([...owned].map(([id, set]) => ({ key: `id:${id}`, name: nameOf.get(`id:${id}`) || '', n: set.size })).filter((x) => x.n > 0),
+      (a, b) => b.n - a.n).map((x) => ({ key: x.key, name: x.name, place: x.place, value: String(x.n), note: 'разных героев' }));
+
+    // Помощники: картинки карт и скинов, добавленные благодаря игроку (cards.json, credits — пишет бот).
+    const credits = cards && cards.credits && typeof cards.credits === 'object' ? cards.credits : null;
+    const helperRows = credits ? rankRows(Object.entries(credits).map(([id, n]) => ({ key: `id:${id}`, name: nameOf.get(`id:${id}`) || '', n: Number(n) || 0 }))
+      .filter((x) => x.n > 0), (a, b) => b.n - a.n).map((x) => ({ key: x.key, name: x.name, place: x.place, value: String(x.n), note: 'картинок' })) : null;
+
+    return { contests: contestRows, legends: legendRows, luck: luckRows, records: recordRows, collectors: collectorRows, helpers: helperRows };
+  }
+
   // Разобранные герои для облака Telegram: коды через запятую, «+» — карту добавили крутки.
   const packPullMarks = (done) => Object.keys(done || {}).sort().map((code) => code + (done[code] ? '+' : '')).join(',');
   function unpackPullMarks(text) {
@@ -1834,7 +1899,7 @@
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
     AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, profileStartCode, parseProfileCode,
     pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, cardOwned, cardAutoMark,
-    NAV_GROUPS, navGroups, navGroupOf, cardCounts, cardCatalog,
+    NAV_GROUPS, navGroups, navGroupOf, cardCounts, cardCatalog, ratings,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
     CLASSES, RANKS, DEFAULTS, NO_TITLE, SKIN_BONUS, fight, duel, plainFight, formulaScore,
