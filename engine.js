@@ -1149,10 +1149,11 @@
   }
 
   // Все игроки: имя (последнее известное), с какого времени, конкурсы, число записей в рекордах, идущий конкурс.
-  function playerDirectory(events, contests, live) {
+  // pullData — pull-stats.json: игроки только с крутками тоже в списке (имя оттуда — если другого нет), pulls — круток всего.
+  function playerDirectory(events, contests, live, pullData) {
     const map = new Map();
     const get = (key, id) => {
-      if (!map.has(key)) map.set(key, { key, id: id ? String(id) : '', name: '', nameAt: '', since: '', last: '', contests: 0, records: 0, live: null });
+      if (!map.has(key)) map.set(key, { key, id: id ? String(id) : '', name: '', nameAt: '', since: '', last: '', contests: 0, records: 0, pulls: 0, live: null });
       return map.get(key);
     };
     const touch = (p, name, at) => {
@@ -1187,9 +1188,15 @@
         touch(p, x.name, at);
       });
     }
+    Object.entries((pullData && pullData.players) || {}).forEach(([id, x]) => {
+      if (!/^\d+$/.test(id) || !x) return;
+      const p = get(`id:${id}`, id);
+      p.pulls = Number(x.pulls) || 0;
+      if (!p.name && x.name) p.name = String(x.name);
+    });
     return [...map.values()].map(({ nameAt, ...p }) => p)
       .sort((a, b) => (b.contests + b.records + (b.live ? 1 : 0)) - (a.contests + a.records + (a.live ? 1 : 0))
-        || b.last.localeCompare(a.last) || a.name.localeCompare(b.name, 'ru'));
+        || b.last.localeCompare(a.last) || b.pulls - a.pulls || a.name.localeCompare(b.name, 'ru'));
   }
 
   // «Зал славы»: все SSS и SS из конкурсов со сводкой (SSS сверху, внутри по времени) и кто выбил больше всех.
@@ -1215,9 +1222,9 @@
   }
 
   // Профиль игрока: шапка, плитки, идущий конкурс, все конкурсы и рекорды.
-  function playerProfile(events, contests, live, key) {
-    const info = playerDirectory(events, contests, live).find((p) => p.key === key)
-      || { key, id: key.startsWith('id:') ? key.slice(3) : '', name: '', since: '', last: '', contests: 0, records: 0, live: null };
+  function playerProfile(events, contests, live, key, pullData) {
+    const info = playerDirectory(events, contests, live, pullData).find((p) => p.key === key)
+      || { key, id: key.startsWith('id:') ? key.slice(3) : '', name: '', since: '', last: '', contests: 0, records: 0, pulls: 0, live: null };
     const id = key.startsWith('id:') ? key.slice(3) : '';
     const liveContest = live && live.contest;
     const list = id ? (contests || []).filter((c) => !(liveContest && c.id === liveContest.id)).map((c) => {

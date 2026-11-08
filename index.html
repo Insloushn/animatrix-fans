@@ -2890,8 +2890,8 @@ const playersState = { search: '', limit: PLAYERS_SHOWN };
 let playerDirCache = null;
 const playerDir = () => {
   const c = playerDirCache;
-  if (c && c.records === records && c.contests === contests && c.live === contestLive) return c.list;
-  playerDirCache = { records, contests, live: contestLive, list: E.playerDirectory(records, contests, contestLive) };
+  if (c && c.records === records && c.contests === contests && c.live === contestLive && c.pulls === pullStats) return c.list;
+  playerDirCache = { records, contests, live: contestLive, pulls: pullStats, list: E.playerDirectory(records, contests, contestLive, pullStats) };
   return playerDirCache.list;
 };
 const tgUser = () => (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
@@ -2965,7 +2965,7 @@ function renderProfile() {
       <div><button class="btn mini" data-go="players">👥 Все игроки</button></div>`;
     return;
   }
-  const p = E.playerProfile(records, contests, contestLive, key);
+  const p = E.playerProfile(records, contests, contestLive, key, pullStats);
   const mine = key === me;
   const pp = E.pullPlayer(pullStats, key); // общая статистика круток (pull-stats.json)
   const name = p.name || (pp && pp.name) || (mine ? tgUserName() : '') || (key.startsWith('n:') ? key.slice(2) : 'Игрок');
@@ -3035,7 +3035,9 @@ function renderPlayers() {
   const row = (p) => `<button class="player-row" data-player="${esc(p.key)}">
       ${avatarHtml(p.key, p.name)}
       <span class="player-text"><b>${esc(p.name)}${p.key === me ? ' <span class="tag">это ты</span>' : ''}</b>
-        <small>${[`конкурсов ${p.contests}`, `рекордов ${p.records}`, p.live ? '🔴 в конкурсе' : ''].filter(Boolean).join(' · ')}</small></span>
+        <small>${(p.contests || p.records || p.live
+          ? [`конкурсов ${p.contests}`, `рекордов ${p.records}`, p.pulls > 0 ? `круток ${fmt(p.pulls)}` : '', p.live ? '🔴 в конкурсе' : '']
+          : [p.pulls > 0 ? `круток ${fmt(p.pulls)}` : '']).filter(Boolean).join(' · ')}</small></span>
     </button>`;
   const shownId = withId.slice(0, playersState.limit);
   const shownNo = noId.slice(0, Math.max(0, playersState.limit - withId.length));
@@ -3128,7 +3130,7 @@ function renderHome() {
   // Мой профиль — только в Telegram, где известен свой ID.
   const me = myPlayerKey();
   if (me) {
-    const p = E.playerProfile(records, contests, contestLive, me);
+    const p = E.playerProfile(records, contests, contestLive, me, pullStats);
     const name = p.name || tgUserName() || 'Игрок';
     const line = [p.tiles.bestPlace ? `лучшее место: №${p.tiles.bestPlace}` : '', `конкурсов: ${p.tiles.contests}`, p.live ? `сейчас №${p.live.place}` : ''].filter(Boolean).join(' · ');
     parts.push(card('👤 Мой профиль', 'profile', `<button class="player-row home-me" data-go="profile">${avatarHtml(me, name)}<span class="player-text"><b>${esc(name)}</b><small>${esc(line)}</small></span></button>`));
