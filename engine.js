@@ -872,13 +872,44 @@
   const heroCode = (h) => hashString(heroId(h)).toString(36);
 
   // Коллекция для облака Telegram: коды через запятую, звёздочка после кода значит скин.
-  function packCollection(collection, heroes) {
+  // skinOnly — «только скин» (id → true): «код~»; старый разбор такой код не узнаёт и пропускает (tickets/skins-separate.md).
+  function packCollection(collection, heroes, skinOnly) {
     const codes = new Set();
     heroes.forEach((h) => {
       const entry = collection[heroId(h)];
       if (entry) codes.add(heroCode(h) + (entry.skin ? '*' : ''));
+      else if (skinOnly && skinOnly[heroId(h)] && h.skin) codes.add(`${heroCode(h)}~`);
     });
     return [...codes].sort().join(',');
+  }
+
+  // «Только скин» из той же строки облака: id → true. Герой, отмеченный и картой, сюда не попадает.
+  function unpackSkinOnly(text, heroes) {
+    const byCode = new Map(heroes.map((h) => [heroCode(h), heroId(h)]));
+    const parts = String(text || '').split(',').filter(Boolean);
+    const owned = new Set(parts.map((p) => p.replace(/\*$/, '')));
+    const out = {};
+    parts.forEach((part) => {
+      if (!part.endsWith('~')) return;
+      const code = part.slice(0, -1);
+      const id = byCode.get(code);
+      if (id && !owned.has(code)) out[id] = true;
+    });
+    return out;
+  }
+
+  // Сколько в коллекции карт и скинов: «только скин» — в скинах, не в картах.
+  function collectionCounts(heroes, collection, skinOnly) {
+    let cards = 0;
+    let skins = 0;
+    let only = 0;
+    (heroes || []).forEach((h) => {
+      const id = heroId(h);
+      const entry = collection && collection[id];
+      if (entry) { cards += 1; if (h.skin && entry.skin) skins += 1; }
+      else if (h.skin && skinOnly && skinOnly[id]) { skins += 1; only += 1; }
+    });
+    return { cards, skins, only };
   }
 
   // Код героя, которого больше нет в базе, пропускается.
@@ -1298,7 +1329,7 @@
   function playerDirectory(events, contests, live, pullData, nicks, profiles, cardData) {
     const map = new Map();
     const get = (key, id) => {
-      if (!map.has(key)) map.set(key, { key, id: id ? String(id) : '', name: '', nameAt: '', tgName: '', tgAt: '', since: '', last: '', contests: 0, records: 0, pulls: 0, cards: 0, live: null });
+      if (!map.has(key)) map.set(key, { key, id: id ? String(id) : '', name: '', nameAt: '', tgName: '', tgAt: '', since: '', last: '', contests: 0, records: 0, pulls: 0, cards: 0, skins: 0, live: null });
       return map.get(key);
     };
     const touch = (p, name, at, fromTelegram) => {
@@ -1344,7 +1375,9 @@
     Object.keys((cardData && cardData.owners) || {}).forEach((id) => {
       if (!/^\d+$/.test(id)) return;
       const p = get(`id:${id}`, id);
-      p.cards = new Set(cardOwned(cardData, id).map((x) => x[0])).size;
+      const n = cardOwnedCounts(cardData, id);
+      p.cards = n.cards;
+      p.skins = n.skins;
       if (!p.name) p.name = (nicks && nicks.get && nicks.get(id) && nicks.get(id).nick) || `ID ${id}`;
     });
     return [...map.values()].map(({ nameAt, tgAt, ...p }) => {
@@ -1512,10 +1545,19 @@
     return list;
   }
 
+  // Картинка строго своей версии (tickets/thumbs-strict.md): карта — только без скина, скин — первый скин по имени. Нет — null.
+  const versionPic = (pics, skin) => (pics || []).find((x) => (skin ? !!x.skin : !x.skin)) || null;
+
   // Карты игрока из cards.json: [[код, скин или '', уровень]]. Нет — пустой список.
   function cardOwned(data, id) {
     const list = data && data.owners && data.owners[String(id || '')];
     return Array.isArray(list) ? list.filter((x) => Array.isArray(x) && x[0]) : [];
+  }
+
+  // Подтверждено ботом: cards — разные герои, skins — разные пары герой+скин. known — только эти коды (null — все).
+  function cardOwnedCounts(data, id, known) {
+    const list = cardOwned(data, id).filter((x) => !known || known.has(x[0]));
+    return { cards: new Set(list.map((x) => x[0])).size, skins: new Set(list.filter((x) => x[1]).map((x) => `${x[0]}|${x[1]}`)).size };
   }
 
   // Автоотметка из карт — как из круток: только добавляет. done — разобранное (код → true, если добавили карты;
@@ -1558,7 +1600,9 @@
     const q = normName(f.q || '');
     const list = (heroes || []).map((h) => {
       const pics = cardImages(data, heroCode(h));
-      return { h, pic: pics.find((x) => !x.skin) || pics[0] || null, hasImg: pics.some((x) => !x.skin), skinPic: pics.some((x) => x.skin), mine: !!owned(h) };
+      // pic — только картинка карты: есть лишь скин — плитка-заглушка со значком 🎭; skins — картинки скинов для наведения.
+      const skins = pics.filter((x) => x.skin);
+      return { h, pic: versionPic(pics, false), hasImg: pics.some((x) => !x.skin), skinPic: skins.length > 0, skins, mine: !!owned(h) };
     }).filter((x) => (!q || normName(x.h.name).includes(q) || normName(x.h.title || '').includes(q))
       && (!f.rank || x.h.rank === f.rank) && (!f.cls || x.h.cls === f.cls) && (!f.title || (x.h.title || NO_TITLE) === f.title)
       && (f.pic !== 'yes' || x.hasImg) && (f.pic !== 'no' || !x.hasImg) && (!f.skin || x.skinPic) && (!f.mine || x.mine));
@@ -1570,6 +1614,27 @@
   // ---------- «📊 Рейтинги» (tickets/site-v2-shell.md, часть 3) ----------
   // Только из файлов сайта. Строка: { key, name, place, value, note }; одинаковый счёт — одно место. Пустая вкладка — [].
   // Вкладки «Помощники» нет (null), пока в cards.json нет поля credits.
+  // 1 карта, 2 карты, 5 карт.
+  function plural(n, one, few, many) {
+    const d = Math.abs(n) % 100;
+    const u = d % 10;
+    return d > 10 && d < 20 ? many : u === 1 ? one : u >= 2 && u <= 4 ? few : many;
+  }
+  // Вклад игрока в картинки (cards.json: credits — всего, creditsBy — карты и скины, tickets/art-contest.md).
+  // → { total, hero, skin, split, text } | null; split — есть разбивка; text — «3 карты · 1 скин» (нулевая часть не пишется),
+  // без разбивки — «4 картинки». Счёт до разбивки (credits больше суммы) — «· ещё N».
+  function cardCredits(cards, id) {
+    const credits = (cards && cards.credits) || {};
+    const by = cards && cards.creditsBy && cards.creditsBy[id];
+    const hero = by ? Number(by.hero) || 0 : 0;
+    const skin = by ? Number(by.skin) || 0 : 0;
+    const total = Math.max(Number(credits[id]) || 0, hero + skin);
+    if (total <= 0) return null;
+    if (!by || hero + skin <= 0) return { total, hero: 0, skin: 0, split: false, text: `${total} ${plural(total, 'картинка', 'картинки', 'картинок')}` };
+    const parts = [hero ? `${hero} ${plural(hero, 'карта', 'карты', 'карт')}` : '', skin ? `${skin} ${plural(skin, 'скин', 'скина', 'скинов')}` : ''];
+    const rest = total - hero - skin;
+    return { total, hero, skin, split: true, text: [...parts, rest ? `ещё ${rest}` : ''].filter(Boolean).join(' · ') };
+  }
   function rankRows(rows, cmp) {
     const sorted = rows.sort((a, b) => cmp(a, b) || String(a.name).localeCompare(String(b.name), 'ru'));
     return sorted.map((r, i) => ({ ...r, place: sorted.findIndex((x) => cmp(x, r) === 0) + 1 }));
@@ -1615,19 +1680,28 @@
     const recordRows = rankRows([...byRecord.values()], (a, b) => b.firsts - a.firsts || b.top3 - a.top3)
       .map((x) => ({ key: x.key, name: x.name, place: x.place, value: `🥇 ${x.firsts}`, note: `в топ-3: ${x.top3}` }));
 
-    // Коллекционеры: разные герои из круток и присланных карт, без повторов.
+    // Коллекционеры: разные герои из круток и присланных карт, без повторов; скины (пары герой+скин из cards.json) — отдельно.
+    // Порядок — по картам, при равенстве — по скинам.
     const byCode = new Map((heroes || []).map((h) => [heroCode(h), heroId(h)]));
     const owned = new Map();
+    const skinsOf = new Map();
     const add = (id, heroIdValue) => { if (!owned.has(id)) owned.set(id, new Set()); owned.get(id).add(heroIdValue); };
     pullPlayers.forEach(([id, p]) => pullHeroIds(pulls, p, heroes).forEach((h) => add(id, h)));
-    Object.keys((cards && cards.owners) || {}).forEach((id) => cardOwned(cards, id).forEach(([code]) => { if (byCode.has(code)) add(id, byCode.get(code)); }));
-    const collectorRows = rankRows([...owned].map(([id, set]) => ({ key: `id:${id}`, name: nameOf.get(`id:${id}`) || '', n: set.size })).filter((x) => x.n > 0),
-      (a, b) => b.n - a.n).map((x) => ({ key: x.key, name: x.name, place: x.place, value: String(x.n), note: 'разных героев' }));
+    Object.keys((cards && cards.owners) || {}).forEach((id) => {
+      cardOwned(cards, id).forEach(([code]) => { if (byCode.has(code)) add(id, byCode.get(code)); });
+      skinsOf.set(id, cardOwnedCounts(cards, id, byCode).skins);
+    });
+    const collectorRows = rankRows([...owned].map(([id, set]) => ({ key: `id:${id}`, name: nameOf.get(`id:${id}`) || '', n: set.size, s: skinsOf.get(id) || 0 })).filter((x) => x.n > 0),
+      (a, b) => b.n - a.n || b.s - a.s).map((x) => ({ key: x.key, name: x.name, place: x.place,
+      value: `${x.n} ${plural(x.n, 'карта', 'карты', 'карт')} · ${x.s} ${plural(x.s, 'скин', 'скина', 'скинов')}`, note: '' }));
 
-    // Помощники: картинки карт и скинов, добавленные благодаря игроку (cards.json, credits — пишет бот).
+    // Помощники: картинки карт и скинов, добавленные благодаря игроку (cards.json, credits и creditsBy — пишет бот).
+    // По сумме, при равенстве — больше карт выше; без разбивки — одно число, как раньше.
     const credits = cards && cards.credits && typeof cards.credits === 'object' ? cards.credits : null;
-    const helperRows = credits ? rankRows(Object.entries(credits).map(([id, n]) => ({ key: `id:${id}`, name: nameOf.get(`id:${id}`) || '', n: Number(n) || 0 }))
-      .filter((x) => x.n > 0), (a, b) => b.n - a.n).map((x) => ({ key: x.key, name: x.name, place: x.place, value: String(x.n), note: 'картинок' })) : null;
+    const helperIds = credits ? [...new Set([...Object.keys(credits), ...Object.keys((cards.creditsBy && typeof cards.creditsBy === 'object' && cards.creditsBy) || {})])] : [];
+    const helperRows = credits ? rankRows(helperIds.map((id) => ({ key: `id:${id}`, name: nameOf.get(`id:${id}`) || '', c: cardCredits(cards, id) }))
+      .filter((x) => x.c), (a, b) => b.c.total - a.c.total || b.c.hero - a.c.hero)
+      .map((x) => ({ key: x.key, name: x.name, place: x.place, value: x.c.split ? x.c.text : String(x.c.total), note: x.c.split ? `всего ${x.c.total}` : 'картинок' })) : null;
 
     return { contests: contestRows, legends: legendRows, luck: luckRows, records: recordRows, collectors: collectorRows, helpers: helperRows };
   }
@@ -1893,13 +1967,13 @@
 
   return {
     deriveHeroes, numberedHeroes, offTopHeroes, groupCacheKey, runsForGroup, hasEqualScores, offTopRow, collectGroupRows, groupError,
-    packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, chunkText, hitsToKill, seasonNews,
+    packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, unpackSkinOnly, collectionCounts, chunkText, hitsToKill, seasonNews,
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
     AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, profileStartCode, parseProfileCode,
-    pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, cardOwned, cardAutoMark,
-    NAV_GROUPS, navGroups, navGroupOf, cardCounts, cardCatalog, ratings,
+    pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, versionPic, cardOwned, cardOwnedCounts, cardAutoMark,
+    NAV_GROUPS, navGroups, navGroupOf, cardCounts, cardCatalog, ratings, cardCredits,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
     CLASSES, RANKS, DEFAULTS, NO_TITLE, SKIN_BONUS, fight, duel, plainFight, formulaScore,
