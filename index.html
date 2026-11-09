@@ -418,6 +418,30 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 12px; align-items: start; }
 .stat-grid > * { min-width: 0; }
 .opp-scope { margin: 4px 0 10px; flex-wrap: nowrap; }
+.battle-tabs .chip, .battle-ranks .chip { white-space: nowrap; }
+.battle-controls { display: grid; gap: 8px; }
+.battle-controls:empty { display: none; }
+.battle-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; align-items: start; }
+.battle-grid > * { min-width: 0; }
+.battle-rank h2 { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin: 0; }
+.battle-meta { margin: 0; }
+.battle-best { display: grid; gap: 2px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--accent); }
+.battle-best b.pct { font-size: 22px; }
+.battle-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.battle-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; align-items: baseline; }
+.battle-list li > span:last-child { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.battle-warn { color: var(--warn); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.battle-opp { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: end; }
+.battle-opp .field { flex: 0 0 auto; }
+.battle-opp .field.wide { flex: 1 1 220px; min-width: 0; }
+.battle-opp .check { display: flex; gap: 6px; align-items: center; min-height: 34px; color: var(--fg); white-space: nowrap; }
+.battle-duel { width: 100%; }
+.battle-duel td:first-child { white-space: normal; }
+.battle-opp input[type="number"] { width: 72px; }
+.battle-lv { width: 56px; padding: 4px 6px; }
+.battle-duel td, .battle-duel th { padding-left: 6px; padding-right: 6px; }
+.battle-duel td:nth-child(2), .battle-duel td:nth-child(3) { white-space: nowrap; }
+.battle-easy { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .opp-scope .chip { white-space: nowrap; }
 .opp-classes { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0 0 10px; }
 .opp-cls { white-space: nowrap; font-weight: 600; }
@@ -721,6 +745,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <button role="tab" data-tab="card" aria-selected="false">Карточка героя</button>
     <button role="tab" data-tab="cards" aria-selected="false" id="cardsTab" hidden>Карты</button>
     <button role="tab" data-tab="compare" aria-selected="false">Сравнение</button>
+    <button role="tab" data-tab="battle" aria-selected="false">Подбор на бой</button>
     <button role="tab" data-tab="players" aria-selected="false">Игроки</button>
     <button role="tab" data-tab="ratings" aria-selected="false">Рейтинги</button>
     <button role="tab" data-tab="stats" aria-selected="false">Статистика</button>
@@ -803,6 +828,13 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <div class="card" id="verdict"></div>
     <div class="card" id="verdictPlain"></div>
     <datalist id="heroList"></datalist>
+  </section>
+
+  <section class="view" id="view-battle" hidden>
+    <div class="chips battle-tabs" id="battleTabs" role="tablist" aria-label="Подбор на бой"></div>
+    <div id="battleControls" class="battle-controls"></div>
+    <div class="status small muted" id="battleStatus" hidden><span id="battleNote"></span><div class="track"><span id="battleBar"></span></div></div>
+    <div id="battleOut" class="view"></div>
   </section>
 
   <section class="view" id="view-card" hidden>
@@ -1082,7 +1114,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=1a54a23255"></script>
+<script src="engine.js?v=487e259811"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -2868,6 +2900,376 @@ function renderAdvice() {
     </div>`;
 }
 
+// ---------- «⚔️ Подбор на бой» (tickets/battle-picker.md) ----------
+// Идеальный отряд, Мой отряд, Дуэль, Героический Штурм. Модель боя и топ — как есть, только используются.
+// Выбор лучших — на равных уровнях (1 ур.); уровни влияют только в «Дуэли» и в «с твоей прокачкой» Штурма.
+const BATTLE_TABS = [['ideal', '🏅 Идеальный отряд'], ['squad', '🎒 Мой отряд'], ['duel', '🧩 Дуэль'], ['storm', '🎓 Героический Штурм']];
+const STORM_RANKS = ['A', 'B', 'C', 'D', 'E', 'F'];
+const BATTLE_SHOWN = 4; // топ-1 и 3 запасных
+// «Мета ранга» — сводка разбора классов (claude/systems/class-balance.md, топ-5 каждого класса, 2026-11-08), не пересчёт.
+const RANK_META = {
+  SSS: '☯️ Гибриды сильнее всех среди лучших, 🛡 Танки слабее',
+  SS: '🔥 Дамагеры и ☯️ Гибриды сильнее, 🛡 Танки сильно отстают',
+  S: '🔥 Дамагеры сильнее всех, за ними ☯️ Гибриды; 🛡 Танки слабее',
+  A: '🔥 Дамагеры сильнее всех, за ними ☯️ Гибриды; ☘️ Саппорты и 🛡 Танки слабее',
+  B: '🔥 Дамагеры сильнее всех, за ними ☯️ Гибриды; ☘️ Саппорты и 🛡 Танки слабее',
+  C: '🔥 Дамагеры сильнее всех, за ними ☯️ Гибриды; 🛡 Танки сильно отстают',
+  D: '🔥 Дамагеры сильнее всех, за ними ☯️ Гибриды; 🛡 Танки сильно отстают',
+  E: '🔥 Дамагеры сильнее всех, за ними ☯️ Гибриды; 🛡 Танки сильно отстают',
+  F: '🔥 Дамагеры сильнее всех, за ними ☘️ Саппорты; 🛡 Танки сильно отстают',
+};
+const battleSaved = readStore('ani-battle', {}) || {};
+const battleState = {
+  tab: BATTLE_TABS.some(([id]) => id === battleSaved.tab) ? battleSaved.tab : 'ideal',
+  skins: !!battleSaved.skins,
+  ranks: Array.isArray(battleSaved.ranks) ? E.RANKS.filter((r) => battleSaved.ranks.includes(r)) : [...E.RANKS],
+  storm: STORM_RANKS.includes(battleSaved.storm) ? battleSaved.storm : 'A',
+  opp: { id: '', level: 1, skin: false },
+  levels: readStore('ani-battle-levels', {}) || {}, // уровни, которых нет в cards.json: id героя → уровень
+  controlsFor: '',
+};
+const saveBattle = () => writeStore('ani-battle', { tab: battleState.tab, skins: battleState.skins, ranks: battleState.ranks, storm: battleState.storm });
+// Посчитанное живёт, пока не сменилась база героев: job можно бросить на середине и продолжить позже.
+const battleCache = { heroes: null, calc: '', ideal: new Map(), squad: new Map(), duel: new Map(), memo: new Map(), timer: null, current: null };
+const BATTLE_STORE = 'ani-battle-ideal';
+
+function battleReset() {
+  const sig = String(calcFor(null).maxMoves);
+  if (battleCache.heroes === heroes && battleCache.calc === sig) return;
+  Object.assign(battleCache, { heroes, calc: sig, ideal: new Map(), squad: new Map(), duel: new Map(), memo: new Map(), current: null });
+}
+
+// Подпись состава ранга: по ней узнаётся сохранённый в браузере результат.
+const poolSig = (rank, skins, pool) => E.cacheHash([rank, skins ? 1 : 0, calcFor(null).maxMoves, ...pool.map((h) => `${h.key}:${h.bm}:${h.hp}`)].join('^'));
+
+function idealRestore(sig, pool) {
+  const saved = (readStore(BATTLE_STORE, {}) || {})[sig];
+  if (!saved || !Array.isArray(saved.rows)) return null;
+  const byKey = new Map(pool.map((h) => [h.key, h]));
+  const rows = saved.rows.map(([key, wins, fine]) => (byKey.has(key) ? { hero: byKey.get(key), wins, fine: !!fine, count: 1 } : null));
+  if (!rows.length || rows.some((r) => !r)) return null;
+  return { done: true, share: 1, rows, runs: saved.runs, ms: 0, restored: true, pool };
+}
+
+// В браузере — только первые 8 строк каждого ранга: при следующем открытии «Идеальный отряд» готов сразу.
+function idealSave() {
+  const old = readStore(BATTLE_STORE, {}) || {};
+  const out = {};
+  battleCache.ideal.forEach((job) => {
+    if (!job.done) return;
+    if (job.restored) { if (old[job.sig]) out[job.sig] = old[job.sig]; return; }
+    out[job.sig] = { runs: job.runs, rows: job.rows.slice(0, 8).map((r) => [r.hero.key, Number(r.wins.toFixed(6)), r.fine ? 1 : 0]) };
+  });
+  writeStore(BATTLE_STORE, out);
+}
+
+// Круговой турнир ранга. «Со скинами» берёт готовые пары из «без скинов»; ранг без скинов — тот же job.
+function idealJob(rank, skins) {
+  battleReset();
+  const id = `${rank}|${skins ? 1 : 0}`;
+  if (battleCache.ideal.has(id)) return battleCache.ideal.get(id);
+  const base = skins ? idealJob(rank, false) : null;
+  const pool = E.squadPool(heroes, rank, skins);
+  if (base && pool.every((h, k) => h === base.pool[k])) { battleCache.ideal.set(id, base); return base; }
+  if (base && !base.done) return null; // сначала без скинов
+  const sig = poolSig(rank, skins, pool);
+  const restored = idealRestore(sig, pool);
+  const job = restored || E.createPickJob(pool, pool, { maxMoves: calcFor(null).maxMoves, reuse: base && base.matrix ? base : null, memo: battleCache.memo });
+  job.sig = sig;
+  job.rank = rank;
+  job.label = `${rank}-ранг${skins ? ', со скинами' : ''}`;
+  battleCache.ideal.set(id, job);
+  return job;
+}
+
+// Лучшая своя карта ранга против всех героев ранга. Свой скин считается, если он отмечен и включено «со скинами».
+function squadJob(rank) {
+  const ideal = idealJob(rank, battleState.skins);
+  if (!ideal || !ideal.done) return null;
+  const owned = heroes.filter((h) => h.rank === rank && isOwned(h));
+  if (!owned.length) return { done: true, rows: [], empty: true };
+  const cands = owned.map((h) => {
+    const skin = battleState.skins && h.skin && hasSkinMark(h);
+    return ideal.pool.find((p) => (p.baseKey || p.key) === h.key && !!p.isSkin === !!skin) || (skin ? E.skinVersion(h) : h);
+  });
+  const id = [rank, battleState.skins ? 1 : 0, ...cands.map((h) => h.key)].join('#');
+  if (battleCache.squad.has(id)) return battleCache.squad.get(id);
+  const job = E.createPickJob(cands, ideal.pool, {
+    maxMoves: calcFor(null).maxMoves, runs: ideal.runs, fineTop: 3, memo: battleCache.memo,
+    known: (h, runs) => (ideal.coarseOf ? ideal.coarseOf(h, runs) : null),
+  });
+  job.label = `твои карты ${rank}-ранга`;
+  battleCache.squad.set(id, job);
+  return job;
+}
+
+// Уровни своих карт: из cards.json (их видел бот), иначе — поле «ур.», по умолчанию 1.
+function myLevels() {
+  const myId = myPlayerKey().slice(3);
+  return siteData && cardsData && myId ? E.cardLevels(cardsData, myId) : new Map();
+}
+function levelOf(h, levels) {
+  const known = levels.get(E.heroCode(h));
+  if (known && known.known) return { level: known.level, fromCards: true };
+  return { level: Math.max(1, Math.floor(Number(battleState.levels[E.heroId(h)]) || 1)), fromCards: false };
+}
+const mySkin = (h, levels) => !!h.skin && (hasSkinMark(h) || !!(levels.get(E.heroCode(h)) || {}).skin);
+
+function duelOpponent() {
+  const hero = heroes.find((h) => E.heroId(h) === battleState.opp.id);
+  return hero ? E.leveledHero(hero, battleState.opp.level, battleState.opp.skin && hero.skin) : null;
+}
+
+function duelJob() {
+  battleReset();
+  const opp = duelOpponent();
+  if (!opp) return null;
+  const owned = heroes.filter(isOwned);
+  const levels = myLevels();
+  const mine = owned.length
+    ? owned.map((h) => E.leveledHero(h, levelOf(h, levels).level, mySkin(h, levels)))
+    : heroes.map((h) => E.leveledHero(h, opp.level, false));
+  const id = E.cacheHash([opp.key, ...mine.map((h) => h.key)].join('#'));
+  if (battleCache.duel.has(id)) return battleCache.duel.get(id);
+  const job = E.createPickJob(mine, [opp], { maxMoves: calcFor(null).maxMoves, runs: 300, fineTop: 10, fineRuns: 2000 });
+  job.label = `бои против ${opp.name}`;
+  job.mine = !!owned.length;
+  battleCache.duel.set(id, job);
+  if (battleCache.duel.size > 20) battleCache.duel.delete(battleCache.duel.keys().next().value);
+  return job;
+}
+
+// Что считать сейчас: первый недосчитанный job открытой вкладки.
+function battleNeeded() {
+  if (!loaded) return null;
+  const tab = battleState.tab;
+  const pending = (job) => job && !job.done;
+  if (tab === 'ideal') {
+    for (const rank of E.RANKS) {
+      const base = idealJob(rank, false);
+      if (pending(base)) return base;
+      if (battleState.skins) { const s = idealJob(rank, true); if (pending(s)) return s; }
+    }
+  }
+  if (tab === 'squad') {
+    for (const rank of battleState.ranks) {
+      if (!heroes.some((h) => h.rank === rank && isOwned(h))) continue;
+      const base = idealJob(rank, false);
+      if (pending(base)) return base;
+      const ideal = idealJob(rank, battleState.skins);
+      if (pending(ideal)) return ideal;
+      const mine = squadJob(rank);
+      if (pending(mine)) return mine;
+    }
+  }
+  if (tab === 'duel') { const job = duelJob(); if (pending(job)) return job; }
+  return null;
+}
+
+function battleTick() {
+  battleCache.timer = null;
+  if ($('view-battle').hidden) return; // счёт на паузе, посчитанное остаётся
+  const job = battleNeeded();
+  if (!job) { $('battleStatus').hidden = true; return; }
+  if (battleCache.current !== job) { battleCache.current = job; renderBattle(); return; }
+  job.step(40);
+  if (job.done) {
+    if (job.sig) idealSave();
+    renderBattle();
+    return;
+  }
+  $('battleStatus').hidden = false;
+  $('battleNote').textContent = `Считаю: ${job.label} — ${Math.round(job.share * 100)}%`;
+  $('battleBar').style.width = `${job.share * 100}%`;
+  battleCache.timer = setTimeout(battleTick, 0);
+}
+
+function battleKick() {
+  if (!battleCache.timer) battleCache.timer = setTimeout(battleTick, 0);
+}
+
+const battleHero = (h, extra = '') => `${ICONS[h.cls]} ${openLink(h)}${h.isSkin || h.skinOn ? ' 🎭' : ''}${h.event ? ` ${EVENT_MARK}` : ''}${extra}`;
+const ppText = (d) => `${d >= 0 ? '+' : '−'}${Math.abs(d * 100).toFixed(1)} п.`;
+const waitLine = (text) => `<p class="small muted">${text}</p>`;
+
+function battleSkinChips() {
+  return `<div class="chips" aria-label="Скины">
+      <button class="chip" data-battle-skins="0" aria-pressed="${!battleState.skins}">Без скинов</button>
+      <button class="chip" data-battle-skins="1" aria-pressed="${battleState.skins}">🎭 Со скинами</button>
+    </div>`;
+}
+
+function renderBattleControls() {
+  const tab = battleState.tab;
+  battleState.controlsFor = tab;
+  $('battleTabs').innerHTML = BATTLE_TABS.map(([id, label]) => `<button class="chip" role="tab" data-battle-tab="${id}" aria-selected="${id === tab}" aria-pressed="${id === tab}">${label}</button>`).join('');
+  let html = '';
+  if (tab === 'ideal') html = battleSkinChips();
+  if (tab === 'squad') {
+    html = `<div class="chips battle-ranks" aria-label="Ранги ивента">${E.RANKS.map((r) => `<button class="chip" data-battle-rank="${r}" aria-pressed="${battleState.ranks.includes(r)}">${r}</button>`).join('')}</div>${battleSkinChips()}`;
+  }
+  if (tab === 'duel') {
+    fillCardList();
+    const hero = heroes.find((h) => E.heroId(h) === battleState.opp.id);
+    html = `<div class="battle-opp">
+        <label class="field wide">Соперник<input id="battleOpp" list="cardList" placeholder="Начни вводить имя героя" value="${hero ? esc(cardLabel(hero)) : ''}"></label>
+        <label class="field">Уровень<input id="battleOppLevel" type="number" min="1" max="99" value="${battleState.opp.level}"></label>
+        <label class="field check"><input id="battleOppSkin" type="checkbox"${battleState.opp.skin ? ' checked' : ''}${hero && hero.skin ? '' : ' disabled'}> 🎭 скин</label>
+      </div>`;
+  }
+  if (tab === 'storm') {
+    html = `<div class="chips battle-ranks" aria-label="Ранг ивента">${STORM_RANKS.map((r) => `<button class="chip" data-battle-storm="${r}" aria-pressed="${battleState.storm === r}">${r}</button>`).join('')}</div>${battleSkinChips()}`;
+  }
+  $('battleControls').innerHTML = html;
+}
+
+function idealRankHtml(rank) {
+  const base = idealJob(rank, false);
+  const job = battleState.skins ? idealJob(rank, true) : base;
+  const pool = base ? base.pool : E.squadPool(heroes, rank, false);
+  const head = `<h2>${rank}-ранг <span class="small muted">героев: ${fmt(pool.length)}</span></h2><p class="small muted battle-meta">Мета: ${RANK_META[rank]}</p>`;
+  if (pool.length < 2) return `<div class="card battle-rank">${head}${waitLine('В ранге нет соперников.')}</div>`;
+  if (!job || !job.done) return `<div class="card battle-rank">${head}${waitLine(battleCache.current === job && job ? 'Считаю…' : 'В очереди…')}</div>`;
+  const only = battleState.skins && base.done && job !== base ? E.skinOnlyStrong(job.rows, base.rows, BATTLE_SHOWN) : new Set();
+  const warn = (r) => (only.has(r.hero.baseKey || r.hero.key) ? ' <span class="battle-warn">⚠️ силён только со скином</span>' : '');
+  const [top, ...rest] = job.rows.slice(0, BATTLE_SHOWN);
+  return `<div class="card battle-rank">${head}
+      <div class="battle-best"><span>🏅 ${battleHero(top.hero)}${warn(top)}</span><span class="small muted">${esc(top.hero.cls)} · ${fmt(top.hero.bm)} / ${fmt(top.hero.hp)} · <b class="pct">${pct(top.wins)}</b> против ранга</span></div>
+      <ul class="battle-list">${rest.map((r) => `<li><span>${battleHero(r.hero)}${warn(r)}</span><span>${pct(r.wins)}</span></li>`).join('')}</ul>
+    </div>`;
+}
+
+function renderBattleIdeal() {
+  const jobs = E.RANKS.flatMap((r) => [idealJob(r, false), battleState.skins ? idealJob(r, true) : null]).filter(Boolean);
+  const all = jobs.length === (battleState.skins ? 18 : 9) && jobs.every((j) => j.done);
+  const ms = [...new Set(jobs)].reduce((s, j) => s + (j.ms || 0), 0);
+  return `<p class="small muted">Топ-1 каждого ранга для Эпохи Низших и 3 запасных: средний шанс против <b>всех героев своего ранга</b>, все на 1 уровне, с навыками; каждый по очереди нападает и защищается. Ивент-карты в соперники не идут.${battleState.skins ? ' Со скинами: у кого скин есть — версия со скином (+15 %), у соперников тоже. ⚠️ — в лучших только со скином: качать рискованно, скин может выйти и на сильного героя.' : ''}${all && ms > 0 ? ` Посчитано за ${(ms / 1000).toFixed(1)} с.` : ''}</p>
+    <div class="battle-grid">${E.RANKS.map(idealRankHtml).join('')}</div>`;
+}
+
+function renderBattleSquad() {
+  if (!heroes.some(isOwned)) return '<div class="card"><p>Здесь будет твой отряд для Эпохи Низших: лучший твой герой каждого ранга.</p><div><button class="btn mini" data-go="collection">📚 Отметить карты в «Моей коллекции»</button></div></div>';
+  if (!battleState.ranks.length) return '<p class="empty">Выбери ранги ивента.</p>';
+  const levels = myLevels();
+  const easy = [];
+  const cards = battleState.ranks.map((rank) => {
+    const head = `<h2>${rank}-ранг</h2>`;
+    if (!heroes.some((h) => h.rank === rank && isOwned(h))) return `<div class="card battle-rank">${head}${waitLine('Нет героев этого ранга.')}</div>`;
+    const ideal = idealJob(rank, battleState.skins);
+    const mine = squadJob(rank);
+    if (!mine || !mine.done) return `<div class="card battle-rank">${head}${waitLine(battleCache.current && battleCache.current === mine ? 'Считаю…' : 'В очереди…')}</div>`;
+    const [best, ...rest] = mine.rows;
+    if (!best) return `<div class="card battle-rank">${head}${waitLine('В ранге нет соперников.')}</div>`;
+    const top = ideal.rows[0];
+    easy.push({ rank, wins: best.wins });
+    const base = heroes.find((h) => h.key === (best.hero.baseKey || best.hero.key));
+    const lv = levelOf(base, levels);
+    const isTop = (top.hero.baseKey || top.hero.key) === base.key;
+    return `<div class="card battle-rank">${head}
+        <div class="battle-best"><span>${battleHero(best.hero)}${hasSkinMark(base) && !best.hero.isSkin ? ' <span class="small muted">🎭 есть</span>' : ''}</span>
+          <span class="small muted">${esc(base.cls)}${lv.fromCards ? ` · ур. ${lv.level} (из карт)` : ''} · <b class="pct">${pct(best.wins)}</b> против ранга</span></div>
+        <p class="small">${isTop ? '🏅 Это и есть лучший герой ранга.' : `🏅 Лучший ранга: ${battleHero(top.hero)} — ${pct(top.wins)}. Тебе до лучшего: <b>${ppText(best.wins - top.wins)}</b>`}</p>
+        ${rest.length ? `<ul class="battle-list">${rest.slice(0, 2).map((r) => `<li><span>${battleHero(r.hero)}</span><span>${pct(r.wins)}</span></li>`).join('')}</ul>` : ''}
+      </div>`;
+  });
+  const order = easy.sort((a, b) => b.wins - a.wins);
+  return `${order.length > 1 ? `<div class="card"><h2>Где тебе проще</h2><p class="battle-easy">${order.map((x) => `<span><b>${x.rank}</b> ${pct(x.wins)}</span>`).join('')}</p></div>` : ''}
+    <p class="small muted">Твой лучший герой каждого ранга против всех героев ранга — на 1 уровне, как в «Идеальном отряде»: уровень на выбор не влияет, он здесь только для справки.</p>
+    <div class="battle-grid">${cards.join('')}</div>`;
+}
+
+function renderBattleDuel() {
+  const opp = duelOpponent();
+  if (!opp) return '<p class="empty">Выбери соперника: любой герой любого ранга. Покажу, кто из твоих героев побеждает его чаще всех.</p>';
+  const job = duelJob();
+  if (!job.done) return waitLine('Считаю…');
+  const levels = myLevels();
+  const rows = job.rows.slice(0, 10).map((r, i) => {
+    const base = heroes.find((h) => h.key === r.hero.baseKey);
+    const lv = levelOf(base, levels);
+    const level = !job.mine ? String(r.hero.level) : lv.fromCards ? String(lv.level) : `<input class="battle-lv" type="number" min="1" max="99" value="${lv.level}" data-battle-level="${esc(E.heroId(base))}" aria-label="Уровень: ${esc(base.name)}">`;
+    return `<tr><td class="left">${i + 1}. ${battleHero(r.hero)}<div class="small muted">${base.rank}-ранг · ${fmt(r.hero.bm)} / ${fmt(r.hero.hp)}</div></td><td>${level}</td><td><b>${pct(r.wins)}</b></td></tr>`;
+  }).join('');
+  return `<div class="card">
+      <h2>Против: ${battleHero(opp)} <span class="small muted">${opp.rank}-ранг · ур. ${opp.level} · ${fmt(opp.bm)} / ${fmt(opp.hp)}</span></h2>
+      <p class="small muted">${job.mine ? 'Твои герои — все ранги, со своими уровнями.' : 'Коллекции нет — лучшие из всех героев на уровне соперника. Отметь свои карты в «Моей коллекции», и здесь будут твои.'}</p>
+      <div class="table-box"><table class="battle-duel"><thead><tr><th class="left">Герой</th><th>Ур.</th><th>Шанс</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="empty">Некому драться.</td></tr>'}</tbody></table></div>
+      <p class="small muted">Шанс по модели боя сайта; уровни — из карт, которые видел бот${job.mine ? ', остальные — из поля «ур.»' : ''}. С навыками, каждый по очереди нападает и защищается.</p>
+    </div>`;
+}
+
+function renderBattleStorm() {
+  const rank = battleState.storm;
+  const dmg = (d) => `≈ ${fmt(d.avg)} <span class="small muted">(${fmt(d.min)}–${fmt(d.max)})</span>`;
+  const all = E.stormTop(heroes, rank, battleState.skins).slice(0, 10);
+  const levels = myLevels();
+  const mine = heroes.filter((h) => h.rank === rank && isOwned(h)).map((h) => {
+    const lv = levelOf(h, levels);
+    const skin = mySkin(h, levels);
+    return { hero: h, lv, skin, ...E.stormDamage(h, lv.level, skin) };
+  }).sort((a, b) => b.max - a.max).slice(0, 10);
+  const list = (rows, extra) => `<ol class="battle-list">${rows.map((r) => `<li><span>${battleHero(r.skin ? { ...r.hero, skinOn: true } : r.hero)}${extra ? extra(r) : ''}</span><span>${dmg(r)}</span></li>`).join('')}</ol>`;
+  return `<p class="small muted">В Штурме навыки не работают: урон — боевая мощь героя, 70–100 % за удар (в среднем 0,85 × БМ). Места — по очкам, а очки — это урон, поэтому лучшие — у кого больше БМ: обычно Дамагеры.</p>
+    <div class="battle-grid">
+      <div class="card"><h2>Все герои ${rank}-ранга</h2><p class="small muted">На 1 уровне — кого стоит качать; от уровней не зависит.${battleState.skins ? ' Со скином — ×1,15.' : ''}</p>${list(all)}</div>
+      <div class="card"><h2>Из моей коллекции</h2><p class="small muted">С твоей прокачкой: сколько бьёшь сейчас. Уровни — из карт, которые видел бот, иначе 1 (поменять — в «Дуэли»).</p>
+        ${mine.length ? list(mine, (r) => ` <span class="small muted">ур. ${r.lv.level}</span>`) : waitLine(heroes.some(isOwned) ? 'Нет твоих карт этого ранга.' : 'Отметь свои карты в «Моей коллекции».')}</div>
+    </div>`;
+}
+
+function renderBattle() {
+  if ($('view-battle').hidden) return;
+  if (!loaded) { $('battleOut').innerHTML = '<p class="empty">Загружаю…</p>'; return; }
+  battleReset();
+  if (battleState.controlsFor !== battleState.tab) renderBattleControls();
+  battleCache.current = battleNeeded();
+  const tab = battleState.tab;
+  $('battleOut').innerHTML = tab === 'ideal' ? renderBattleIdeal() : tab === 'squad' ? renderBattleSquad() : tab === 'duel' ? renderBattleDuel() : renderBattleStorm();
+  if (battleCache.current) {
+    $('battleStatus').hidden = false;
+    $('battleNote').textContent = `Считаю: ${battleCache.current.label} — ${Math.round(battleCache.current.share * 100)}%`;
+    $('battleBar').style.width = `${battleCache.current.share * 100}%`;
+    battleKick();
+  } else $('battleStatus').hidden = true;
+}
+
+$('view-battle').addEventListener('click', (e) => {
+  const tab = e.target.closest('[data-battle-tab]');
+  if (tab) { battleState.tab = tab.dataset.battleTab; saveBattle(); renderBattle(); return; }
+  const skins = e.target.closest('[data-battle-skins]');
+  if (skins) { battleState.skins = skins.dataset.battleSkins === '1'; saveBattle(); battleState.controlsFor = ''; renderBattle(); return; }
+  const rank = e.target.closest('[data-battle-rank]');
+  if (rank) {
+    const r = rank.dataset.battleRank;
+    battleState.ranks = battleState.ranks.includes(r) ? battleState.ranks.filter((x) => x !== r) : E.RANKS.filter((x) => x === r || battleState.ranks.includes(x));
+    saveBattle(); battleState.controlsFor = ''; renderBattle(); return;
+  }
+  const storm = e.target.closest('[data-battle-storm]');
+  if (storm) { battleState.storm = storm.dataset.battleStorm; saveBattle(); battleState.controlsFor = ''; renderBattle(); }
+});
+$('view-battle').addEventListener('change', (e) => {
+  if (e.target.id === 'battleOpp') {
+    const id = cardOptions.get(e.target.value) || '';
+    const hero = id && heroes.find((h) => E.heroId(h) === id);
+    if (!hero) return;
+    battleState.opp.id = id;
+    if (!hero.skin) battleState.opp.skin = false;
+    $('battleOppSkin').disabled = !hero.skin;
+    $('battleOppSkin').checked = battleState.opp.skin;
+    renderBattle();
+  }
+  if (e.target.id === 'battleOppLevel') { battleState.opp.level = Math.max(1, Math.min(99, Math.floor(Number(e.target.value) || 1))); renderBattle(); }
+  if (e.target.id === 'battleOppSkin') { battleState.opp.skin = e.target.checked; renderBattle(); }
+  const lv = e.target.closest('[data-battle-level]');
+  if (lv) {
+    const value = Math.max(1, Math.min(99, Math.floor(Number(lv.value) || 1)));
+    if (value === 1) delete battleState.levels[lv.dataset.battleLevel];
+    else battleState.levels[lv.dataset.battleLevel] = value;
+    writeStore('ani-battle-levels', battleState.levels);
+    renderBattle();
+  }
+});
+
 // ---------- Новости сезона ----------
 
 const newsState = { view: 'auto', rank: '' };
@@ -3514,7 +3916,7 @@ function renderHome() {
 
   // Разделы плитками.
   const cardsNote = () => { const n = E.cardCounts(heroes, cardsData); return `Карты: собрано ${fmt(n.withPic)} из ${fmt(n.heroes)}`; };
-  const tiles = ['top', 'compare', 'card', 'cards', 'collection', 'players', 'stats', 'records', 'antistress'].filter(tabShown)
+  const tiles = ['top', 'compare', 'battle', 'card', 'cards', 'collection', 'players', 'stats', 'records'].filter(tabShown)
     .map((t) => `<button class="home-tile" data-go="${t}"><span aria-hidden="true">${TAB_INFO[t].icon}</span><b>${esc(t === 'cards' ? cardsNote() : TAB_INFO[t].label)}</b></button>`).join('');
   parts.push(`<div class="home-tiles">${tiles}</div>`);
   $('homeOut').innerHTML = parts.join('');
@@ -5002,7 +5404,7 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
   closeMenu(false);
   closeDrop(false);
   renderNav();
-  ['top', 'compare', 'card', 'cards', 'ratings', 'collection', 'news', 'records', 'contests', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
+  ['top', 'compare', 'battle', 'card', 'cards', 'ratings', 'collection', 'news', 'records', 'contests', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
   if (tab === 'records') renderRecords();
   if (tab === 'contests') renderContests();
   if (tab === 'card') renderCard();
@@ -5013,6 +5415,7 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
   if (tab === 'stats') renderStats();
   if (tab === 'export') renderExport();
   if (tab === 'compare') renderCompare();
+  if (tab === 'battle') renderBattle();
   if (tab === 'rules') renderRules();
   if (tab === 'top') renderTop();
   if (tab === 'heroes') renderHeroesTab();
@@ -5034,6 +5437,7 @@ const TAB_INFO = {
   home: { icon: '🏠', label: 'Главная', note: 'Конкурс, новое в сезоне, свежие рекорды' },
   top: { icon: '🏆', label: 'Топ', note: 'Лучшие герои ранга и класса' },
   compare: { icon: '⚔️', label: 'Сравнение', note: 'Бой двух героев один на один' },
+  battle: { icon: '⚔️', label: 'Подбор на бой', note: 'Идеальный и твой отряд, дуэль, Героический Штурм' },
   card: { icon: '🃏', label: 'Карточка героя', note: 'Место, соперники и история по сезонам' },
   cards: { icon: '🃏', label: 'Карты', note: 'Все карты картинками: поиск и фильтры' },
   collection: { icon: '📚', label: 'Моя коллекция', note: 'Отметь свои карты и смотри личный топ' },
@@ -6416,6 +6820,7 @@ async function refreshBotFiles() {
   renderRanking();
   renderPlayerViews();
   renderStats();
+  renderBattle();
 }
 
 function startBotFiles() {
@@ -6446,7 +6851,7 @@ function initTelegram(app) {
   const start = app.initDataUnsafe && app.initDataUnsafe.start_param;
   const hero = start && heroByCode(start);
   if (hero) openCard(E.heroId(hero));
-  if (start === 'records' || start === 'contests' || start === 'cards' || start === 'ratings') showTab(start);
+  if (start === 'records' || start === 'contests' || start === 'cards' || start === 'ratings' || start === 'battle') showTab(start);
   const playerId = start && start.match(/^p_(\d+)$/);
   if (playerId) openPlayer(`id:${playerId[1]}`);
 }

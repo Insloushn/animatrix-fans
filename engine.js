@@ -1519,7 +1519,7 @@
   // Порядок групп в шапке на ПК и в «Ещё» на телефоне. menu — группа с выпадающим списком. Профиль и коллекция — в меню аватара.
   const NAV_GROUPS = [
     { id: 'home', icon: '🏠', label: 'Главная', menu: false, tabs: ['home'] },
-    { id: 'heroes', icon: '🏆', label: 'Герои', menu: true, tabs: ['top', 'compare', 'card', 'cards', 'news'] },
+    { id: 'heroes', icon: '🏆', label: 'Герои', menu: true, tabs: ['top', 'compare', 'battle', 'card', 'cards', 'news'] },
     { id: 'contests', icon: '🎲', label: 'Конкурсы', menu: false, tabs: ['contests'] },
     { id: 'players', icon: '👥', label: 'Игроки', menu: true, tabs: ['players', 'ratings', 'records', 'stats'] },
     { id: 'more', icon: '☰', label: 'Ещё', menu: true, tabs: ['antistress', 'heroes', 'seasons', 'add', 'export', 'rules'] },
@@ -1970,7 +1970,195 @@
     return [title || STATS_TITLE, ...(note ? [note] : []), ...blocks].join('\n\n');
   }
 
+  // ---------- «⚔️ Подбор на бой» (tickets/battle-picker.md) ----------
+  // Модель боя — та же (duel с кубиками по зерну, как createPairRates); всё с навыками: без навыков разные классы
+  // сравнивать нельзя (systems/class-balance.md). Уровни — только в дуэли и в «с твоей прокачкой» Штурма.
+
+  // Соперники ранга: герои без ивент-карт; «со скинами» — у кого скин есть, вместо героя его версия со скином.
+  function squadPool(heroes, rank, withSkins) {
+    return numberedHeroes((heroes || []).filter((h) => h.rank === rank)).map((h) => (withSkins && h.skin ? skinVersion(h) : h));
+  }
+  const pickBase = (h) => h.baseKey || h.key;
+
+  // Грубый проход по всем парам укладывается в бюджет боёв на ранг; лучших потом пересчитывает точнее.
+  const PICK = { budget: 1500000, minRuns: 8, maxRuns: 1000, fineTop: 6, fineRuns: 200 };
+  function pickRuns(size, o) {
+    const p = { ...PICK, ...(o || {}) };
+    const pairs = size * (size - 1);
+    return pairs ? Math.max(p.minRuns, Math.min(p.maxRuns, Math.floor(p.budget / pairs))) : p.maxRuns;
+  }
+
+  // Шанс A при нападении на B — те же ключ и зерно, что у createPairRates: при равном числе боёв числа совпадают с карточкой.
+  // Без общего кэша: в F больше 300 тысяч пар.
+  function seededRate(a, b, runs, maxMoves) {
+    const key = `${a.cls}:${a.bm}:${a.hp}|${b.cls}:${b.bm}:${b.hp}|${runs}|${maxMoves}`;
+    return duel(a, b, runs, { maxMoves, dice: seededDice(hashString(key)) });
+  }
+
+  const pickNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+  // Счёт порциями: каждый кандидат против всех соперников, кроме себя (и своей версии со скином); обе стороны нападают
+  // по очереди, шанс = (нападение + защита) / 2 — как «Все классы» в карточке. candidates === rivals — круговой турнир,
+  // каждая пара считается один раз на обе строки. step(ms) считает до ms миллисекунд и возвращает долю готового.
+  // opts.reuse — готовый круговой job того же размера (ранг без скинов): пары, где оба героя те же, берутся из него —
+  // так «со скинами» на A–F (там 0–1 скин) почти не считается. opts.memo — Map точного прохода, общая для режимов.
+  function createPickJob(candidates, rivals, opts) {
+    const o = { ...PICK, maxMoves: DEFAULTS.maxMoves, ...(opts || {}) };
+    const runs = o.runs || pickRuns(rivals.length, o);
+    const roundRobin = candidates === rivals;
+    const n = candidates.length;
+    const reuse = roundRobin && o.reuse && o.reuse.matrix && o.reuse.pool.length === n && o.reuse.runs === runs ? o.reuse : null;
+    const matrix = roundRobin ? new Float32Array(n * n) : null;
+    const same = reuse ? candidates.map((h, k) => h === reuse.pool[k]) : null;
+    const memo = o.memo || null;
+    const rate = (a, b, r) => {
+      if (!memo) return seededRate(a, b, r, o.maxMoves);
+      const key = `${a.cls}:${a.bm}:${a.hp}|${b.cls}:${b.bm}:${b.hp}|${r}|${o.maxMoves}`;
+      let x = memo.get(key);
+      if (x === undefined) { x = seededRate(a, b, r, o.maxMoves); memo.set(key, x); }
+      return x;
+    };
+    const atk = new Float64Array(n);
+    const def = new Float64Array(n);
+    const atkN = new Uint32Array(n);
+    const defN = new Uint32Array(n);
+    const fineTop = runs < o.fineRuns ? Math.min(o.fineTop, n) : 0;
+    const kept = same ? same.filter(Boolean).length : 0;
+    const coarseWork = roundRobin ? (n * (n - 1) - kept * (kept - 1)) * runs + kept * (kept - 1) * (runs / 50) : 2 * n * rivals.length * runs;
+    const fineWork = 2 * fineTop * rivals.length * o.fineRuns;
+    const job = { runs, fineRuns: o.fineRuns, done: false, share: 0, rows: null, ms: 0, pool: rivals, matrix };
+    let i = 0;
+    let j = 0;
+    let work = 0;
+    let fine = null; // [{ k, atk, def, atkN, defN }] — лучшие после грубого прохода
+    let fi = 0;
+    let fj = 0;
+    const row = (k) => {
+      const a = atkN[k] ? atk[k] / atkN[k] : 0;
+      const d = defN[k] ? def[k] / defN[k] : 0;
+      return { hero: candidates[k], atk: a, def: d, wins: (a + d) / 2, fine: false, count: atkN[k] };
+    };
+    const finish = () => {
+      const rows = candidates.map((_, k) => row(k));
+      (fine || []).forEach((f) => {
+        if (!f.atkN) return;
+        Object.assign(rows[f.k], { atk: f.atk / f.atkN, def: f.def / f.defN, fine: true });
+        rows[f.k].wins = (rows[f.k].atk + rows[f.k].def) / 2;
+      });
+      job.rows = rows.filter((r) => r.count).sort((x, y) => (y.fine - x.fine) || (y.wins - x.wins));
+      job.done = true;
+      job.share = 1;
+    };
+    job.step = (ms) => {
+      if (job.done) return 1;
+      const started = pickNow();
+      const limit = ms === undefined ? Infinity : ms;
+      while (pickNow() - started < limit) {
+        if (!fine) {
+          if (i >= n) {
+            const order = candidates.map((_, k) => k).filter((k) => atkN[k]).sort((x, y) => row(y).wins - row(x).wins);
+            fine = order.slice(0, fineTop).map((k) => ({ k, atk: 0, def: 0, atkN: 0, defN: 0 }));
+            continue;
+          }
+          const c = candidates[i];
+          const r = rivals[j];
+          const got = !roundRobin && j === 0 && o.known ? o.known(c, runs) : null;
+          if (got) {
+            atk[i] = got.atk; def[i] = got.def; atkN[i] = got.count; defN[i] = got.count;
+            work += 2 * rivals.length * runs;
+            j = 0; i += 1;
+            continue;
+          }
+          if (pickBase(c) !== pickBase(r)) {
+            if (roundRobin) {
+              const old = reuse && same[i] && same[j];
+              const x = old ? reuse.matrix[i * n + j] : seededRate(c, r, runs, o.maxMoves);
+              matrix[i * n + j] = x;
+              atk[i] += x; atkN[i] += 1;
+              def[j] += 1 - x; defN[j] += 1;
+              work += old ? runs / 50 : runs;
+            } else {
+              atk[i] += seededRate(c, r, runs, o.maxMoves); atkN[i] += 1;
+              def[i] += 1 - seededRate(r, c, runs, o.maxMoves); defN[i] += 1;
+              work += 2 * runs;
+            }
+          }
+          j += 1;
+          if (j >= rivals.length) { j = 0; i += 1; }
+        } else {
+          if (fi >= fine.length) { finish(); break; }
+          const f = fine[fi];
+          const c = candidates[f.k];
+          const r = rivals[fj];
+          if (pickBase(c) !== pickBase(r)) {
+            f.atk += rate(c, r, o.fineRuns); f.atkN += 1;
+            f.def += 1 - rate(r, c, o.fineRuns); f.defN += 1;
+            work += 2 * o.fineRuns;
+          }
+          fj += 1;
+          if (fj >= rivals.length) { fj = 0; fi += 1; }
+        }
+      }
+      job.ms += pickNow() - started;
+      if (!job.done) job.share = Math.min(0.99, work / Math.max(1, coarseWork + fineWork));
+      return job.share;
+    };
+    // Грубые суммы кандидата кругового job — для opts.known другого job с теми же соперниками и числом боёв.
+    const index = new Map(candidates.map((h, k) => [h, k]));
+    job.coarseOf = (hero, r) => {
+      const k = index.get(hero);
+      if (!roundRobin || !fine || k === undefined || r !== runs || !atkN[k]) return null;
+      return { atk: atk[k], def: def[k], count: atkN[k] };
+    };
+    return job;
+  }
+
+  // «⚠️ силён только со скином»: в первых count со скинами, а без скинов в первых count его нет.
+  function skinOnlyStrong(withSkins, without, count) {
+    const plain = new Set((without || []).slice(0, count).map((r) => pickBase(r.hero)));
+    return new Set((withSkins || []).slice(0, count).map((r) => pickBase(r.hero)).filter((k) => !plain.has(k)));
+  }
+
+  // Герой на уровне: база × levelFactor, как в «Сравнении». Ключ свой — чтобы не путать с героем 1 уровня.
+  function leveledHero(hero, level, hasSkin) {
+    const lv = Math.max(1, Math.floor(Number(level) || 1));
+    const f = levelFactor(lv, !!hasSkin);
+    const bm = (hero.baseBm || hero.bm) * f;
+    const hp = (hero.baseHp || hero.hp) * f;
+    return { ...hero, bm, hp, level: lv, skinOn: !!hasSkin, baseKey: hero.baseKey || hero.key, key: `${hero.baseKey || hero.key}@${lv}${hasSkin ? '*' : ''}` };
+  }
+
+  // Уровни своих карт из cards.json: код героя → { level, skin }. У одной карты несколько записей — берётся старший уровень.
+  function cardLevels(data, id) {
+    const out = new Map();
+    cardOwned(data, id).forEach(([code, skin, level]) => {
+      const lv = Math.max(1, Math.floor(Number(level) || 0)) || 1;
+      const known = Number(level) >= 1;
+      const prev = out.get(code);
+      out.set(code, {
+        level: Math.max(prev ? prev.level : 1, lv),
+        known: (prev && prev.known) || known,
+        skin: (prev && prev.skin) || !!skin,
+      });
+    });
+    return out;
+  }
+
+  // Героический Штурм: навыки не работают, удар — БМ × 70–100 % (со слов владельца, 2026-11-09).
+  function stormDamage(hero, level, hasSkin) {
+    const max = (hero.baseBm || hero.bm) * levelFactor(Math.max(1, Math.floor(Number(level) || 1)), !!hasSkin);
+    return { min: max * 0.7, avg: max * 0.85, max };
+  }
+
+  // Все герои ранга (и ивент-карты) по урону за удар на 1 уровне; «со скинами» — у кого скин есть, ×1,15.
+  function stormTop(heroes, rank, withSkins) {
+    return (heroes || []).filter((h) => h.rank === rank)
+      .map((h) => ({ hero: h, skin: !!(withSkins && h.skin), ...stormDamage(h, 1, withSkins && h.skin) }))
+      .sort((a, b) => (b.max - a.max) || String(a.hero.name).localeCompare(String(b.hero.name), 'ru'));
+  }
+
   return {
+    squadPool, pickRuns, seededRate, createPickJob, skinOnlyStrong, leveledHero, cardLevels, stormDamage, stormTop, PICK,
     deriveHeroes, numberedHeroes, offTopHeroes, groupCacheKey, runsForGroup, hasEqualScores, offTopRow, collectGroupRows, groupError,
     packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, unpackSkinOnly, collectionCounts, chunkText, hitsToKill, seasonNews,
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,
