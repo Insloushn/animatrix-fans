@@ -1537,10 +1537,15 @@
   function cardImages(data, code) {
     const x = data && data.images && data.images[code];
     if (!x) return [];
-    const list = x.img ? [{ file: String(code), skin: '' }] : [];
+    // v — версия картинки (замена при новом дизайне, tickets/card-replace.md): страница добавляет ?v=, чтобы не брать старую из кэша.
+    const ver = (skin) => {
+      const v = x.v && typeof x.v === 'object' ? String(x.v[skin] || '') : '';
+      return /^[0-9a-z]{1,16}$/.test(v) ? { v } : {};
+    };
+    const list = x.img ? [{ file: String(code), skin: '', ...ver('') }] : [];
     Object.keys(x.skins || {}).sort((a, b) => a.localeCompare(b, 'ru')).forEach((skin) => {
       const file = String(x.skins[skin] || '');
-      if (/^[0-9a-z]+(~[A-Za-z0-9]+)?$/.test(file)) list.push({ file, skin });
+      if (/^[0-9a-z]+(~[A-Za-z0-9]+)?$/.test(file)) list.push({ file, skin, ...ver(skin) });
     });
     return list;
   }

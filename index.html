@@ -1082,7 +1082,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=f765ccb93c"></script>
+<script src="engine.js?v=1a54a23255"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -2444,7 +2444,7 @@ function renderCard() {
   const mySkins = siteData && cardsData && myId ? [...new Set(E.cardOwned(cardsData, myId).filter((x) => x[0] === E.heroCode(hero) && x[1]).map((x) => x[1]))] : [];
   const picBlock = pic ? `<div class="card-pics">
       ${pic.none ? `<div class="pic-box pic-none" style="${rankVar(hero.rank)}">${CAT_SILHOUETTE}<p class="small">Картинки карты пока нет — пришли карту: <a href="${BOT_CARDS_LINK}" target="_blank" rel="noopener" data-tg-link>/cards</a></p></div>`
-        : `<div class="pic-box"><img src="cards/${esc(pic.file)}.jpg" alt="${esc(hero.name)}${pic.skin ? `, скин ${esc(pic.skin)}` : ''}" data-pic-zoom="cards/${esc(pic.file)}.jpg"></div>`}
+        : `<div class="pic-box"><img src="${esc(picUrl(pic))}" alt="${esc(hero.name)}${pic.skin ? `, скин ${esc(pic.skin)}` : ''}" data-pic-zoom="${esc(picUrl(pic))}"></div>`}
       <div class="pic-nav">${pics.length > 1 ? '<button class="btn ghost mini" data-pic="-1" aria-label="Предыдущая картинка">◀</button>' : ''}
         <span>${pic.skin ? `🎭 ${esc(pic.skin)}` : pic.none ? 'Нет картинки карты' : 'Без скина'}${pics.length > 1 ? ` · ${picAt + 1}/${pics.length}` : ''}</span>
         ${pics.length > 1 ? '<button class="btn ghost mini" data-pic="1" aria-label="Следующая картинка">▶</button>' : ''}</div>
@@ -3880,6 +3880,8 @@ let pullStats = null;
 // Картинки карт и владельцы (cards.json пишет бот, tickets/hero-images.md). Только на сайте: картинки лежат рядом, в cards/.
 let cardsData = null;
 const heroPics = (h) => (siteData && cardsData ? E.cardImages(cardsData, E.heroCode(h)) : []);
+// Адрес картинки карты; ?v= — версия после замены (tickets/card-replace.md), без неё — как раньше.
+const picUrl = (pic, small) => `cards/${pic.file}${small ? '.s' : ''}.jpg${pic.v ? `?v=${pic.v}` : ''}`;
 // Миниатюра строго своей версии (tickets/thumbs-strict.md): строка карты — картинка карты, строка скина — скина.
 // Нужной нет — заглушка того же размера в цвете ранга: колонка ровная и сразу видно, какой картинки не хватает.
 // Без cards.json (claude.ai, файл не загрузился) — пусто, как раньше.
@@ -3889,7 +3891,7 @@ function thumbHtml(h, skin) {
   if (!siteData || !cardsData) return '';
   const pic = E.versionPic(heroPics(h), !!skin);
   if (!pic) return `<span class="hero-thumb thumb-none" style="${rankVar(h.rank)}" title="${NO_PIC_TITLE[skin ? 'skin' : 'card']}" aria-hidden="true">＋</span>`;
-  return `<img class="hero-thumb" src="cards/${esc(pic.file)}.s.jpg" width="40" height="40" alt="" loading="lazy" decoding="async">`;
+  return `<img class="hero-thumb" src="${esc(picUrl(pic, true))}" width="40" height="40" alt="" loading="lazy" decoding="async">`;
 }
 const withThumb = (h, inner, skin) => { const t = thumbHtml(h, skin); return t ? `<div class="hero-pic-row">${t}<div>${inner}</div></div>` : inner; };
 
@@ -3968,9 +3970,9 @@ function catTileHtml({ h, pic, skinPic, skins, mine }) {
   const n = (skins || []).length;
   const marks = `${skinPic ? `<span title="${n > 1 ? `Картинок скинов: ${n}` : 'Есть картинка скина'}">🎭${n > 1 ? ` ${n}` : ''}</span>` : ''}${mine ? '<span title="Есть у меня">📚</span>' : ''}`;
   // Скины для наведения мышью (tickets/catalog-hover.md): файл и имя; картинки грузятся при первом наведении.
-  const skinData = n ? ` data-skins="${esc(JSON.stringify(skins.map((x) => [x.file, x.skin])))}"` : '';
+  const skinData = n ? ` data-skins="${esc(JSON.stringify(skins.map((x) => [x.file, x.skin, x.v || ''])))}"` : '';
   const inner = pic
-    ? `<img src="cards/${esc(pic.file)}.s.jpg" width="240" height="320" alt="" loading="lazy" decoding="async">`
+    ? `<img src="${esc(picUrl(pic, true))}" width="240" height="320" alt="" loading="lazy" decoding="async">`
     : CAT_SILHOUETTE;
   // SSS — горизонтальная карта (16:9): плитка в две колонки, чтобы карта была крупной и целиком.
   return `<button class="cat-tile${pic && h.rank === 'SSS' ? ' wide' : ''}" data-open-card="${esc(E.heroId(h))}" data-rank="${esc(h.rank)}"${skinData} title="${esc(`${h.name} · ${h.rank} · ${h.cls} · ${h.title || E.NO_TITLE}`)}">
@@ -4017,7 +4019,7 @@ function catHover(tile, x) {
   try { list = JSON.parse(tile.dataset.skins || '[]'); } catch (e) { return; }
   if (!box || !list.length) return;
   if (!box.querySelector('.cat-alt')) {
-    box.insertAdjacentHTML('beforeend', list.map(([file]) => `<img class="cat-alt" src="cards/${esc(file)}.s.jpg" alt="" decoding="async">`).join('')
+    box.insertAdjacentHTML('beforeend', list.map(([file, , v]) => `<img class="cat-alt" src="${esc(picUrl({ file, v }, true))}" alt="" decoding="async">`).join('')
       + `<span class="cat-bars" aria-hidden="true">${list.map(() => '<i></i>').join('')}</span><span class="cat-skin-name"></span>`);
     box.querySelectorAll('.cat-alt').forEach((img) => img.addEventListener('load', () => { if (box.classList.contains('hovering')) catShow(box, list, Number(box.dataset.zone)); }));
   }
