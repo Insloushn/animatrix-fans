@@ -579,14 +579,47 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .cat-marks span { font-size: 13px; line-height: 1; padding: 3px; border-radius: 6px; background: rgba(10, 8, 18, .6); }
 .cat-tile b { font-weight: 600; font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; }
 .cat-tile small { color: var(--muted); font-size: 12px; }
-.cat-tile[data-rank="SSS"] { --rk: #e0a526; }
-.cat-tile[data-rank="SS"] { --rk: #e5487a; }
-.cat-tile[data-rank="S"] { --rk: #9b5de5; }
-.cat-tile[data-rank="A"] { --rk: #3a86ff; }
-.cat-tile[data-rank="B"] { --rk: #2a9d8f; }
-.cat-tile[data-rank="C"] { --rk: #57a64a; }
-.cat-tile[data-rank="D"] { --rk: #8d99ae; }
-.cat-tile[data-rank="E"], .cat-tile[data-rank="F"] { --rk: #7d7890; }
+/* Цвета рангов — как фон карт в игре (tickets/rank-colors.md); тон подогнан под контраст ≥ 3:1 с фоном в обеих темах.
+   SS и SSS — градиенты; --rank-SS-c / --rank-SSS-c — первый цвет градиента (сплошной). */
+:root {
+  --rank-F: #7a8088; --rank-E: #2c9444; --rank-D: #2f6fe4; --rank-C: #7c4ee8; --rank-B: #9670e0; --rank-A: #dc3535; --rank-S: #b37800;
+  --rank-SS-c: #d63f8a; --rank-SS: linear-gradient(135deg, #d63f8a, #0f8f96 50%, #8b5cf6);
+  --rank-SSS-c: #e0403f; --rank-SSS: conic-gradient(#e0403f, #c47400, #9a8700, #2c9444, #2f6fe4, #8b3fe0, #e0403f);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --rank-F: #9aa0a6; --rank-E: #3fb950; --rank-D: #4b8ff7; --rank-C: #9a72f8; --rank-B: #c4a5ff; --rank-A: #ef4444; --rank-S: #f5a524;
+    --rank-SS-c: #ff7ab8; --rank-SS: linear-gradient(135deg, #ff7ab8, #3ee0d0 50%, #b794ff);
+    --rank-SSS-c: #ff6b6b; --rank-SSS: conic-gradient(#ff6b6b, #ffa94d, #ffe066, #69db7c, #4dabf7, #b197fc, #ff6b6b);
+  }
+}
+:root[data-theme="dark"] {
+  --rank-F: #9aa0a6; --rank-E: #3fb950; --rank-D: #4b8ff7; --rank-C: #9a72f8; --rank-B: #c4a5ff; --rank-A: #ef4444; --rank-S: #f5a524;
+    --rank-SS-c: #ff7ab8; --rank-SS: linear-gradient(135deg, #ff7ab8, #3ee0d0 50%, #b794ff);
+    --rank-SSS-c: #ff6b6b; --rank-SSS: conic-gradient(#ff6b6b, #ffa94d, #ffe066, #69db7c, #4dabf7, #b197fc, #ff6b6b);
+}
+.cat-tile[data-rank="F"] { --rk: var(--rank-F); }
+.cat-tile[data-rank="E"] { --rk: var(--rank-E); }
+.cat-tile[data-rank="D"] { --rk: var(--rank-D); }
+.cat-tile[data-rank="C"] { --rk: var(--rank-C); }
+.cat-tile[data-rank="B"] { --rk: var(--rank-B); }
+.cat-tile[data-rank="A"] { --rk: var(--rank-A); }
+.cat-tile[data-rank="S"] { --rk: var(--rank-S); }
+.cat-tile[data-rank="SS"] { --rk: var(--rank-SS-c); --rk-fill: var(--rank-SS); }
+.cat-tile[data-rank="SSS"] { --rk: var(--rank-SSS-c); --rk-fill: var(--rank-SSS); }
+/* SS, SSS: рамка-градиент той же толщины — заливка внутри (padding-box), градиент под рамкой (border-box). */
+.cat-tile[data-rank="SS"] .cat-pic, .cat-tile[data-rank="SSS"] .cat-pic { --rk-in: var(--panel); border-color: transparent; background: linear-gradient(var(--rk-in), var(--rk-in)) padding-box, var(--rk-fill) border-box; }
+.cat-tile[data-rank="SS"] .cat-pic.none, .cat-tile[data-rank="SSS"] .cat-pic.none { --rk-in: color-mix(in srgb, var(--rk) 12%, var(--panel)); }
+/* SSS: блик бежит по рамке раз в 4 с. */
+@property --rk-glint { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes rk-glint { to { --rk-glint: 360deg; } }
+.cat-tile[data-rank="SSS"] .cat-pic {
+  background: linear-gradient(var(--rk-in), var(--rk-in)) padding-box,
+    conic-gradient(from var(--rk-glint), transparent 0deg 310deg, rgba(255, 255, 255, .95) 335deg, transparent 360deg) border-box,
+    var(--rk-fill) border-box;
+  animation: rk-glint 4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .cat-tile[data-rank="SSS"] .cat-pic { animation: none; } }
 @media (max-width: 760px) {
   .cat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 6px; }
   .cat-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
