@@ -745,7 +745,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <button role="tab" data-tab="card" aria-selected="false">Карточка героя</button>
     <button role="tab" data-tab="cards" aria-selected="false" id="cardsTab" hidden>Карты</button>
     <button role="tab" data-tab="compare" aria-selected="false">Сравнение</button>
-    <button role="tab" data-tab="battle" aria-selected="false">Подбор на бой</button>
+    <button role="tab" data-tab="battle" aria-selected="false" id="battleTab" hidden>Подбор на бой</button>
     <button role="tab" data-tab="players" aria-selected="false">Игроки</button>
     <button role="tab" data-tab="ratings" aria-selected="false">Рейтинги</button>
     <button role="tab" data-tab="stats" aria-selected="false">Статистика</button>
@@ -1188,6 +1188,14 @@ const state = {
   rank: 'SS', cls: 'Гибрид', search: '', title: '', sort: 'overall', dir: -1,
   viewSeason: '', compareWith: 'auto',
 };
+// «⚔️ Подбор на бой» и «💪 Кого качать» скрыты до бонуса по контр-классу в игре (tickets/battle-hide.md): код остаётся, вернуть — флагом.
+// Предпросмотр на своём компьютере — #battle-preview / #advice-preview в адресе.
+const BATTLE_ON = false;
+const ADVICE_ON = false;
+const localPreview = (hash) => location.hash === hash && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+const BATTLE = BATTLE_ON || localPreview('#battle-preview');
+const ADVICE = ADVICE_ON || localPreview('#advice-preview');
+if (BATTLE) $('battleTab').hidden = false;
 const results = new Map();
 const pairRate = E.createPairRates();
 let simToken = 0;
@@ -2875,6 +2883,7 @@ function adviceRankHtml(rank, owned) {
 function renderAdvice() {
   const box = $('colAdvice');
   if (!box || $('view-collection').hidden) return;
+  if (!ADVICE) { box.innerHTML = ''; adviceState.job = null; return; }
   const owned = heroes.filter(isOwned);
   if (owned.length < ADVICE_MIN) { box.innerHTML = ''; adviceState.job = null; return; }
   const ranks = E.RANKS.filter((r) => owned.some((h) => h.rank === r));
@@ -3218,7 +3227,7 @@ function renderBattleStorm() {
 }
 
 function renderBattle() {
-  if ($('view-battle').hidden) return;
+  if (!BATTLE || $('view-battle').hidden) return;
   if (!loaded) { $('battleOut').innerHTML = '<p class="empty">Загружаю…</p>'; return; }
   battleReset();
   if (battleState.controlsFor !== battleState.tab) renderBattleControls();
@@ -5388,6 +5397,7 @@ const currentTab = () => {
 const tabTrail = [];
 let goingBack = false;
 function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
+  if (tab === 'battle' && !BATTLE) tab = 'home';
   if (!goingBack && (before.tab !== tab || (tab === 'card' && before.card !== cardState.id))) {
     tabTrail.push(before);
     if (tabTrail.length > 30) tabTrail.shift();
@@ -5581,7 +5591,7 @@ function meDropHtml() {
   return `<div class="me-head" role="presentation">${avatarHtml(me, name)}<b>${esc(name)}</b></div>
     ${dropItem('data-go="profile"', '👤', 'Мой профиль', TAB_INFO.profile.note, ownProfileOpen(cur))}
     ${collection}
-    ${dropItem('data-me="advice"', '💪', 'Кого качать', 'Кого из своих карт прокачать первым')}
+    ${ADVICE ? dropItem('data-me="advice"', '💪', 'Кого качать', 'Кого из своих карт прокачать первым') : ''}
     ${dropItem('data-me="settings"', '⚙️', 'Настройки профиля', 'Имя, прошлые ники и аватар')}
     ${dropLink(BOT_CARDS_LINK, '🃏', 'Отправить карты', 'Картинки карт и коллекция — через @AniMatrix_fansBot')}`;
 }
