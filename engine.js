@@ -2157,8 +2157,34 @@
       .sort((a, b) => (b.max - a.max) || String(a.hero.name).localeCompare(String(b.hero.name), 'ru'));
   }
 
+  // Баннер в профиле (tickets/banner-owner.md): только у ID из списка. key — 'id:123…'.
+  function bannerFor(banners, key) {
+    const id = typeof key === 'string' && key.startsWith('id:') ? key.slice(3) : '';
+    const b = id && banners && Object.prototype.hasOwnProperty.call(banners, id) ? banners[id] : null;
+    return b && b.video ? { id, video: b.video, poster: b.poster || '' } : null;
+  }
+
+  // Общий переключатель звука сайта: одно состояние на всё, хранится в storage (может быть недоступен).
+  const SOUND_KEY = 'ani-sound';
+  function createSound(storage) {
+    let on = false;
+    try { on = !!storage && storage.getItem(SOUND_KEY) === '1'; } catch (e) { on = false; }
+    const subs = [];
+    const api = {
+      get on() { return on; },
+      set(v) {
+        on = !!v;
+        try { if (storage) storage.setItem(SOUND_KEY, on ? '1' : '0'); } catch (e) { /* выбор просто не запомнится */ }
+        subs.forEach((f) => f(on));
+      },
+      toggle() { api.set(!on); },
+      subscribe(f) { subs.push(f); },
+    };
+    return api;
+  }
+
   return {
-    squadPool, pickRuns, seededRate, createPickJob, skinOnlyStrong, leveledHero, cardLevels, stormDamage, stormTop, PICK,
+    bannerFor, createSound, squadPool, pickRuns, seededRate, createPickJob, skinOnlyStrong, leveledHero, cardLevels, stormDamage, stormTop, PICK,
     deriveHeroes, numberedHeroes, offTopHeroes, groupCacheKey, runsForGroup, hasEqualScores, offTopRow, collectGroupRows, groupError,
     packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, unpackSkinOnly, collectionCounts, chunkText, hitsToKill, seasonNews,
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,

@@ -564,6 +564,14 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .profile-head h2 { font-size: 20px; overflow-wrap: anywhere; }
 .profile-head .actions, .profile-head #profileShareNote { grid-column: 1 / -1; }
 .profile-head #profileShareNote:empty { display: none; }
+/* Баннер владельца (tickets/banner-owner.md): шапка на всю карточку, аватар поверх нижнего края. */
+.profile-head.has-banner { overflow: hidden; }
+.profile-banner { grid-column: 1 / -1; position: relative; margin: -14px -14px 0; height: clamp(150px, 30vw, 260px); background: var(--line) center / cover no-repeat; overflow: hidden; }
+.profile-banner video, .profile-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.has-banner .avatar.big { margin-top: -34px; z-index: 1; box-shadow: 0 0 0 3px var(--panel); }
+.sound-btn { all: unset; box-sizing: border-box; cursor: pointer; align-self: center; width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 17px; line-height: 1; background: var(--line); }
+.sound-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sound-btn.corner { position: absolute; right: 8px; bottom: 8px; width: 30px; height: 30px; font-size: 15px; background: rgba(0,0,0,.55); color: #fff; }
 .profile-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .profile-tg { margin-top: 2px; }
 /* «Прошлые ники» (tickets/game-nicks.md): по нажатию, на ПК — и по наведению. */
@@ -728,6 +736,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
           <svg class="moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg>
         </span>
       </button>
+      <button class="sound-btn" type="button" data-sound-btn aria-label="Звук сайта" title="Звук сайта"></button>
       <button class="me-btn" data-me-btn aria-haspopup="menu" aria-expanded="false" aria-controls="navDrop" aria-label="Мой профиль и коллекция"></button>
     </div>
   </header>
@@ -1114,7 +1123,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=487e259811"></script>
+<script src="engine.js?v=4202fc3eaa"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -3708,7 +3717,62 @@ function pastNicksHtml(past) {
   return `<span class="past-nicks"><button type="button" class="past-btn" data-past-nicks aria-expanded="false" aria-controls="pastNicks">ⓘ прошлые ники</button><ul class="past-pop" id="pastNicks" role="tooltip">${items}</ul></span>`;
 }
 
+// ---------- Баннер профиля и звук сайта (tickets/banner-owner.md) ----------
+// Баннер — только у Telegram ID из списка (владелец); бот и файлы данных не меняются.
+const BANNERS = { '921847623': { video: 'banners/921847623.mp4', poster: 'banners/921847623.jpg' } };
+const sound = E.createSound((() => { try { return window.localStorage; } catch (e) { return null; } })());
+let soundBlocked = false; // браузер не дал включить звук — кнопка остаётся на 🔇
+const reducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const soundBtnHtml = (corner) => `<button type="button" class="sound-btn${corner ? ' corner' : ''}" data-sound-btn></button>`;
+function bannerHtml(b) {
+  const poster = b.poster ? `<img src="${esc(b.poster)}" alt="" decoding="async">` : '';
+  const video = reducedMotion() ? '' : `<video data-banner-video src="${esc(b.video)}" ${b.poster ? `poster="${esc(b.poster)}" ` : ''}autoplay loop muted playsinline preload="auto"></video>`;
+  return `<div class="profile-banner">${poster}${video}${soundBtnHtml(true)}</div>`;
+}
+function syncSoundButtons() {
+  const on = sound.on && !soundBlocked;
+  document.querySelectorAll('[data-sound-btn]').forEach((b) => {
+    b.textContent = on ? '🔊' : '🔇';
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', on ? 'Выключить звук сайта' : 'Включить звук сайта');
+    b.title = on ? 'Звук включён' : 'Звук выключен';
+  });
+}
+function bannerVideo() { return document.querySelector('#profileOut [data-banner-video]'); }
+function stopBanner() {
+  const v = bannerVideo();
+  if (v) { try { v.pause(); } catch (e) { /* уже остановлено */ } }
+}
+// Запустить баннер с учётом звука; не дали со звуком — без звука и 🔇.
+function playBanner() {
+  const v = bannerVideo();
+  if (!v || $('view-profile').hidden) return;
+  v.muted = !sound.on;
+  const p = v.play();
+  if (!p || !p.catch) return;
+  p.catch(() => {
+    if (!v.muted) {
+      soundBlocked = true;
+      v.muted = true;
+      syncSoundButtons();
+      const q = v.play();
+      if (q && q.catch) q.catch(() => { /* остаётся заставка */ });
+    }
+  });
+}
+sound.subscribe(() => { soundBlocked = false; syncSoundButtons(); playBanner(); });
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('[data-sound-btn]');
+  if (!b) return;
+  if (sound.on && soundBlocked) { soundBlocked = false; playBanner(); syncSoundButtons(); } else sound.toggle();
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopBanner(); else playBanner(); });
+syncSoundButtons();
+
+function afterProfileRender() { syncSoundButtons(); playBanner(); }
+
 function renderProfile() {
+  stopBanner();
   if ($('view-profile').hidden) return;
   const me = myPlayerKey();
   const key = profileState.key || me;
@@ -3725,8 +3789,9 @@ function renderProfile() {
   const since = recDate(p.since);
   const tile = (label, value, note) => `<div class="stat-tile"><span class="small muted">${label}</span><b>${value}</b>${note ? `<span class="small muted">${note}</span>` : ''}</div>`;
   const t = p.tiles;
-  const head = `<div class="card profile-head">
-      ${avatarHtml(key, name, true)}
+  const banner = E.bannerFor(BANNERS, key);
+  const head = `<div class="card profile-head${banner ? ' has-banner' : ''}">
+      ${banner ? bannerHtml(banner) : ''}${avatarHtml(key, name, true)}
       <div class="profile-name">
         <div class="profile-title"><h2>${esc(name)}${mine ? ' <span class="tag">это ты</span>' : ''}</h2>${pastNicksHtml(p.past)}</div>
         ${p.tgName ? `<p class="small muted profile-tg">в Telegram: ${esc(p.tgName)}</p>` : ''}
@@ -3758,6 +3823,7 @@ function renderProfile() {
   if (p.empty) {
     const artBox = artTile || ownTiles ? `<div class="stat-tiles live-tiles">${ownTiles}${artTile}</div>` : '';
     $('profileOut').innerHTML = `${back}${head}${settingsBox}${artBox}${pulls || (artBox ? '' : '<p class="empty">Пока пусто: участвуй в конкурсах и пересылай итоги ивентов боту @AniMatrix_fansBot.</p>')}`;
+    afterProfileRender();
     return;
   }
   const tiles = `<div class="stat-tiles live-tiles">
@@ -3786,6 +3852,7 @@ function renderProfile() {
   $('profileOut').innerHTML = `${back}${head}${settingsBox}${tiles}${live}${pulls}
     ${p.contests.length ? `<div class="card"><h2>🎲 Конкурсы</h2><ol class="best-list rec-best">${contestRows}</ol></div>` : ''}
     ${p.records.best.length ? `<div class="card"><h2>🥇 Рекорды</h2>${REC_DISCLAIMER}<ol class="best-list rec-best">${recRows}</ol></div>` : ''}`;
+  afterProfileRender();
 }
 
 function renderPlayers() {
@@ -5406,6 +5473,7 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
   ['home', 'profile', 'players'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
   syncTabbar(tab);
   if (tab !== 'profile' && siteData && !tg && /^#player=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+  if (tab !== 'profile') stopBanner();
   if (tab === 'profile') renderProfile();
   if (tab === 'players') renderPlayers();
   if (tab === 'home') renderHome();
