@@ -573,7 +573,21 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .profile-banner { grid-column: 1 / -1; position: relative; margin: -14px -14px 0; aspect-ratio: 16 / 9; background: var(--line) center / cover no-repeat; overflow: hidden; }
 .profile-banner video, .profile-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .has-banner .avatar.big { margin-top: -34px; z-index: 1; box-shadow: 0 0 0 3px var(--panel); }
+/* Визитка (tickets/profile-summary.md): плитки 3 × 2 под ником в шапке с баннером. */
+.visit-tiles { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.visit-tile { all: unset; box-sizing: border-box; cursor: pointer; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 1px; align-content: start; min-width: 0; }
+.visit-tile:hover, .visit-tile:focus-visible { border-color: var(--accent); }
+.visit-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.visit-tile .small { font-size: 11px; line-height: 1.25; }
+.visit-tile b { font: 600 19px/1.2 var(--body); overflow-wrap: anywhere; }
+.visit-tile.good b { color: var(--good); }
+.visit-tile.bad b { color: var(--bad); }
+.tile-pick { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tile-pick li { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
+.tile-pick li span { flex: 1; min-width: 0; }
+.tile-add { display: flex; flex-wrap: wrap; gap: 6px; }
 @media (min-width: 820px) {
+  .profile-head.has-banner .profile-main { align-content: space-between; }
   .profile-head.has-banner { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; }
   .profile-head.has-banner .profile-main { grid-column: 1; grid-row: 1; align-self: center; }
   .profile-banner { grid-column: 2; grid-row: 1; margin: 0; height: 290px; width: auto; border-radius: 10px; }
@@ -1143,7 +1157,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=4202fc3eaa"></script>
+<script src="engine.js?v=fa1b8fb7bd"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -3597,7 +3611,7 @@ let profileFile = new Map();
 let profilePending = null; // { tg, past, av, at }
 let profileView = new Map();
 const profileDraft = { open: false, s: null, name: '' };
-const sameProfile = (a, b) => a.tg === b.tg && a.past === b.past && a.av === b.av;
+const sameProfile = (a, b) => a.tg === b.tg && a.past === b.past && a.av === b.av && (a.tiles || '') === (b.tiles || '');
 function rebuildProfiles() {
   const me = myPlayerKey().slice(3);
   if (profilePending && me && (sameProfile(E.profileOf(profileFile, me), profilePending) || Date.now() - profilePending.at > PROFILE_PENDING_TTL)) {
@@ -3605,7 +3619,7 @@ function rebuildProfiles() {
     try { tg.CloudStorage.removeItem('profileSet'); } catch (e) { /* облако недоступно */ }
   }
   const map = new Map(profileFile);
-  if (profilePending && me) map.set(me, { tg: profilePending.tg, past: profilePending.past, av: profilePending.av });
+  if (profilePending && me) map.set(me, { tg: profilePending.tg, past: profilePending.past, av: profilePending.av, tiles: profilePending.tiles || '' });
   profileView = map;
 }
 const profileFor = (key) => E.profileOf(profileView, key && key.startsWith('id:') ? key.slice(3) : '');
@@ -3636,6 +3650,14 @@ function profileSettingsBody() {
   // Цвета — только те 3, что есть у выбранного рисунка.
   const colors = E.AVATAR_FIG_COLORS[s.fig - 1].map((n) => { const c = E.AVATAR_COLORS[n - 1]; return `<button type="button" class="av-color${s.color === n ? ' on' : ''}" data-av-color="${n}" aria-pressed="${s.color === n}" title="${esc(c.name)}" aria-label="${esc(c.name)}"><span style="background:linear-gradient(135deg, ${c.from}, ${c.to})"></span></button>`; }).join('');
   const tgName = tgUserName();
+  const picked = E.parseTiles(s.tl);
+  const pickRows = picked.map((c, i) => `<li><span>${esc(E.TILE_LABELS[c])}</span><button type="button" class="btn ghost mini" data-tile-up="${c}" aria-label="Выше"${i ? '' : ' disabled'}>▲</button><button type="button" class="btn ghost mini" data-tile-down="${c}" aria-label="Ниже"${i < picked.length - 1 ? '' : ' disabled'}>▼</button><button type="button" class="btn ghost mini" data-tile-del="${c}" aria-label="Убрать">✕</button></li>`).join('');
+  const addChips = E.TILE_CODES.filter((c) => !picked.includes(c) && c !== 'fv').map((c) => `<button type="button" class="btn ghost mini" data-tile-add="${c}"${picked.length >= E.TILE_MAX ? ' disabled' : ''}>＋ ${esc(E.TILE_LABELS[c])}</button>`).join('');
+  const tilesBox = `<h3>Визитка</h3>
+      <p class="small muted">Плитки под ником в профиле с баннером: до ${E.TILE_MAX}, порядок — как в списке. Нет данных — плитка пропускается. ${picked.length ? '' : 'Сейчас — по умолчанию: круток, удача, SSS / SS, коллекция, лучшее место, арты.'}</p>
+      ${pickRows ? `<ol class="tile-pick">${pickRows}</ol>` : ''}
+      <div class="tile-add">${addChips}</div>
+      ${picked.length ? '<div><button type="button" class="btn ghost mini" data-tile-default>По умолчанию</button></div>' : ''}`;
   return `<div class="prof-set${s.av ? '' : ' av-off'}">
       <div class="prof-preview">${avatarHtml(myPlayerKey(), name, true, s)}<span><b>${esc(name)}</b>${s.tg && tgName ? `<br><span class="small muted">в Telegram: ${esc(tgName)}</span>` : ''}<br><span class="small muted">так тебя видят другие</span></span></div>
       <label class="check"><input type="checkbox" data-prof-tg${s.tg ? ' checked' : ''}> Показывать имя Telegram</label>
@@ -3644,6 +3666,7 @@ function profileSettingsBody() {
       <div class="av-src"><button type="button" class="btn ghost mini${s.av ? '' : ' on'}" data-av-tg aria-pressed="${!s.av}">Из Telegram</button><button type="button" class="btn ghost mini${s.av ? ' on' : ''}" data-av-fig="${s.fig}" aria-pressed="${!!s.av}">Заготовка</button></div>
       <div class="av-grid">${figs}</div>
       <div class="av-colors">${colors}</div>
+      ${tilesBox}
       <div class="prof-actions"><button type="button" class="btn" data-prof-save>Сохранить</button><span class="small muted">Сохранится через бота, на сайте — через 1–2 минуты</span></div>
     </div>`;
 }
@@ -3651,7 +3674,7 @@ function profileSettingsHtml(name) {
   if (!profileDraft.s) {
     const cur = profileFor(myPlayerKey());
     const a = E.parseAvatarCode(cur.av) || E.parseAvatarCode(E.avatarSeedCode(myPlayerKey().slice(3)));
-    profileDraft.s = { ...cur, fig: a.fig, color: a.color };
+    profileDraft.s = { ...cur, fig: a.fig, color: a.color, tl: E.parseTiles(cur.tiles) };
   }
   profileDraft.name = name;
   return `<details class="card profile-settings" id="profileSettings"${profileDraft.open ? ' open' : ''}><summary>⚙️ Настройки профиля</summary><div id="profileSettingsBody">${profileSettingsBody()}</div></details>`;
@@ -3663,7 +3686,7 @@ function profileSettingsRedraw() {
 function profileSave() {
   const s = profileDraft.s;
   if (!s || !tg) return;
-  const set = { tg: !!s.tg, past: !!s.past, av: s.av || '' };
+  const set = { tg: !!s.tg, past: !!s.past, av: s.av || '', tiles: E.parseTiles(s.tl).join(',') };
   profilePending = { ...set, at: Date.now() };
   try { tg.CloudStorage.setItem('profileSet', JSON.stringify(profilePending)); } catch (e) { /* облако недоступно */ }
   rebuildProfiles();
@@ -3677,7 +3700,7 @@ function profilePendingLoad() {
       if (error || !value) return;
       try {
         const x = JSON.parse(value);
-        profilePending = { tg: x.tg === true, past: x.past !== false, av: E.parseAvatarCode(x.av) ? x.av : '', at: Number(x.at) || 0 };
+        profilePending = { tg: x.tg === true, past: x.past !== false, av: E.parseAvatarCode(x.av) ? x.av : '', tiles: E.parseTiles(x.tiles).join(','), at: Number(x.at) || 0 };
       } catch (e) { return; }
       rebuildProfiles();
       profileDraft.s = null;
@@ -3835,6 +3858,11 @@ function renderProfile() {
   const tile = (label, value, note) => `<div class="stat-tile"><span class="small muted">${label}</span><b>${value}</b>${note ? `<span class="small muted">${note}</span>` : ''}</div>`;
   const t = p.tiles;
   const banner = E.bannerFor(BANNERS, key);
+  // Визитка: только в шапке с баннером (tickets/profile-summary.md).
+  const art = key.startsWith('id:') ? E.cardCredits(cardsData, key.slice(3)) : null;
+  const own = key.startsWith('id:') ? E.cardOwnedCounts(cardsData, key.slice(3)) : { cards: 0, skins: 0 };
+  const visit = banner ? E.profileTiles({ pp, luckMin: (pullStats && pullStats.luckMin) || 50, own, totalCards: heroes.length, t, art, favorite: null }, profileFor(key).tiles) : [];
+  const visitHtml = visit.length ? `<div class="visit-tiles">${visit.map((x) => `<button type="button" class="visit-tile${x.tone ? ` ${x.tone}` : ''}" data-visit-go="${esc(x.anchor)}"><span class="small muted">${esc(x.label)}</span><b>${esc(x.value)}</b>${x.note ? `<span class="small muted">${esc(x.note)}</span>` : ''}</button>`).join('')}</div>` : '';
   const head = `<div class="card profile-head${banner ? ' has-banner' : ''}">
       ${banner ? bannerHtml(banner) : ''}${banner ? '<div class="profile-main">' : ''}${avatarHtml(key, name, true)}
       <div class="profile-name">
@@ -3847,16 +3875,15 @@ function renderProfile() {
         ${siteData ? '<button class="btn ghost mini" data-profile-share>Поделиться</button>' : ''}
       </div>
       <p class="small muted" id="profileShareNote"></p>
+      ${visitHtml}
     ${banner ? '</div>' : ''}</div>`;
   const settingsBox = mine && tg ? profileSettingsHtml(name) : '';
   // Картинки карт и скинов, добавленные благодаря игроку (cards.json, tickets/art-contest.md).
-  const art = key.startsWith('id:') ? E.cardCredits(cardsData, key.slice(3)) : null;
   const artTile = art ? `<div class="stat-tile text"><span class="small muted">🖼 Добавил артов</span><b>${esc(art.text)}</b></div>` : '';
-  const own = key.startsWith('id:') ? E.cardOwnedCounts(cardsData, key.slice(3)) : { cards: 0, skins: 0 };
   const ownTiles = own.cards ? `<div class="stat-tile" title="${esc(CARDS_PROOF)}"><span class="small muted">🃏 Карт (подтверждено)</span><b>${fmt(own.cards)}</b></div>`
     + `<div class="stat-tile" title="${esc(CARDS_PROOF)}"><span class="small muted">🎭 Скинов (подтверждено)</span><b>${fmt(own.skins)}</b></div>` : '';
   const luck = E.pullLuck(pp, (pullStats && pullStats.luckMin) || 50);
-  const pulls = pp && pp.pulls ? `<div class="card">
+  const pulls = pp && pp.pulls ? `<div class="card" id="profPulls">
       <h2>🎰 Крутки</h2>
       <div class="stat-tiles live-tiles">
         ${tile('Круток всего', fmt(pp.pulls))}
@@ -3866,12 +3893,12 @@ function renderProfile() {
       <p class="small muted">Только крутки в чатах, где есть @Insloushn. Удача — средние очки за крутку против среднего по всем.</p>
     </div>` : '';
   if (p.empty) {
-    const artBox = artTile || ownTiles ? `<div class="stat-tiles live-tiles">${ownTiles}${artTile}</div>` : '';
+    const artBox = artTile || ownTiles ? `<div class="stat-tiles live-tiles" id="profTiles">${ownTiles}${artTile}</div>` : '';
     $('profileOut').innerHTML = `${back}${head}${settingsBox}${artBox}${pulls || (artBox ? '' : '<p class="empty">Пока пусто: участвуй в конкурсах и пересылай итоги ивентов боту @AniMatrix_fansBot.</p>')}`;
     afterProfileRender();
     return;
   }
-  const tiles = `<div class="stat-tiles live-tiles">
+  const tiles = `<div class="stat-tiles live-tiles" id="profTiles">
       ${tile('Конкурсов', fmt(t.contests))}
       ${tile('Лучшее место в конкурсе', t.bestPlace ? `№${t.bestPlace}` : '—')}
       ${tile('SSS / SS в конкурсах', `${fmt(t.sss)} / ${fmt(t.ss)}`)}
@@ -3895,8 +3922,8 @@ function renderProfile() {
       <span>${b.rank}-е место из ${b.of}</span>
     </li>`).join('');
   $('profileOut').innerHTML = `${back}${head}${settingsBox}${tiles}${live}${pulls}
-    ${p.contests.length ? `<div class="card"><h2>🎲 Конкурсы</h2><ol class="best-list rec-best">${contestRows}</ol></div>` : ''}
-    ${p.records.best.length ? `<div class="card"><h2>🥇 Рекорды</h2>${REC_DISCLAIMER}<ol class="best-list rec-best">${recRows}</ol></div>` : ''}`;
+    ${p.contests.length ? `<div class="card" id="profContests"><h2>🎲 Конкурсы</h2><ol class="best-list rec-best">${contestRows}</ol></div>` : ''}
+    ${p.records.best.length ? `<div class="card" id="profRecords"><h2>🥇 Рекорды</h2>${REC_DISCLAIMER}<ol class="best-list rec-best">${recRows}</ol></div>` : ''}`;
   afterProfileRender();
 }
 
@@ -6083,6 +6110,22 @@ document.querySelector('.wrap').addEventListener('click', (e) => {
     return;
   }
   if (e.target.closest('[data-av-tg]') && profileDraft.s) { profileDraft.s.av = ''; profileSettingsRedraw(); return; }
+  const tileBtn = profileDraft.s && e.target.closest('[data-tile-add],[data-tile-del],[data-tile-up],[data-tile-down],[data-tile-default]');
+  if (tileBtn) {
+    const d = tileBtn.dataset;
+    const list = E.parseTiles(profileDraft.s.tl);
+    const i = list.indexOf(d.tileUp || d.tileDown || d.tileDel);
+    if (d.tileAdd) list.push(d.tileAdd);
+    else if (d.tileDel) list.splice(i, 1);
+    else if (d.tileUp && i > 0) [list[i - 1], list[i]] = [list[i], list[i - 1]];
+    else if (d.tileDown && i >= 0 && i < list.length - 1) [list[i + 1], list[i]] = [list[i], list[i + 1]];
+    else if ('tileDefault' in d) list.length = 0;
+    profileDraft.s.tl = E.parseTiles(list);
+    profileSettingsRedraw();
+    return;
+  }
+  const visitGo = e.target.closest('[data-visit-go]');
+  if (visitGo) { const el = $(visitGo.dataset.visitGo); if (el) el.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' }); return; }
   if (e.target.closest('[data-prof-save]')) { profileSave(); return; }
   if (e.target.closest('[data-profile-share]')) {
     const key = profileState.key || myPlayerKey();

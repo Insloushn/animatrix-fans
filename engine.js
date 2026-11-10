@@ -1276,22 +1276,82 @@
     };
   }
 
+  // ---------- Визитка игрока (tickets/profile-summary.md) ----------
+  const TILE_MAX = 6;
+  const TILE_LABELS = { pu: '🎰 Круток', lk: '🍀 Удача', sx: '🌟 SSS / SS', co: '🃏 Коллекция', sk: '🎭 Скинов', bc: '🏆 Место в конкурсе', br: '📜 Место в рекордах', cn: '🎲 Конкурсов', fv: '⭐ Любимчик', ar: '🖼 Добавил артов' };
+  const TILE_CODES = Object.keys(TILE_LABELS);
+  // По умолчанию: на месте группы — первая плитка, у которой есть данные (лучшее место: конкурс, иначе рекорды; любимчик, иначе арты).
+  const TILE_DEFAULT = [['pu'], ['lk'], ['sx'], ['co'], ['bc', 'br'], ['fv', 'ar']];
+  // Коды плиток из строки «pu,lk» или списка: только известные, без повторов, не больше шести.
+  function parseTiles(v) {
+    const out = [];
+    (Array.isArray(v) ? v : String(v || '').split(',')).forEach((c) => {
+      const code = String(c).trim();
+      if (TILE_CODES.includes(code) && !out.includes(code) && out.length < TILE_MAX) out.push(code);
+    });
+    return out;
+  }
+  const spaced = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  // Плитки, для которых у игрока есть данные: код → { code, label, value, note, tone, anchor }.
+  // ctx: pp — игрок в pull-stats, luckMin, own — { cards, skins }, totalCards, t — p.tiles профиля, art — cardCredits, favorite — { text, tone } или null.
+  function tileData(ctx) {
+    const { pp, own, t, art, favorite } = ctx || {};
+    const out = {};
+    const put = (code, value, note = '', tone = '', anchor = '') => { out[code] = { code, label: TILE_LABELS[code], value, note, tone, anchor }; };
+    if (pp && pp.pulls > 0) {
+      put('pu', spaced(pp.pulls), '', '', 'profPulls');
+      const luck = pullLuck(pp, ctx.luckMin || 50);
+      if (luck.value == null) put('lk', '—', `от ${ctx.luckMin || 50} круток`, '', 'profPulls');
+      else {
+        const pct = Math.round((luck.value - 1) * 100);
+        put('lk', pct > 0 ? `+${pct}%` : pct < 0 ? `−${-pct}%` : '0%', '', pct > 0 ? 'good' : pct < 0 ? 'bad' : '', 'profPulls');
+      }
+      put('sx', `${spaced(pp.sss || 0)} / ${spaced(pp.ss || 0)}`, '', '', 'profPulls');
+    }
+    if (own && own.cards > 0) {
+      put('co', spaced(own.cards), [ctx.totalCards ? `из ${spaced(ctx.totalCards)}` : '', own.skins ? `скинов ${spaced(own.skins)}` : ''].filter(Boolean).join(' · '), '', 'profTiles');
+      if (own.skins > 0) put('sk', spaced(own.skins), '', '', 'profTiles');
+    }
+    if (t) {
+      if (t.contests > 0) put('cn', spaced(t.contests), '', '', 'profContests');
+      if (t.bestPlace) put('bc', `№${t.bestPlace}`, '', '', 'profContests');
+      if (t.recordBest) put('br', `№${t.recordBest}`, '', '', 'profRecords');
+    }
+    if (favorite && favorite.text) put('fv', favorite.text, '', favorite.tone || '', 'profPulls');
+    if (art && art.total > 0) put('ar', spaced(art.total), art.split ? art.text : '', '', 'profTiles');
+    return out;
+  }
+  // Плитки визитки: выбранные игроком, у кого нет данных — пропускаются, место занимает следующая по умолчанию.
+  // Выбрано N — показано N (но не больше шести); не выбрано ничего — шесть по умолчанию.
+  function profileTiles(ctx, chosen) {
+    const data = tileData(ctx);
+    const picked = parseTiles(chosen);
+    const want = picked.length || TILE_MAX;
+    const out = [];
+    const add = (code) => { if (out.length < want && data[code] && !out.some((x) => x.code === code)) out.push(data[code]); };
+    picked.forEach(add);
+    TILE_DEFAULT.forEach((group) => { const code = group.find((c) => data[c] && !out.some((x) => x.code === c)); if (code) add(code); });
+    return out;
+  }
+
   // Настройки профиля из profiles.json (пишет бот): ID → { tg, past, av }. Хранятся только отличия от умолчаний:
   // имя Telegram скрыто (tg 0), прошлые ники видны (past 1), аватар из Telegram (av '').
-  const PROFILE_DEFAULTS = { tg: false, past: true, av: '' };
+  // tiles — выбранные плитки визитки (tickets/profile-summary.md): коды через запятую, '' — по умолчанию.
+  const PROFILE_DEFAULTS = { tg: false, past: true, av: '', tiles: '' };
   function profileMap(data) {
     const map = new Map();
     const src = (data && data.profiles && typeof data.profiles === 'object') ? data.profiles : {};
     Object.entries(src).forEach(([id, x]) => {
       if (!/^\d+$/.test(id) || !x || typeof x !== 'object') return;
-      map.set(id, { tg: x.tg === 1, past: x.past !== 0, av: parseAvatarCode(x.av) ? x.av : '' });
+      map.set(id, { tg: x.tg === 1, past: x.past !== 0, av: parseAvatarCode(x.av) ? x.av : '', tiles: parseTiles(x.tiles).join(',') });
     });
     return map;
   }
   const profileOf = (profiles, id) => ({ ...PROFILE_DEFAULTS, ...((id && profiles && profiles.get && profiles.get(String(id))) || {}) });
 
   // Код для бота: «set_tg0_past1_a07-2», аватар из Telegram — «avtg». Не больше 64 символов [A-Za-z0-9_-].
-  const profileStartCode = (s) => `set_tg${s.tg ? 1 : 0}_past${s.past ? 1 : 0}_${s.av || 'avtg'}`;
+  // Плитки визитки — «tl-pu-lk», по умолчанию — «tldef»; не названы (старый код) — не меняются.
+  const profileStartCode = (s) => `set_tg${s.tg ? 1 : 0}_past${s.past ? 1 : 0}_${s.av || 'avtg'}${s.tiles === undefined ? '' : `_${parseTiles(s.tiles).length ? `tl-${parseTiles(s.tiles).join('-')}` : 'tldef'}`}`;
   // Разбор кода из /start: { tg?, past?, av? } — только названные части; неверный код — null.
   function parseProfileCode(code) {
     const s = String(code || '');
@@ -1303,6 +1363,8 @@
       if ((m = part.match(/^tg([01])$/))) out.tg = m[1] === '1';
       else if ((m = part.match(/^past([01])$/))) out.past = m[1] === '1';
       else if (part === 'avtg') out.av = '';
+      else if (part === 'tldef') out.tiles = '';
+      else if (/^tl(-[a-z]{2})+$/.test(part)) out.tiles = parseTiles(part.slice(3).split('-')).join(','); // чужие коды отбрасываются
       else if (parseAvatarCode(part)) out.av = part;
       else return null;
     }
@@ -2190,7 +2252,7 @@
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
-    AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, profileStartCode, parseProfileCode,
+    AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, profileStartCode, parseProfileCode, parseTiles, profileTiles, TILE_LABELS, TILE_CODES, TILE_MAX,
     pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, versionPic, cardOwned, cardOwnedCounts, cardAutoMark,
     NAV_GROUPS, navGroups, navGroupOf, cardCounts, cardCatalog, ratings, cardCredits,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
