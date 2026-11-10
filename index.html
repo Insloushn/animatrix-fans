@@ -3760,9 +3760,22 @@ function pastNicksHtml(past) {
   return `<span class="past-nicks"><button type="button" class="past-btn" data-past-nicks aria-expanded="false" aria-controls="pastNicks">ⓘ прошлые ники</button><ul class="past-pop" id="pastNicks" role="tooltip">${items}</ul></span>`;
 }
 
+// ---------- Медиа сайта (tickets/media-repo.md) ----------
+// Картинки карт и баннеры лежат в отдельном репозитории с Pages: сайт ~1 ГБ не вместит все карты.
+const MEDIA = 'https://insloushn.github.io/animatrix-media/';
+// Пока старые файлы ещё лежат на сайте: не нашлось в медиа — один раз берём прежний путь рядом со страницей.
+document.addEventListener('error', (e) => {
+  const el = e.target;
+  if (!el || (el.tagName !== 'IMG' && el.tagName !== 'VIDEO')) return;
+  const src = el.getAttribute('src') || '';
+  if (!src.startsWith(MEDIA) || el.dataset.mediaFb === src) return;
+  el.dataset.mediaFb = src;
+  el.setAttribute('src', src.slice(MEDIA.length));
+}, true);
+
 // ---------- Баннер профиля и звук сайта (tickets/banner-owner.md) ----------
 // Баннер — только у Telegram ID из списка (владелец); бот и файлы данных не меняются.
-const BANNERS = { '921847623': { video: 'banners/921847623.mp4?v=2', poster: 'banners/921847623.jpg?v=2' } };
+const BANNERS = { '921847623': { video: `${MEDIA}banners/921847623.mp4?v=2`, poster: `${MEDIA}banners/921847623.jpg?v=2` } };
 const sound = E.createSound((() => { try { return window.localStorage; } catch (e) { return null; } })());
 let soundBlocked = false; // браузер не дал включить звук — кнопка остаётся на 🔇
 const reducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -4427,11 +4440,11 @@ function renderContests() {
 // ---------- 🎰 Крутки: общая статистика (pull-stats.json пишет бот, tickets/pull-stats.md) ----------
 // Нет файла — блока нет. Чаты и их названия видны всем.
 let pullStats = null;
-// Картинки карт и владельцы (cards.json пишет бот, tickets/hero-images.md). Только на сайте: картинки лежат рядом, в cards/.
+// Картинки карт и владельцы (cards.json пишет бот, tickets/hero-images.md). Только на сайте: картинки лежат в репозитории медиа (cards/), см. MEDIA.
 let cardsData = null;
 const heroPics = (h) => (siteData && cardsData ? E.cardImages(cardsData, E.heroCode(h)) : []);
 // Адрес картинки карты; ?v= — версия после замены (tickets/card-replace.md), без неё — как раньше.
-const picUrl = (pic, small) => `cards/${pic.file}${small ? '.s' : ''}.jpg${pic.v ? `?v=${pic.v}` : ''}`;
+const picUrl = (pic, small) => `${MEDIA}cards/${pic.file}${small ? '.s' : ''}.jpg${pic.v ? `?v=${pic.v}` : ''}`;
 // Миниатюра строго своей версии (tickets/thumbs-strict.md): строка карты — картинка карты, строка скина — скина.
 // Нужной нет — заглушка того же размера в цвете ранга: колонка ровная и сразу видно, какой картинки не хватает.
 // Без cards.json (claude.ai, файл не загрузился) — пусто, как раньше.
