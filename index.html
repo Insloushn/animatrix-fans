@@ -564,11 +564,31 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .profile-head h2 { font-size: 20px; overflow-wrap: anywhere; }
 .profile-head .actions, .profile-head #profileShareNote { grid-column: 1 / -1; }
 .profile-head #profileShareNote:empty { display: none; }
-/* Баннер владельца (tickets/banner-owner.md): шапка на всю карточку, аватар поверх нижнего края. */
+/* Баннер владельца (tickets/banner-owner.md, banner-layout.md): кадр всегда целиком, 16:9.
+   Узко — на всю ширину карточки, аватар поверх нижнего края; широко — справа, слева аватар, ник и кнопки. */
 .profile-head.has-banner { overflow: hidden; }
-.profile-banner { grid-column: 1 / -1; position: relative; margin: -14px -14px 0; height: clamp(150px, 30vw, 260px); background: var(--line) center / cover no-repeat; overflow: hidden; }
+.profile-main { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 14px; min-width: 0; }
+.profile-main .actions, .profile-main #profileShareNote { grid-column: 1 / -1; }
+.profile-main #profileShareNote:empty { display: none; }
+.profile-banner { grid-column: 1 / -1; position: relative; margin: -14px -14px 0; aspect-ratio: 16 / 9; background: var(--line) center / cover no-repeat; overflow: hidden; }
 .profile-banner video, .profile-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .has-banner .avatar.big { margin-top: -34px; z-index: 1; box-shadow: 0 0 0 3px var(--panel); }
+@media (min-width: 820px) {
+  .profile-head.has-banner { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; }
+  .profile-head.has-banner .profile-main { grid-column: 1; grid-row: 1; align-self: center; }
+  .profile-banner { grid-column: 2; grid-row: 1; margin: 0; height: 290px; width: auto; border-radius: 10px; }
+  .has-banner .avatar.big { margin-top: 0; box-shadow: none; }
+}
+/* Баннер в строках «Игроки» и «Рейтинги»: заставка фоном, на ПК при наведении — видео без звука. */
+.player-row.has-bg { position: relative; overflow: hidden; isolation: isolate; color: #fff; }
+.player-row.has-bg small, .player-row.has-bg .rate-place { color: rgba(255,255,255,.82); }
+.player-row.has-bg:hover, .player-row.has-bg:focus-visible { background: none; }
+.row-bg { position: absolute; inset: 0; z-index: -1; background: #15121f; }
+.row-bg img, .row-bg video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.row-bg video { opacity: 0; transition: opacity .25s; }
+.row-bg video.on { opacity: 1; }
+.row-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(10,8,20,.9) 0%, rgba(10,8,20,.65) 45%, rgba(10,8,20,.25) 100%); }
+@media (prefers-reduced-motion: reduce) { .row-bg video { transition: none; } }
 .sound-btn { all: unset; box-sizing: border-box; cursor: pointer; align-self: center; width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 17px; line-height: 1; background: var(--line); }
 .sound-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sound-btn.corner { position: absolute; right: 8px; bottom: 8px; width: 30px; height: 30px; font-size: 15px; background: rgba(0,0,0,.55); color: #fff; }
@@ -3719,7 +3739,7 @@ function pastNicksHtml(past) {
 
 // ---------- Баннер профиля и звук сайта (tickets/banner-owner.md) ----------
 // Баннер — только у Telegram ID из списка (владелец); бот и файлы данных не меняются.
-const BANNERS = { '921847623': { video: 'banners/921847623.mp4', poster: 'banners/921847623.jpg' } };
+const BANNERS = { '921847623': { video: 'banners/921847623.mp4?v=2', poster: 'banners/921847623.jpg?v=2' } };
 const sound = E.createSound((() => { try { return window.localStorage; } catch (e) { return null; } })());
 let soundBlocked = false; // браузер не дал включить звук — кнопка остаётся на 🔇
 const reducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -3769,6 +3789,31 @@ document.addEventListener('click', (e) => {
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopBanner(); else playBanner(); });
 syncSoundButtons();
 
+// Фон строки списка у игрока с баннером: заставка; видео (без звука) — только при наведении на ПК.
+const canHover = () => !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
+function rowBg(key) {
+  const b = E.bannerFor(BANNERS, key);
+  if (!b) return { cls: '', html: '' };
+  const video = !reducedMotion() && canHover() ? `<video muted loop playsinline preload="none" data-row-video data-src="${esc(b.video)}"></video>` : '';
+  return { cls: ' has-bg', html: `<span class="row-bg" aria-hidden="true">${b.poster ? `<img src="${esc(b.poster)}" alt="" loading="lazy" decoding="async">` : ''}${video}</span>` };
+}
+function rowVideo(e, over) {
+  const row = e.target.closest && e.target.closest('.player-row.has-bg');
+  const v = row && row.querySelector('[data-row-video]');
+  if (!v || (e.relatedTarget && row.contains(e.relatedTarget))) return;
+  if (over) {
+    if (!v.getAttribute('src')) v.src = v.dataset.src;
+    v.muted = true;
+    const p = v.play();
+    if (p && p.then) p.then(() => v.classList.add('on'), () => { /* остаётся заставка */ });
+  } else {
+    v.pause();
+    v.classList.remove('on');
+  }
+}
+document.addEventListener('mouseover', (e) => rowVideo(e, true));
+document.addEventListener('mouseout', (e) => rowVideo(e, false));
+
 function afterProfileRender() { syncSoundButtons(); playBanner(); }
 
 function renderProfile() {
@@ -3791,7 +3836,7 @@ function renderProfile() {
   const t = p.tiles;
   const banner = E.bannerFor(BANNERS, key);
   const head = `<div class="card profile-head${banner ? ' has-banner' : ''}">
-      ${banner ? bannerHtml(banner) : ''}${avatarHtml(key, name, true)}
+      ${banner ? bannerHtml(banner) : ''}${banner ? '<div class="profile-main">' : ''}${avatarHtml(key, name, true)}
       <div class="profile-name">
         <div class="profile-title"><h2>${esc(name)}${mine ? ' <span class="tag">это ты</span>' : ''}</h2>${pastNicksHtml(p.past)}</div>
         ${p.tgName ? `<p class="small muted profile-tg">в Telegram: ${esc(p.tgName)}</p>` : ''}
@@ -3802,7 +3847,7 @@ function renderProfile() {
         ${siteData ? '<button class="btn ghost mini" data-profile-share>Поделиться</button>' : ''}
       </div>
       <p class="small muted" id="profileShareNote"></p>
-    </div>`;
+    ${banner ? '</div>' : ''}</div>`;
   const settingsBox = mine && tg ? profileSettingsHtml(name) : '';
   // Картинки карт и скинов, добавленные благодаря игроку (cards.json, tickets/art-contest.md).
   const art = key.startsWith('id:') ? E.cardCredits(cardsData, key.slice(3)) : null;
@@ -3864,13 +3909,13 @@ function renderPlayers() {
   const me = myPlayerKey();
   // Карты и скины, подтверждённые ботом (cards.json), — раздельно: скин не идёт в число карт.
   const cardsText = (p) => (p.cards > 0 ? `<span title="${esc(CARDS_PROOF)}">🃏 карт ${fmt(p.cards)}${p.skins > 0 ? ` · 🎭 скинов ${fmt(p.skins)}` : ''}</span>` : '');
-  const row = (p) => `<button class="player-row" data-player="${esc(p.key)}">
-      ${avatarHtml(p.key, p.name)}
+  const row = (p) => { const bg = rowBg(p.key); return `<button class="player-row${bg.cls}" data-player="${esc(p.key)}">
+      ${bg.html}${avatarHtml(p.key, p.name)}
       <span class="player-text"><b>${esc(p.name)}${p.key === me ? ' <span class="tag">это ты</span>' : ''}</b>
         <small>${(p.contests || p.records || p.live
           ? [`конкурсов ${p.contests}`, `рекордов ${p.records}`, p.pulls > 0 ? `круток ${fmt(p.pulls)}` : '', cardsText(p), p.live ? '🔴 в конкурсе' : '']
           : [p.pulls > 0 ? `круток ${fmt(p.pulls)}` : '', cardsText(p)]).filter(Boolean).join(' · ')}</small></span>
-    </button>`;
+    </button>`; };
   const shownId = withId.slice(0, playersState.limit);
   const shownNo = noId.slice(0, Math.max(0, playersState.limit - withId.length));
   const left = all.length - shownId.length - shownNo.length;
@@ -4407,8 +4452,9 @@ function renderRatings() {
   const nameOf = (r) => shownName(r.key, names.get(r.key) || r.name || (r.key.startsWith('id:') ? `ID ${r.key.slice(3)}` : r.key.slice(2)));
   const row = (r) => {
     const name = nameOf(r);
-    return `<button class="player-row rate-row${r.key === me ? ' rate-me' : ''}" data-player="${esc(r.key)}">
-      <span class="rate-place">${recPlace(r.place)}</span>${avatarHtml(r.key, name)}
+    const bg = rowBg(r.key);
+    return `<button class="player-row rate-row${bg.cls}${r.key === me ? ' rate-me' : ''}" data-player="${esc(r.key)}">
+      ${bg.html}<span class="rate-place">${recPlace(r.place)}</span>${avatarHtml(r.key, name)}
       <span class="player-text"><b>${esc(name)}${r.key === me ? ' <span class="tag">это ты</span>' : ''}</b><small>${esc(r.note)}</small></span>
       <b class="rate-value">${esc(r.value)}</b>
     </button>`;
