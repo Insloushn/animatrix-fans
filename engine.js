@@ -1278,7 +1278,7 @@
 
   // ---------- Визитка игрока (tickets/profile-summary.md) ----------
   const TILE_MAX = 6;
-  const TILE_LABELS = { pu: '🎰 Круток', lk: '🍀 Удача', sx: '🌟 SSS / SS', co: '🃏 Коллекция', sk: '🎭 Скинов', bc: '🏆 Место в конкурсе', br: '📜 Место в рекордах', cn: '🎲 Конкурсов', fv: '⭐ Любимчик', ar: '🖼 Добавил артов' };
+  const TILE_LABELS = { pu: '🎰 Круток', lk: '🍀 Удача', sx: '🌟 SSS / SS', co: '🃏 Коллекция', sk: '🎭 Скинов', bc: '🏆 Место в конкурсе', br: '📜 Место в рекордах', cn: '🎲 Конкурсов', fv: '⭐ Любимчик', ar: '🖼 Добавил артов', ti: '📚 Тайтлов собрано' };
   const TILE_CODES = Object.keys(TILE_LABELS);
   // По умолчанию: на месте группы — первая плитка, у которой есть данные (лучшее место: конкурс, иначе рекорды; любимчик, иначе арты).
   const TILE_DEFAULT = [['pu'], ['lk'], ['sx'], ['co'], ['bc', 'br'], ['fv', 'ar']];
@@ -1293,9 +1293,10 @@
   }
   const spaced = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   // Плитки, для которых у игрока есть данные: код → { code, label, value, note, tone, anchor }.
-  // ctx: pp — игрок в pull-stats, luckMin, own — { cards, skins }, totalCards, t — p.tiles профиля, art — cardCredits, favorite — { text, tone } или null.
+  // ctx: pp — игрок в pull-stats, luckMin, own — { cards, skins }, totalCards, t — p.tiles профиля, art — cardCredits, favorite — { text, tone } или null,
+  // titles — titleSummary (плитка «Тайтлов собрано»).
   function tileData(ctx) {
-    const { pp, own, t, art, favorite } = ctx || {};
+    const { pp, own, t, art, favorite, titles } = ctx || {};
     const out = {};
     const put = (code, value, note = '', tone = '', anchor = '') => { out[code] = { code, label: TILE_LABELS[code], value, note, tone, anchor }; };
     if (pp && pp.pulls > 0) {
@@ -1319,6 +1320,7 @@
     }
     if (favorite && favorite.text) put('fv', favorite.text, '', favorite.tone || '', 'profPulls');
     if (art && art.total > 0) put('ar', spaced(art.total), art.split ? art.text : '', '', 'profTiles');
+    if (titles && titles.started > 0) put('ti', spaced(titles.full), `из ${spaced(titles.total)}`, '', 'profTitles');
     return out;
   }
   // Плитки визитки: выбранные игроком, у кого нет данных — пропускаются, место занимает следующая по умолчанию.
@@ -1760,6 +1762,67 @@
     const s = new Map(list.map((x) => [x, strength(x.h)]));
     return list.sort((a, b) => RANKS.indexOf(a.h.rank) - RANKS.indexOf(b.h.rank) || s.get(a) - s.get(b)
       || a.h.name.localeCompare(b.h.name, 'ru'));
+  }
+
+  // ---------- Прогресс по тайтлам (tickets/title-progress.md) ----------
+  // owned — функция (герой → есть ли) или набор heroId. Скин не считается: герой либо есть, либо нет.
+  // → [{ key, title, have, total, pct, done, ranks: [{ rank, have, total, done, missing: [герой] }] }]; ранги SSS → F, только те, что есть в тайтле.
+  function titleProgress(heroes, owned) {
+    const has = typeof owned === 'function' ? owned : (h) => !!owned && owned.has(heroId(h));
+    const byTitle = new Map();
+    const seen = new Set();
+    (heroes || []).forEach((h) => {
+      const id = heroId(h);
+      if (seen.has(id)) return;
+      seen.add(id);
+      const title = h.title || NO_TITLE;
+      const key = normName(title);
+      if (!byTitle.has(key)) byTitle.set(key, { key, title, have: 0, total: 0, pct: 0, done: false, ranks: new Map() });
+      const t = byTitle.get(key);
+      if (!t.ranks.has(h.rank)) t.ranks.set(h.rank, { rank: h.rank, have: 0, total: 0, done: false, missing: [] });
+      const r = t.ranks.get(h.rank);
+      const mine = !!has(h);
+      t.total += 1;
+      r.total += 1;
+      if (mine) { t.have += 1; r.have += 1; } else r.missing.push(h);
+    });
+    const order = (rank) => { const i = RANKS.indexOf(rank); return i < 0 ? RANKS.length : i; };
+    return [...byTitle.values()].map((t) => ({
+      ...t,
+      pct: t.total ? t.have / t.total * 100 : 0,
+      done: t.total > 0 && t.have === t.total,
+      ranks: [...t.ranks.values()].sort((a, b) => order(a.rank) - order(b.rank)).map((r) => ({
+        ...r, done: r.total > 0 && r.have === r.total, missing: r.missing.sort((a, b) => a.name.localeCompare(b.name, 'ru')),
+      })),
+    }));
+  }
+
+  // Порядок списка тайтлов: close — ближе к полному (процент, затем больше героев), alpha — по алфавиту, size — по числу героев.
+  // started — только начатые (хотя бы один герой есть).
+  function sortTitleProgress(list, { sort = 'close', started = false } = {}) {
+    const byName = (a, b) => a.title.localeCompare(b.title, 'ru');
+    const cmp = {
+      close: (a, b) => b.pct - a.pct || b.total - a.total || byName(a, b),
+      alpha: byName,
+      size: (a, b) => b.total - a.total || b.pct - a.pct || byName(a, b),
+    }[sort] || byName;
+    return (list || []).filter((t) => !started || t.have > 0).sort(cmp);
+  }
+
+  // Для профиля: сколько тайтлов, начатых и полностью собранных, и пять ближайших к полному из начатых.
+  function titleSummary(list, top = 5) {
+    const all = list || [];
+    const started = all.filter((t) => t.have > 0);
+    return { total: all.length, started: started.length, full: all.filter((t) => t.done).length, top: sortTitleProgress(started, { sort: 'close' }).slice(0, top) };
+  }
+
+  // Герои игрока без скинов: подтверждённые ботом карты (cards.json) и выпавшие в круток (pull-stats.json) — как в рейтинге «Коллекционеры».
+  function confirmedHeroIds(heroes, cards, pulls, id) {
+    const byCode = new Map((heroes || []).map((h) => [heroCode(h), heroId(h)]));
+    const ids = new Set();
+    cardOwned(cards, id).forEach(([code]) => { if (byCode.has(code)) ids.add(byCode.get(code)); });
+    pullHeroIds(pulls, pullPlayer(pulls, `id:${id}`), heroes).forEach((x) => ids.add(x));
+    return ids;
   }
 
   // ---------- «📊 Рейтинги» (tickets/site-v2-shell.md, часть 3) ----------
@@ -2337,7 +2400,7 @@
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
     AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, profileStartCode, parseProfileCode, parseTiles, profileTiles, TILE_LABELS, TILE_CODES, TILE_MAX,
-    pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, versionPic, cardOwned, cardOwnedCounts, cardAutoMark,
+    pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, versionPic, cardOwned, cardOwnedCounts, cardAutoMark, titleProgress, sortTitleProgress, titleSummary, confirmedHeroIds,
     NAV_GROUPS, navGroups, navGroupOf, homeFeed, feedTime, plural, cardCounts, cardCatalog, ratings, cardCredits,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,

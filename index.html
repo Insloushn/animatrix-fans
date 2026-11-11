@@ -686,6 +686,42 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .cat-pic.hovering .cat-bars, .cat-pic.hovering .cat-skin-name.shown { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .cat-alt, .cat-bars, .cat-skin-name { transition: none; } }
 .cat-tile b { font-weight: 600; font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; }
+/* «📚 По тайтлам» (tickets/title-progress.md): строка тайтла с полоской, раскрытие — ранги и недостающие герои. */
+#catView { margin-bottom: 10px; }
+.tp-list { padding: 0; overflow: hidden; }
+.tp { border-top: 1px solid var(--line); }
+.tp:first-child { border-top: 0; }
+.tp > summary, .tp-top-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 2px 10px; align-items: baseline; cursor: pointer; list-style: none; padding: 10px 14px; }
+.tp > summary::-webkit-details-marker { display: none; }
+.tp > summary:hover, .tp-top-row:hover { background: var(--tint); }
+.tp > summary:focus-visible, .tp-top-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+#titlesSort { flex: 1 1 210px; }
+.tp-name { font-weight: 600; overflow-wrap: anywhere; }
+.tp-num, .tp-pct { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tp-pct { min-width: 3em; text-align: right; }
+.tp .tp-track, .tp-top-row .tp-track { grid-column: 1 / -1; max-width: none; flex: none; }
+.tp.done .tp-track span { background: var(--good); }
+.tp.done .tp-pct, .tp.done .tp-num { color: var(--good); }
+.tp[open] > summary { background: var(--tint); }
+.tp-body { padding: 4px 14px 12px; display: grid; gap: 10px; }
+.tp-rank { border-left: 3px solid var(--rk, var(--line)); padding-left: 10px; display: grid; gap: 6px; }
+.tp-rank-head { margin: 0; }
+.tp-rank.done .tp-rank-head, .tp-rank.done .tp-rank-num { color: var(--good); }
+.tp-rank.done .tp-rank-head b { color: var(--good); }
+.tp-ok { color: var(--good); font-weight: 700; }
+.tp-miss { display: flex; flex-wrap: wrap; gap: 6px; }
+.tp-hero { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 8px 3px 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; }
+.tp-hero:hover, .tp-hero:focus-visible { border-color: var(--accent); background: var(--tint); }
+.tp-hero:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tp-hero span { min-width: 0; overflow-wrap: anywhere; }
+.tp-hero .hero-thumb { width: 32px; height: 32px; }
+.tp-top { list-style: none; margin: 0 -14px; padding: 0; }
+.tp-top-row { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 2px 10px; align-items: baseline; cursor: pointer; padding: 8px 14px; }
+.tp-top-row:hover { background: var(--tint); }
+.tp-top-row.done .tp-track span { background: var(--good); }
+.tp-top-row.done .tp-num, .tp-top-row.done .tp-pct { color: var(--good); }
+.tp-top-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
 .cat-tile small { color: var(--muted); font-size: 12px; }
 /* Цвета рангов — как фон карт в игре (tickets/rank-colors.md); тон подогнан под контраст ≥ 3:1 с фоном в обеих темах.
    SS и SSS — градиенты; --rank-SS-c / --rank-SSS-c — первый цвет градиента (сплошной). */
@@ -970,6 +1006,11 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 
   <section class="view" id="view-cards" hidden>
+    <div class="chips" id="catView" role="tablist" aria-label="Вид каталога">
+      <button class="chip" role="tab" data-cat-view="grid" aria-selected="true" aria-pressed="true">🃏 Каталог</button>
+      <button class="chip" role="tab" data-cat-view="titles" aria-selected="false" aria-pressed="false">📚 По тайтлам</button>
+    </div>
+    <div id="catPane">
     <div class="card cat-head" id="catHead"></div>
     <div class="tools cat-tools">
       <input id="catSearch" type="search" placeholder="Имя героя или тайтл" aria-label="Найти карту по имени или тайтлу">
@@ -985,6 +1026,19 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <p class="small muted" id="catCount"></p>
     <div class="cat-grid" id="catGrid"></div>
     <div id="catMore"></div>
+    </div>
+    <div id="titlesPane" hidden>
+      <div class="card cat-head" id="titlesHead"></div>
+      <div class="tools cat-tools">
+        <select id="titlesSort" aria-label="Порядок тайтлов">
+          <option value="close">↕ Ближе к полному</option><option value="alpha">↕ По алфавиту</option><option value="size">↕ По числу героев</option>
+        </select>
+        <button class="chip" id="titlesStarted" aria-pressed="false">Только начатые</button>
+      </div>
+      <p class="small muted" id="titlesCount"></p>
+      <div id="titlesOut"></div>
+      <div id="titlesMore"></div>
+    </div>
   </section>
 
   <section class="view" id="view-records" hidden>
@@ -1168,7 +1222,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=e0eaa42881"></script>
+<script src="engine.js?v=4633105306"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -3876,7 +3930,9 @@ function renderProfile() {
   // Визитка: только в шапке с баннером (tickets/profile-summary.md).
   const art = key.startsWith('id:') ? E.cardCredits(cardsData, key.slice(3)) : null;
   const own = key.startsWith('id:') ? E.cardOwnedCounts(cardsData, key.slice(3)) : { cards: 0, skins: 0 };
-  const visit = banner ? E.profileTiles({ pp, luckMin: (pullStats && pullStats.luckMin) || 50, own, totalCards: heroes.length, t, art, favorite: null }, profileFor(key).tiles) : [];
+  // Тайтлы (tickets/title-progress.md): свой профиль — по коллекции сайта, чужой — по подтверждённому ботом.
+  const titleSum = key.startsWith('id:') ? E.titleSummary(E.titleProgress(heroes, titleOwnedFor(mine ? '' : key))) : null;
+  const visit = banner ? E.profileTiles({ pp, luckMin: (pullStats && pullStats.luckMin) || 50, own, totalCards: heroes.length, t, art, favorite: null, titles: titleSum }, profileFor(key).tiles) : [];
   const visitHtml = visit.length ? `<div class="visit-tiles">${visit.map((x) => `<button type="button" class="visit-tile${x.tone ? ` ${x.tone}` : ''}" data-visit-go="${esc(x.anchor)}"><span class="small muted">${esc(x.label)}</span><b>${esc(x.value)}</b>${x.note ? `<span class="small muted">${esc(x.note)}</span>` : ''}</button>`).join('')}</div>` : '';
   const head = `<div class="card profile-head${banner ? ' has-banner' : ''}">
       ${banner ? bannerHtml(banner) : ''}${banner ? '<div class="profile-main">' : ''}${avatarHtml(key, name, true)}
@@ -3897,6 +3953,13 @@ function renderProfile() {
   const artTile = art ? `<div class="stat-tile text"><span class="small muted">🖼 Добавил артов</span><b>${esc(art.text)}</b></div>` : '';
   const ownTiles = own.cards ? `<div class="stat-tile" title="${esc(CARDS_PROOF)}"><span class="small muted">🃏 Карт (подтверждено)</span><b>${fmt(own.cards)}</b></div>`
     + `<div class="stat-tile" title="${esc(CARDS_PROOF)}"><span class="small muted">🎭 Скинов (подтверждено)</span><b>${fmt(own.skins)}</b></div>` : '';
+  const titlesBox = titleSum && titleSum.started > 0 ? `<div class="card" id="profTitles">
+      <h2>📚 Тайтлы</h2>
+      <p>Полностью собрано: <b>${fmt(titleSum.full)}</b> из ${fmt(titleSum.total)} · начато ${fmt(titleSum.started)}</p>
+      <ul class="tp-top">${titleSum.top.map((x) => `<li><button type="button" class="tp-top-row${x.done ? ' done' : ''}" data-titles-of="${esc(mine ? '' : key)}" data-title-open="${esc(x.key)}"><span class="tp-name">${x.done ? '✅ ' : ''}${esc(x.title)}</span><span class="tp-num">${x.have} из ${x.total}</span><span class="tp-pct">${pctText(x)}</span>${titleBar(x)}</button></li>`).join('')}</ul>
+      ${mine ? '' : `<p class="small muted" title="${esc(CARDS_PROOF)}">Подтверждено ботом: карты и крутки, которые он видел.</p>`}
+      <div><button class="btn ghost mini" data-titles-of="${esc(mine ? '' : key)}">Все тайтлы →</button></div>
+    </div>` : '';
   const luck = E.pullLuck(pp, (pullStats && pullStats.luckMin) || 50);
   const pulls = pp && pp.pulls ? `<div class="card" id="profPulls">
       <h2>🎰 Крутки</h2>
@@ -3909,7 +3972,7 @@ function renderProfile() {
     </div>` : '';
   if (p.empty) {
     const artBox = artTile || ownTiles ? `<div class="stat-tiles live-tiles" id="profTiles">${ownTiles}${artTile}</div>` : '';
-    $('profileOut').innerHTML = `${back}${head}${settingsBox}${artBox}${pulls || (artBox ? '' : '<p class="empty">Пока пусто: участвуй в конкурсах и пересылай итоги ивентов боту @AniMatrix_fansBot.</p>')}`;
+    $('profileOut').innerHTML = `${back}${head}${settingsBox}${artBox}${pulls}${titlesBox}${pulls || titlesBox || artBox ? '' : '<p class="empty">Пока пусто: участвуй в конкурсах и пересылай итоги ивентов боту @AniMatrix_fansBot.</p>'}`;
     afterProfileRender();
     return;
   }
@@ -3936,7 +3999,7 @@ function renderProfile() {
       <span>${b.rank <= 3 ? recPlace(b.rank) : `№${b.rank}`} <b>${esc(recEventName(b.event))}</b> — ${esc(recValue(b.event, b.value))}</span>
       <span>${b.rank}-е место из ${b.of}</span>
     </li>`).join('');
-  $('profileOut').innerHTML = `${back}${head}${settingsBox}${tiles}${live}${pulls}
+  $('profileOut').innerHTML = `${back}${head}${settingsBox}${tiles}${live}${pulls}${titlesBox}
     ${p.contests.length ? `<div class="card" id="profContests"><h2>🎲 Конкурсы</h2><ol class="best-list rec-best">${contestRows}</ol></div>` : ''}
     ${p.records.best.length ? `<div class="card" id="profRecords"><h2>🥇 Рекорды</h2>${REC_DISCLAIMER}<ol class="best-list rec-best">${recRows}</ol></div>` : ''}`;
   afterProfileRender();
@@ -4548,7 +4611,7 @@ function renderRatings() {
 
 // ---------- «🃏 Карты»: каталог картинками (tickets/site-v2-shell.md, часть 2) ----------
 const CAT_PAGE = 60;
-const catState = { q: '', rank: '', cls: '', title: '', pic: '', skin: false, mine: false, limit: CAT_PAGE };
+const catState = { q: '', rank: '', cls: '', title: '', pic: '', skin: false, mine: false, limit: CAT_PAGE, view: 'grid' };
 const CAT_SILHOUETTE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="7.5" r="4.5"/><path d="M3 22c0-5 4-8.5 9-8.5s9 3.5 9 8.5z"/></svg>';
 let catStrengthCache = null;
 
@@ -4587,6 +4650,11 @@ function catTileHtml({ h, pic, skinPic, skins, mine }) {
 
 function renderCards() {
   if ($('view-cards').hidden) return;
+  const byTitles = catState.view === 'titles';
+  $('catView').querySelectorAll('[data-cat-view]').forEach((b) => { const on = b.dataset.catView === catState.view; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-selected', String(on)); });
+  $('catPane').hidden = byTitles;
+  $('titlesPane').hidden = !byTitles;
+  if (byTitles) { renderTitleProgress(); return; }
   if (!loaded) { $('catGrid').innerHTML = '<p class="empty">Загружаю…</p>'; return; }
   const n = E.cardCounts(heroes, cardsData);
   $('catHead').innerHTML = `<p>Собрано картинок: <b>${fmt(n.withPic)}</b> из ${fmt(n.heroes)} героев · скинов: <b>${fmt(n.skins)}</b></p>
@@ -4611,6 +4679,79 @@ function renderCards() {
   $('catGrid').innerHTML = shown.length ? shown.map(catTileHtml).join('') : '<p class="empty">Таких карт нет. Измени фильтры.</p>';
   const left = list.length - shown.length;
   $('catMore').innerHTML = left > 0 ? `<button class="btn ghost" data-cat-more>Показать ещё, осталось ${fmt(left)}</button>` : '';
+}
+
+// ---------- «📚 По тайтлам» (tickets/title-progress.md) ----------
+// Как каталог в боте игры: «Собрано: 3 из 4» по рангам, собранный ранг — зелёным, под рангом — недостающие герои.
+// Чья коллекция: пусто — своя (та же, что у «Есть у меня»); иначе ключ игрока — только подтверждённое ботом.
+const TITLE_PAGE = 40;
+const titleState = { sort: 'close', started: false, limit: TITLE_PAGE, who: '', open: new Set(), byKey: new Map() };
+const titleOwnedFor = (who) => (who ? E.confirmedHeroIds(heroes, cardsData, pullStats, who.slice(3)) : isOwned);
+const pctText = (t) => (t.pct > 0 && t.pct < 1 ? '<1%' : t.pct < 100 && t.pct > 99 ? '99%' : `${Math.round(t.pct)}%`);
+const titleBar = (t) => `<span class="track tp-track" aria-hidden="true"><span style="width:${t.pct}%"></span></span>`;
+function titleBodyHtml(t) {
+  return t.ranks.map((r) => `<div class="tp-rank${r.done ? ' done' : ''}" style="${rankVar(r.rank)}">
+      <p class="tp-rank-head"><b>Ранг ${esc(r.rank)}</b> | <span class="tp-rank-num">${r.have}/${r.total}</span>${r.done ? ' <span class="tp-ok" title="Ранг собран">✓</span>' : ''}</p>
+      ${r.missing.length ? `<div class="tp-miss">${r.missing.map((h) => `<button class="tp-hero" data-open-card="${esc(E.heroId(h))}" title="${esc(`${h.name} · ${h.rank} · ${h.cls}`)}">${thumbHtml(h, false)}<span>${esc(h.name)}</span></button>`).join('')}</div>` : ''}
+    </div>`).join('');
+}
+function titleRowHtml(t) {
+  const open = titleState.open.has(t.key);
+  return `<details class="tp${t.done ? ' done' : ''}" data-tp="${esc(t.key)}"${open ? ' open' : ''}>
+    <summary><span class="tp-name">${t.done ? '✅ ' : ''}${esc(t.title)}</span><span class="tp-num">${t.have} из ${t.total}</span><span class="tp-pct">${pctText(t)}</span>${titleBar(t)}</summary>
+    <div class="tp-body" data-tp-body>${open ? titleBodyHtml(t) : ''}</div>
+  </details>`;
+}
+function renderTitleProgress() {
+  const out = $('titlesOut');
+  if (!loaded) { out.innerHTML = '<p class="empty">Загружаю…</p>'; return; }
+  const me = myPlayerKey();
+  if (titleState.who === me) titleState.who = '';
+  const who = titleState.who;
+  const all = E.titleProgress(heroes, titleOwnedFor(who));
+  titleState.byKey = new Map(all.map((t) => [t.key, t]));
+  const sum = E.titleSummary(all);
+  const have = all.reduce((n, t) => n + t.have, 0);
+  const total = all.reduce((n, t) => n + t.total, 0);
+  const names = new Map(playerDir().map((p) => [p.key, p.name]));
+  const whoName = who ? shownName(who, names.get(who) || `ID ${who.slice(3)}`) : '';
+  $('titlesHead').innerHTML = `<p>${who ? `Тайтлы игрока <b>${esc(whoName)}</b>` : 'Твои тайтлы'}: собрано полностью <b>${fmt(sum.full)}</b> из ${fmt(sum.total)} · героев <b>${fmt(have)}</b> из ${fmt(total)}</p>
+    <div class="track" role="progressbar" aria-label="Собрано героев" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${have}"><span style="width:${total ? have / total * 100 : 0}%"></span></div>
+    <p class="small muted">${who ? `Подтверждено ботом: карты и крутки, которые он видел. <button class="link-btn" data-titles-of="">← Мои тайтлы</button>` : 'Герой считается собранным, если он есть в твоей коллекции («Есть у меня» в каталоге). Скины не считаются.'}</p>`;
+  $('titlesSort').value = titleState.sort;
+  $('titlesStarted').setAttribute('aria-pressed', String(titleState.started));
+  const list = E.sortTitleProgress(all, { sort: titleState.sort, started: titleState.started });
+  const shown = list.slice(0, titleState.limit);
+  $('titlesCount').textContent = list.length === all.length ? `Тайтлов: ${fmt(list.length)}` : `Найдено: ${fmt(list.length)} из ${fmt(all.length)}`;
+  out.innerHTML = shown.length ? `<div class="card tp-list">${shown.map(titleRowHtml).join('')}</div>`
+    : `<p class="empty">${titleState.started ? 'Ни одного тайтла не начато. Отметь героев в «Моей коллекции» или пришли карты боту.' : 'Пока пусто.'}</p>`;
+  const left = list.length - shown.length;
+  $('titlesMore').innerHTML = left > 0 ? `<button class="btn ghost" data-titles-more>Показать ещё, осталось ${fmt(left)}</button>` : '';
+}
+// Тайтл раскрывается — недостающие герои рисуются тогда (их сотни, картинки грузятся лениво).
+$('titlesOut').addEventListener('toggle', (e) => {
+  const d = e.target;
+  if (!d.matches || !d.matches('details.tp')) return;
+  const key = d.dataset.tp;
+  if (!d.open) { titleState.open.delete(key); return; }
+  titleState.open.add(key);
+  const body = d.querySelector('[data-tp-body]');
+  const t = titleState.byKey.get(key);
+  if (body && t && !body.firstElementChild) body.innerHTML = titleBodyHtml(t);
+}, true);
+$('titlesSort').addEventListener('change', (e) => { titleState.sort = e.target.value; titleState.limit = TITLE_PAGE; renderTitleProgress(); });
+$('titlesStarted').addEventListener('click', () => { titleState.started = !titleState.started; titleState.limit = TITLE_PAGE; renderTitleProgress(); });
+$('catView').addEventListener('click', (e) => { const b = e.target.closest('[data-cat-view]'); if (b) { catState.view = b.dataset.catView; renderCards(); } });
+// «Все тайтлы →» из профиля (и «← Мои тайтлы»): ключ игрока, пусто — свои; open — какой тайтл раскрыть.
+function openTitlesOf(who, open) {
+  titleState.who = who && who !== myPlayerKey() ? who : '';
+  titleState.sort = 'close';
+  titleState.started = false;
+  titleState.limit = TITLE_PAGE;
+  if (open) titleState.open.add(open);
+  catState.view = 'titles';
+  if ($('view-cards').hidden) goTab('cards'); else renderCards();
+  window.scrollTo(0, 0);
 }
 
 // Скины при наведении мышью (tickets/catalog-hover.md): плитка по ширине делится на N зон (N — число скинов), курсор в зоне k —
@@ -6141,6 +6282,9 @@ document.querySelector('.wrap').addEventListener('click', (e) => {
   if (e.target.closest('[data-feed-more]')) { feedState.limit += FEED_STEP; renderHome(); return; }
   if (e.target.closest('[data-players-more]')) { playersState.limit += PLAYERS_SHOWN; renderPlayers(); return; }
   if (e.target.closest('[data-cat-more]')) { catState.limit += CAT_PAGE; renderCards(); return; }
+  if (e.target.closest('[data-titles-more]')) { titleState.limit += TITLE_PAGE; renderTitleProgress(); return; }
+  const titlesOf = e.target.closest('[data-titles-of]');
+  if (titlesOf) { openTitlesOf(titlesOf.dataset.titlesOf, titlesOf.dataset.titleOpen || ''); return; }
   // Ссылка в бота внутри мини-приложения — средствами Telegram (меню аватара обрабатывает свои ссылки само).
   const tgLink = e.target.closest('a[data-tg-link]');
   if (tgLink && tg && !tgLink.closest('#navDrop') && /^https:\/\/t\.me\//.test(tgLink.href)) { e.preventDefault(); tg.openTelegramLink(tgLink.href); return; }
