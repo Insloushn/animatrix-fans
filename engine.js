@@ -1433,12 +1433,39 @@
     if (!(w > 0) || !(h > 0)) return 14;
     return Math.round(Math.max(3, Math.min(100, (h / w) * (16 / 9) * 100)) * 100) / 100;
   }
+  // Версия баннера в profiles.json (tickets/banners-all.md): время записи в base36; мусор — нет баннера.
+  const bannerVersion = (v) => (typeof v === 'string' && /^[0-9a-z]{1,12}$/.test(v) ? v : '');
+  // История баннеров игрока (tickets/banner-history.md): до 5 прежних, новые сверху. v — версия баннера, vid / pic — sha git-blob'ов
+  // видео и заставки в медиа (вернуть = сослаться на тот же blob, без загрузки), at — когда ушёл в историю (мс). Заставка живёт файлом
+  // banners/<ID>/<v>.jpg, видео — только в истории git. vid пуст — прежний баннер был картинкой; pic пуст — видео без заставки.
+  const BHIST_MAX = 5;
+  const gitSha = (v) => (typeof v === 'string' && /^[0-9a-f]{40}$/.test(v) ? v : '');
+  function bannerHist(list) {
+    const out = [];
+    (Array.isArray(list) ? list : []).forEach((x) => {
+      if (!x || typeof x !== 'object') return;
+      const v = bannerVersion(x.v);
+      const vid = gitSha(x.vid);
+      const pic = gitSha(x.pic);
+      if (!v || (!vid && !pic) || out.some((o) => o.v === v)) return;
+      out.push({ v, vid, pic, at: Number.isFinite(x.at) ? x.at : 0 });
+    });
+    return out.slice(0, BHIST_MAX);
+  }
+  // /start bh_<версия> — вернуть прежний баннер, /start bhdel_<версия> — убрать его из истории. Не наш код — null.
+  function parseBannerHistCode(code) {
+    const m = String(code || '').match(/^(bh|bhdel)_([0-9a-z]{1,12})$/);
+    return m ? { act: m[1] === 'bh' ? 'restore' : 'drop', v: m[2] } : null;
+  }
+  const bannerHistCode = (act, v) => `${act === 'drop' ? 'bhdel' : 'bh'}_${v}`;
   function profileMap(data) {
     const map = new Map();
     const src = (data && data.profiles && typeof data.profiles === 'object') ? data.profiles : {};
     Object.entries(src).forEach(([id, x]) => {
       if (!/^\d+$/.test(id) || !x || typeof x !== 'object') return;
-      map.set(id, { tg: x.tg === 1, past: x.past !== 0, av: parseAvatarCode(x.av) ? x.av : '', tiles: parseTiles(x.tiles).join(','), fav: favString(parseFav(x.fav)), bpos: parseBpos(x.bpos) === null ? 50 : parseBpos(x.bpos) });
+      const banner = bannerVersion(x.banner);
+      const bhist = bannerHist(x.bhist);
+      map.set(id, { tg: x.tg === 1, past: x.past !== 0, av: parseAvatarCode(x.av) ? x.av : '', tiles: parseTiles(x.tiles).join(','), fav: favString(parseFav(x.fav)), bpos: parseBpos(x.bpos) === null ? 50 : parseBpos(x.bpos), ...(banner ? { banner, bvid: x.bvid === 1 } : {}), ...(bhist.length ? { bhist } : {}) });
     });
     return map;
   }
@@ -2505,11 +2532,22 @@
       .sort((a, b) => (b.max - a.max) || String(a.hero.name).localeCompare(String(b.hero.name), 'ru'));
   }
 
-  // Баннер в профиле (tickets/banner-owner.md): только у ID из списка. key — 'id:123…'.
+  // Баннеры игроков из profiles.json (profileMap) → { ID: { video, poster } } (tickets/banners-all.md): файлы banners/<ID>.mp4|jpg
+  // в медиа, ?v=<версия> — замена баннера обходит кэш. Видео только у bvid; у фото — одна картинка.
+  function bannersOf(profiles, mediaBase) {
+    const out = {};
+    if (!profiles || !profiles.forEach) return out;
+    profiles.forEach((p, id) => {
+      if (!p || !p.banner || !/^\d+$/.test(String(id))) return;
+      out[id] = { video: p.bvid ? `${mediaBase}banners/${id}.mp4?v=${p.banner}` : '', poster: `${mediaBase}banners/${id}.jpg?v=${p.banner}` };
+    });
+    return out;
+  }
+  // Баннер в профиле (tickets/banner-owner.md): только у ID из списка. key — 'id:123…'. Видео нет — одна картинка.
   function bannerFor(banners, key) {
     const id = typeof key === 'string' && key.startsWith('id:') ? key.slice(3) : '';
     const b = id && banners && Object.prototype.hasOwnProperty.call(banners, id) ? banners[id] : null;
-    return b && b.video ? { id, video: b.video, poster: b.poster || '' } : null;
+    return b && (b.video || b.poster) ? { id, video: b.video || '', poster: b.poster || '' } : null;
   }
 
   // Общий переключатель звука сайта: одно состояние на всё, хранится в storage (может быть недоступен).
@@ -2532,7 +2570,7 @@
   }
 
   return {
-    bannerFor, createSound, squadPool, pickRuns, seededRate, createPickJob, skinOnlyStrong, leveledHero, cardLevels, stormDamage, stormTop, PICK,
+    bannerFor, bannersOf, bannerVersion, bannerHist, parseBannerHistCode, bannerHistCode, BHIST_MAX, createSound, squadPool, pickRuns, seededRate, createPickJob, skinOnlyStrong, leveledHero, cardLevels, stormDamage, stormTop, PICK,
     deriveHeroes, numberedHeroes, offTopHeroes, groupCacheKey, runsForGroup, hasEqualScores, offTopRow, collectGroupRows, groupError,
     packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, unpackSkinOnly, collectionCounts, chunkText, hitsToKill, seasonNews,
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,

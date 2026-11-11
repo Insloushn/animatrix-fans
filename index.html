@@ -616,6 +616,11 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .bpos-stage img, .bpos-stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 .bpos-frame { position: absolute; left: 0; right: 0; height: calc(var(--bfh, 14) * 1%); top: calc((100% - var(--bfh, 14) * 1%) * var(--bpos, 50) / 100); box-shadow: 0 0 0 100vmax rgba(0,0,0,.55); outline: 2px solid #fff; pointer-events: none; }
 .player-row.bpos-sample { width: 100%; }
+.bh-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 220px)); gap: 10px; }
+.bh-item { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.bh-pic { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; background: #15121f; display: grid; place-items: center; font-size: 22px; }
+.bh-act { display: flex; flex-wrap: wrap; gap: 6px; }
+.bh-act a.btn { text-decoration: none; }
 .bpos-sample .row-bg video { opacity: 1; transition: none; }
 .fav-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 .visit-fav { display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -1306,7 +1311,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=bf631b1a01"></script>
+<script src="engine.js?v=3e19306c1a"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -3793,7 +3798,8 @@ function rebuildProfiles() {
     try { tg.CloudStorage.removeItem('profileSet'); } catch (e) { /* облако недоступно */ }
   }
   const map = new Map(profileFile);
-  if (profilePending && me) map.set(me, { tg: profilePending.tg, past: profilePending.past, av: profilePending.av, tiles: profilePending.tiles || '', fav: profilePending.fav === undefined ? E.profileOf(profileFile, me).fav : profilePending.fav, bpos: profilePending.bpos === undefined ? 50 : profilePending.bpos });
+  BANNERS = E.bannersOf(profileFile, MEDIA); // баннер — из файла бота, не из выбранного и ещё не записанного
+  if (profilePending && me) map.set(me, { ...E.profileOf(profileFile, me), tg: profilePending.tg, past: profilePending.past, av: profilePending.av, tiles: profilePending.tiles || '', fav: profilePending.fav === undefined ? E.profileOf(profileFile, me).fav : profilePending.fav, bpos: profilePending.bpos === undefined ? 50 : profilePending.bpos });
   profileView = map;
 }
 const profileFor = (key) => E.profileOf(profileView, key && key.startsWith('id:') ? key.slice(3) : '');
@@ -3835,6 +3841,24 @@ function profileSettingsBody() {
       ${picked.length ? '<div><button type="button" class="btn ghost mini" data-tile-default>По умолчанию</button></div>' : ''}`;
   const banner = E.bannerFor(BANNERS, myPlayerKey());
   const bpos = E.parseBpos(s.bpos) === null ? 50 : s.bpos;
+  // Баннер ставит сам игрок: пересылкой «Профиля игрока» из бота игры (tickets/banners-all.md).
+  const bannerHelp = `<h3>🖼 Баннер</h3>
+      <p class="small muted">${banner
+    ? `Обновить: перешли профиль снова — боту <a href="${PROFILE_BOT}" target="_blank" rel="noopener" data-tg-link>@AniMatrix_fansBot</a>, тот же „👤 Профиль“ из бота игры. <a href="${PROFILE_BOT}?start=banner_off" target="_blank" rel="noopener" data-tg-link>Убрать</a>`
+    : `Перешли боту <a href="${PROFILE_BOT}" target="_blank" rel="noopener" data-tg-link>@AniMatrix_fansBot</a> свой „👤 Профиль“ из бота игры — баннер появится здесь. Подойдёт только твой профиль.`}</p>`;
+  // Прежние баннеры (tickets/banner-history.md): заставка banners/<ID>/<версия>.jpg в медиа; «Вернуть» и «Убрать» — через бота
+  // (/start bh_… и bhdel_…), он сверяет, что версия из истории этого игрока.
+  const meId = myPlayerKey().slice(3);
+  const hist = meId ? (E.profileOf(profileFile, meId).bhist || []) : [];
+  const histBox = hist.length ? `<h3>🗂 Прежние баннеры</h3>
+      <p class="small muted">Заменённые и убранные баннеры (последние ${E.BHIST_MAX}). «Вернуть» ставит прежний на место без повторной загрузки, а тот, что стоит сейчас, уходит сюда.</p>
+      <ul class="bh-list">${hist.map((h) => {
+    const link = (act) => `${PROFILE_BOT}?start=${E.bannerHistCode(act, h.v)}`;
+    const when = h.at ? new Date(h.at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '';
+    return `<li class="bh-item">${h.pic ? `<img class="bh-pic" src="${esc(MEDIA)}banners/${esc(meId)}/${esc(h.v)}.jpg" alt="" loading="lazy" decoding="async" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'bh-pic',textContent:'🎞'}))">` : '<span class="bh-pic">🎞</span>'}
+        <span class="small muted">${h.vid ? 'видео' : 'картинка'}${when ? ` · заменён ${when}` : ''}</span>
+        <span class="bh-act"><a class="btn mini" href="${link('restore')}" target="_blank" rel="noopener" data-tg-link>Вернуть</a><a class="btn ghost mini" href="${link('drop')}" target="_blank" rel="noopener" data-tg-link>Убрать из истории</a></span></li>`;
+  }).join('')}</ul>` : '';
   const bannerBox = banner ? `<h3>🖼 Баннер в списках</h3>
       <p class="small muted">Какая полоса баннера видна в строках «Игроков» и «Рейтингов». Двигай рамку мышью или пальцем, либо ползунком.</p>
       <div class="bpos-stage" data-bpos-stage style="--bpos:${bpos}">${bposMedia(banner)}<span class="bpos-frame"></span></div>
@@ -3852,6 +3876,8 @@ function profileSettingsBody() {
       <div class="av-colors">${colors}</div>
       ${favBox}
       ${tilesBox}
+      ${bannerHelp}
+      ${histBox}
       ${bannerBox}
       <div class="prof-actions"><button type="button" class="btn" data-prof-save>Сохранить</button><span class="small muted">Сохранится через бота, на сайте — через 1–2 минуты</span></div>
     </div>`;
@@ -3915,7 +3941,7 @@ function profileSettingsHtml(name) {
 // Полоса баннера в строках (tickets/banner-strip.md, banner-strip-video.md): без перерисовки блока, чтобы не рвать перетаскивание.
 // Заставка и видео (без звука; при «меньше движения» — только заставка). Играет, пока блок на экране и вкладка видна.
 function bposMedia(b) {
-  const img = b.poster ? `<img src="${esc(b.poster)}" alt="" draggable="false">` : '';
+  const img = b.poster ? `<img src="${esc(b.poster)}" alt="" draggable="false" onerror="this.remove()">` : '';
   const video = reducedMotion() || !b.video ? '' : `<video data-bpos-video src="${esc(b.video)}" ${b.poster ? `poster="${esc(b.poster)}" ` : ''}muted loop playsinline autoplay preload="auto"></video>`;
   return img + video;
 }
@@ -4058,16 +4084,17 @@ function pastNicksHtml(past) {
 const MEDIA = 'https://insloushn.github.io/animatrix-media/';
 
 // ---------- Баннер профиля и звук сайта (tickets/banner-owner.md) ----------
-// Баннер — только у Telegram ID из списка (владелец); бот и файлы данных не меняются.
-const BANNERS = { '921847623': { video: `${MEDIA}banners/921847623.mp4?v=2`, poster: `${MEDIA}banners/921847623.jpg?v=2` } };
+// Баннеры игроков (tickets/banners-all.md): из profiles.json (rebuildProfiles → E.bannersOf), файлы banners/<ID>.mp4|jpg в медиа.
+// Игрок присылает боту свой «Профиль игрока» из бота игры; у кого баннера нет — его нет.
+let BANNERS = {};
 const sound = E.createSound((() => { try { return window.localStorage; } catch (e) { return null; } })());
 let soundBlocked = false; // браузер не дал включить звук — кнопка остаётся на 🔇
 const reducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 const soundBtnHtml = (corner) => `<button type="button" class="sound-btn${corner ? ' corner' : ''}" data-sound-btn></button>`;
 function bannerHtml(b) {
-  const poster = b.poster ? `<img src="${esc(b.poster)}" alt="" decoding="async">` : '';
-  const video = reducedMotion() ? '' : `<video data-banner-video src="${esc(b.video)}" ${b.poster ? `poster="${esc(b.poster)}" ` : ''}autoplay loop muted playsinline preload="auto"></video>`;
-  return `<div class="profile-banner">${poster}${video}${soundBtnHtml(true)}</div>`;
+  const poster = b.poster ? `<img src="${esc(b.poster)}" alt="" decoding="async" onerror="this.remove()">` : '';
+  const video = reducedMotion() || !b.video ? '' : `<video data-banner-video src="${esc(b.video)}" ${b.poster ? `poster="${esc(b.poster)}" ` : ''}autoplay loop muted playsinline preload="auto"></video>`;
+  return `<div class="profile-banner">${poster}${video}${b.video ? soundBtnHtml(true) : ''}</div>`; // у картинки звука нет
 }
 function syncSoundButtons() {
   const on = sound.on && !soundBlocked;
@@ -4114,8 +4141,8 @@ const canHover = () => !!(window.matchMedia && window.matchMedia('(hover: hover)
 function rowBg(key) {
   const b = E.bannerFor(BANNERS, key);
   if (!b) return { cls: '', html: '' };
-  const video = !reducedMotion() && canHover() ? `<video muted loop playsinline preload="none" data-row-video data-src="${esc(b.video)}"></video>` : '';
-  return { cls: ' has-bg', html: `<span class="row-bg" style="--bpos:${profileFor(key).bpos}%" aria-hidden="true">${b.poster ? `<img src="${esc(b.poster)}" alt="" loading="lazy" decoding="async">` : ''}${video}</span>` };
+  const video = b.video && !reducedMotion() && canHover() ? `<video muted loop playsinline preload="none" data-row-video data-src="${esc(b.video)}"></video>` : '';
+  return { cls: ' has-bg', html: `<span class="row-bg" style="--bpos:${profileFor(key).bpos}%" aria-hidden="true">${b.poster ? `<img src="${esc(b.poster)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ''}${video}</span>` };
 }
 function rowVideo(e, over) {
   const row = e.target.closest && e.target.closest('.player-row.has-bg');
