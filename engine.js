@@ -1652,6 +1652,90 @@
     return { add, skins, done: next };
   }
 
+  // ---------- Лента на главной (tickets/home-feed.md) ----------
+  // Событие: { key, type: 'legend'|'art'|'record'|'contest', t (мс), … }; новые сверху, старше 14 дней не берём.
+  // data: { pullStats, cards, records, contests, live, heroes, nicks (gameNickMap) }; любое поле может быть пустым.
+  const FEED_DAYS = 14;
+  function homeFeed(data, now, limit = 20) {
+    const d = data || {};
+    const from = now - FEED_DAYS * 86400000;
+    const heroes = d.heroes || [];
+    const nick = (id, name) => { const x = id && d.nicks && d.nicks.get ? d.nicks.get(String(id)) : null; return x ? x.nick : name; };
+    const out = [];
+    const add = (e) => { if (Number.isFinite(e.t) && e.t >= from && e.t <= now + 3600000) out.push(e); };
+
+    // 🌟 Легендарки (pull-stats.json: legends не всегда есть — тогда пусто).
+    const chatTitle = new Map(((d.pullStats && d.pullStats.chats) || []).map((c) => [String(c.id), c.title]));
+    const legends = (d.pullStats && (d.pullStats.legends || (d.pullStats.all && d.pullStats.all.legends))) || [];
+    legends.forEach((x) => {
+      if (!x || !x.hero || !x.date) return;
+      const hero = heroes.find((h) => h.name === x.hero && h.rank === x.rank) || heroes.find((h) => h.name === x.hero) || null;
+      add({ key: `l:${x.id}:${x.date}:${x.hero}`, type: 'legend', t: x.date * 1000, hero: x.hero, heroId: hero ? heroId(hero) : '', rank: x.rank,
+        playerId: x.id ? String(x.id) : '', player: nick(x.id, x.player), chat: chatTitle.get(String(x.chat)) || '' });
+    });
+
+    // 🖼 Картинки: версия v — время в мс (base36); картинки одного часа склеиваются.
+    const hours = new Map();
+    const images = (d.cards && d.cards.images) || {};
+    const byCode = new Map(heroes.map((h) => [heroCode(h), h]));
+    Object.entries(images).forEach(([code, x]) => {
+      if (!x || !x.v || typeof x.v !== 'object') return;
+      Object.entries(x.v).forEach(([skin, v]) => {
+        if (!/^[0-9a-z]{1,16}$/.test(String(v))) return;
+        const t = parseInt(v, 36);
+        if (!Number.isFinite(t) || t < from || t > now + 3600000) return;
+        const hour = Math.floor(t / 3600000);
+        if (!hours.has(hour)) hours.set(hour, []);
+        hours.get(hour).push({ code, skin, t, hero: byCode.get(code) || null });
+      });
+    });
+    hours.forEach((list, hour) => {
+      list.sort((a, b) => b.t - a.t);
+      const skins = list.filter((x) => x.skin).length;
+      add({ key: `a:${hour}`, type: 'art', t: list[0].t, cards: list.length - skins, skins,
+        thumbs: list.filter((x) => x.hero).slice(0, 4).map((x) => ({ code: x.code, skin: x.skin, heroId: heroId(x.hero), name: x.hero.name })) });
+    });
+
+    // 📜 Рекорды: первое место ивента на дату ивента (даты без времени — на полдень по UTC).
+    (d.records || []).forEach((ev) => {
+      const t = Date.parse(`${String(ev.date || '').slice(0, 10)}T12:00:00Z`);
+      const first = [...(ev.rows || [])].sort((a, b) => (a.place || 99) - (b.place || 99))[0];
+      if (!first) return;
+      add({ key: `r:${ev.id || ev.title}:${ev.date}`, type: 'record', t, title: ev.title, value: first.value, place: first.place || 1,
+        playerKey: recordPlayerKey(first), player: first.tgId ? nick(first.tgId, first.player) : first.player });
+    });
+
+    // 🎲 Конкурсы: начало и итоги (идущий — только начало).
+    const contests = d.contests || [];
+    const winners = (c) => [...(c.players || [])].sort((a, b) => (a.place || 99) - (b.place || 99)).slice(0, 3)
+      .map((p) => ({ place: p.place, id: p.id ? String(p.id) : '', name: nick(p.id, p.name), points: p.points }));
+    contests.forEach((c) => {
+      if (c.startedAt) add({ key: `cs:${c.id}`, type: 'contest', phase: 'start', t: c.startedAt * 1000, name: c.name, id: c.id });
+      if (c.endedAt) add({ key: `ce:${c.id}`, type: 'contest', phase: 'end', t: c.endedAt * 1000, name: c.name, id: c.id, winners: winners(c) });
+    });
+    const live = d.live && d.live.contest;
+    if (live && live.startedAt && !contests.some((c) => c.id === live.id)) {
+      add({ key: `cs:${live.id}`, type: 'contest', phase: 'start', t: live.startedAt * 1000, name: live.name, id: live.id });
+    }
+
+    return out.sort((a, b) => b.t - a.t || (a.key < b.key ? -1 : 1)).slice(0, Math.max(0, limit));
+  }
+
+  // «только что», «5 мин назад», «2 ч назад», «вчера 21:40», «08.11 21:40» — по местному времени.
+  function feedTime(t, now) {
+    const diff = now - t;
+    const p2 = (n) => String(n).padStart(2, '0');
+    const d = new Date(t);
+    const clock = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    if (diff < 60000) return 'только что';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)} мин назад`;
+    const day = (x) => { const y = new Date(x); return new Date(y.getFullYear(), y.getMonth(), y.getDate()).getTime(); };
+    const days = Math.round((day(now) - day(t)) / 86400000);
+    if (days === 0) return `${Math.floor(diff / 3600000)} ч назад`;
+    if (days === 1) return `вчера ${clock}`;
+    return `${p2(d.getDate())}.${p2(d.getMonth() + 1)} ${clock}`;
+  }
+
   // ---------- Каталог «🃏 Карты» (tickets/site-v2-shell.md, часть 2) ----------
   // Сколько картинок собрано: героев с картинкой без скина (из всех героев сайта) и картинок скинов.
   function cardCounts(heroes, data) {
@@ -2254,7 +2338,7 @@
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
     AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, profileStartCode, parseProfileCode, parseTiles, profileTiles, TILE_LABELS, TILE_CODES, TILE_MAX,
     pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, versionPic, cardOwned, cardOwnedCounts, cardAutoMark,
-    NAV_GROUPS, navGroups, navGroupOf, cardCounts, cardCatalog, ratings, cardCredits,
+    NAV_GROUPS, navGroups, navGroupOf, homeFeed, feedTime, plural, cardCounts, cardCatalog, ratings, cardCredits,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
     CLASSES, RANKS, DEFAULTS, NO_TITLE, SKIN_BONUS, fight, duel, plainFight, formulaScore,

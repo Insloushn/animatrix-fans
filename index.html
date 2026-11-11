@@ -640,6 +640,17 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .home-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 12px; }
 .home-head .link-btn { color: var(--accent); white-space: nowrap; font-size: 14px; }
 .home-sub { margin: 4px 0 0; font-size: 14px; }
+.feed-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.feed-item { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); }
+.feed-item:first-child { border-top: 0; }
+.feed-item .feed-time { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.feed-item .feed-sub { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+.feed-thumbs { grid-column: 1 / -1; display: flex; gap: 6px; padding-top: 2px; }
+.feed-thumbs .link-btn { padding: 0; line-height: 0; }
+.feed-thumbs .hero-thumb { width: 36px; height: 36px; }
+.feed-new { animation: feedIn .6s ease-out; }
+@keyframes feedIn { from { opacity: 0; transform: translateY(-6px); background: color-mix(in srgb, var(--accent) 18%, transparent); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .feed-new { animation: none; } }
 .home-me { padding: 4px 0; }
 .home-me:hover { background: none; }
 /* «🃏 Карты»: сетка миниатюр 3:4, рамка — цвет ранга; на ПК 6–8 в ряд, на телефоне 3. */
@@ -1157,7 +1168,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=fa1b8fb7bd"></script>
+<script src="engine.js?v=e0eaa42881"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -3763,15 +3774,6 @@ function pastNicksHtml(past) {
 // ---------- Медиа сайта (tickets/media-repo.md) ----------
 // Картинки карт и баннеры лежат в отдельном репозитории с Pages: сайт ~1 ГБ не вместит все карты.
 const MEDIA = 'https://insloushn.github.io/animatrix-media/';
-// Пока старые файлы ещё лежат на сайте: не нашлось в медиа — один раз берём прежний путь рядом со страницей.
-document.addEventListener('error', (e) => {
-  const el = e.target;
-  if (!el || (el.tagName !== 'IMG' && el.tagName !== 'VIDEO')) return;
-  const src = el.getAttribute('src') || '';
-  if (!src.startsWith(MEDIA) || el.dataset.mediaFb === src) return;
-  el.dataset.mediaFb = src;
-  el.setAttribute('src', src.slice(MEDIA.length));
-}, true);
 
 // ---------- Баннер профиля и звук сайта (tickets/banner-owner.md) ----------
 // Баннер — только у Telegram ID из списка (владелец); бот и файлы данных не меняются.
@@ -4016,6 +4018,42 @@ function homeNews() {
   return { items: items.slice(0, 5), total: items.length };
 }
 
+// «📰 Что нового»: лента событий (E.homeFeed, tickets/home-feed.md). Новые события при обновлении файлов появляются сверху мягко.
+const FEED_STEP = 20;
+const feedState = { limit: FEED_STEP, seen: null };
+function feedItemHtml(e, now, fresh) {
+  const time = `<span class="feed-time">${esc(E.feedTime(e.t, now))}</span>`;
+  const cls = `feed-item${fresh ? ' feed-new' : ''}`;
+  const pl = (id, name) => playerNameLink(id ? `id:${id}` : '', name);
+  const heroBtn = (id, name) => { const h = heroes.find((x) => E.heroId(x) === id); return h ? openLink(h) : esc(name); };
+  if (e.type === 'legend') {
+    return `<li class="${cls}"><span>🌟 ${pl(e.playerId, e.player)} выбил <b>${heroBtn(e.heroId, e.hero)}</b> ${esc(e.rank)}</span>${time}${e.chat ? `<span class="feed-sub">${esc(e.chat)}</span>` : ''}</li>`;
+  }
+  if (e.type === 'art') {
+    const parts = [e.cards ? `${e.cards} ${E.plural(e.cards, 'карта', 'карты', 'карт')}` : '', e.skins ? `${e.skins} ${E.plural(e.skins, 'скин', 'скина', 'скинов')}` : ''].filter(Boolean).join(', ');
+    const thumbs = e.thumbs.map((x) => { const h = heroes.find((y) => E.heroId(y) === x.heroId); const t = h ? thumbHtml(h, !!x.skin) : ''; return t ? `<button class="link-btn" data-open-card="${esc(x.heroId)}" title="${esc(x.name)}">${t}</button>` : ''; }).join('');
+    return `<li class="${cls}"><span>🖼 Новые картинки: <b>${esc(parts)}</b></span>${time}${thumbs ? `<span class="feed-thumbs">${thumbs}</span>` : ''}</li>`;
+  }
+  if (e.type === 'record') {
+    return `<li class="${cls}"><span>📜 Новый рекорд: ${playerNameLink(e.playerKey, e.player)} — <b>${esc(recEventName(e.title))}</b> — ${esc(recValue(e.title, e.value))}, №${e.place}</span>${time}</li>`;
+  }
+  if (e.phase === 'start') {
+    return `<li class="${cls}"><span>🎲 Начался конкурс <button class="link-btn" data-go="contests">${esc(e.name)}</button></span>${time}</li>`;
+  }
+  const w = (e.winners || []).map((x) => `${x.place}. ${pl(x.id, x.name)}`).join(' · ');
+  return `<li class="${cls}"><span>🏁 Итоги <button class="link-btn" data-go="contests">${esc(e.name)}</button></span>${time}${w ? `<span class="feed-sub">${w}</span>` : ''}</li>`;
+}
+function feedCardHtml() {
+  const now = Date.now();
+  const list = E.homeFeed({ pullStats, cards: cardsData, records, contests, live: contestLive, heroes, nicks: gameNicks }, now, feedState.limit + 1);
+  const shown = list.slice(0, feedState.limit);
+  // Первая отрисовка запоминает всё как виденное; позже «новыми» считаются только ключи, которых раньше не было.
+  const fresh = (k) => feedState.seen !== null && !feedState.seen.has(k);
+  const body = shown.length ? `<ul class="feed-list">${shown.map((e) => feedItemHtml(e, now, fresh(e.key))).join('')}</ul>` : '<p class="small muted">Пока тихо.</p>';
+  feedState.seen = new Set([...(feedState.seen || []), ...shown.map((e) => e.key)]);
+  return `<article class="card home-card" id="homeFeed"><div class="home-head"><h2>📰 Что нового</h2></div>${body}${list.length > shown.length ? '<button class="btn ghost" data-feed-more>Показать ещё</button>' : ''}</article>`;
+}
+
 function renderHome() {
   if ($('view-home').hidden) return;
   if (!loaded) { $('homeOut').innerHTML = '<p class="empty">Загружаю…</p>'; return; }
@@ -4052,6 +4090,8 @@ function renderHome() {
     const line = [p.tiles.bestPlace ? `лучшее место: №${p.tiles.bestPlace}` : '', `конкурсов: ${p.tiles.contests}`, p.live ? `сейчас №${p.live.place}` : ''].filter(Boolean).join(' · ');
     parts.push(card('👤 Мой профиль', 'profile', `<button class="player-row home-me" data-go="profile">${avatarHtml(me, name)}<span class="player-text"><b>${esc(name)}</b><small>${esc(line)}</small></span></button>`));
   }
+
+  parts.push(feedCardHtml());
 
   // Новое в сезоне.
   const news = homeNews();
@@ -6098,6 +6138,7 @@ document.querySelector('.wrap').addEventListener('click', (e) => {
   const go = e.target.closest('[data-go]');
   if (go && !go.closest('#menuSheet, #navDrop')) { goTab(go.dataset.go); window.scrollTo(0, 0); return; }
   if (e.target.closest('[data-go-back]')) { goBack(); return; }
+  if (e.target.closest('[data-feed-more]')) { feedState.limit += FEED_STEP; renderHome(); return; }
   if (e.target.closest('[data-players-more]')) { playersState.limit += PLAYERS_SHOWN; renderPlayers(); return; }
   if (e.target.closest('[data-cat-more]')) { catState.limit += CAT_PAGE; renderCards(); return; }
   // Ссылка в бота внутри мини-приложения — средствами Telegram (меню аватара обрабатывает свои ссылки само).
@@ -7001,6 +7042,7 @@ async function refreshBotFiles() {
   renderPlayerViews();
   renderStats();
   renderBattle();
+  renderHome(); // лента «Что нового»
 }
 
 function startBotFiles() {
