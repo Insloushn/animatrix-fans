@@ -710,9 +710,20 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .tp-rank.done .tp-rank-head b { color: var(--good); }
 .tp-ok { color: var(--good); font-weight: 700; }
 .tp-miss { display: flex; flex-wrap: wrap; gap: 6px; }
-.tp-hero { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 8px 3px 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; }
-.tp-hero:hover, .tp-hero:focus-visible { border-color: var(--accent); background: var(--tint); }
-.tp-hero:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tp-hero-wrap { display: flex; align-items: stretch; max-width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); overflow: hidden; }
+.tp-hero-wrap:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.tp-hero-wrap.marked { border-color: var(--good); }
+.tp-hero { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 6px; min-width: 0; padding: 3px 8px 3px 3px; font-size: 13px; }
+.tp-hero:hover, .tp-hero:focus-visible { background: var(--tint); }
+.tp-hero:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tp-add { all: unset; box-sizing: border-box; cursor: pointer; flex: none; display: grid; place-items: center; min-width: 40px; border-left: 1px solid var(--line); font: 700 17px/1 var(--body); color: var(--accent); }
+.tp-add:hover, .tp-add:focus-visible { background: var(--tint); }
+.tp-add:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tp-add.on { color: var(--good); }
+.tile-link { all: unset; box-sizing: border-box; cursor: pointer; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: grid; gap: 2px; align-content: start; min-width: 0; }
+.tile-link:hover, .tile-link:focus-visible { border-color: var(--accent); }
+.tile-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tile-link b { font: 600 24px/1.2 var(--body); }
 .tp-hero span { min-width: 0; overflow-wrap: anywhere; }
 .tp-hero .hero-thumb { width: 32px; height: 32px; }
 .tp-top { list-style: none; margin: 0 -14px; padding: 0; }
@@ -2799,7 +2810,7 @@ function renderCollection() {
   const tile = (label, value, note) => `<div class="stat-tile"><span class="small muted">${label}</span><b>${value}</b>${note ? `<span class="small muted">${note}</span>` : ''}</div>`;
   $('colTiles').innerHTML = tile('Карт собрано', fmt(owned.length), `из ${fmt(heroes.length)}, ${pct(heroes.length ? owned.length / heroes.length : 0)}`)
     + tile('Скинов', fmt(counts.skins), counts.only ? `из них только скин: ${fmt(counts.only)}` : '')
-    + tile('Аниме собрано целиком', fmt(byTitle.filter((t) => t.count === t.total).length), `из ${fmt(byTitle.length)}`);
+    + `<button type="button" class="stat-tile tile-link" data-titles-of=""><span class="small muted">📚 Аниме собрано целиком</span><b>${fmt(byTitle.filter((t) => t.count === t.total).length)}</b><span class="small muted">из ${fmt(byTitle.length)} · открыть по тайтлам →</span></button>`;
 
   // Личный топ: сильнее считается версия со скином, если он есть у игрока.
   const score = (h) => E.formulaScore(h.skin && ownEntry(h).skin ? E.skinVersion(h) : h, settings.formula);
@@ -4685,15 +4696,27 @@ function renderCards() {
 // Как каталог в боте игры: «Собрано: 3 из 4» по рангам, собранный ранг — зелёным, под рангом — недостающие герои.
 // Чья коллекция: пусто — своя (та же, что у «Есть у меня»); иначе ключ игрока — только подтверждённое ботом.
 const TITLE_PAGE = 40;
-const titleState = { sort: 'close', started: false, limit: TITLE_PAGE, who: '', open: new Set(), byKey: new Map() };
+const titleState = { sort: 'close', started: false, limit: TITLE_PAGE, who: '', open: new Set(), byKey: new Map(), marked: new Set(), orderKeys: null };
 const titleOwnedFor = (who) => (who ? E.confirmedHeroIds(heroes, cardsData, pullStats, who.slice(3)) : isOwned);
 const pctText = (t) => (t.pct > 0 && t.pct < 1 ? '<1%' : t.pct < 100 && t.pct > 99 ? '99%' : `${Math.round(t.pct)}%`);
 const titleBar = (t) => `<span class="track tp-track" aria-hidden="true"><span style="width:${t.pct}%"></span></span>`;
+// Герои, отмеченные из этой панели: остаются в ранге с «✓», пока страница открыта, — чтобы промах можно было снять.
+function titleChip(h, on, mine) {
+  const id = E.heroId(h);
+  const add = mine ? `<button type="button" class="tp-add${on ? ' on' : ''}" data-tp-own="${esc(id)}" title="${on ? 'Снять отметку' : 'Есть у меня'}" aria-label="${esc(`${on ? 'Снять отметку' : 'Отметить: есть у меня'} — ${h.name}`)}" aria-pressed="${on}">${on ? '✓' : '＋'}</button>` : '';
+  return `<span class="tp-hero-wrap${on ? ' marked' : ''}"><button class="tp-hero" data-open-card="${esc(id)}" title="${esc(`${h.name} · ${h.rank} · ${h.cls}`)}">${thumbHtml(h, false)}<span>${esc(h.name)}</span></button>${add}</span>`;
+}
 function titleBodyHtml(t) {
-  return t.ranks.map((r) => `<div class="tp-rank${r.done ? ' done' : ''}" style="${rankVar(r.rank)}">
+  const mine = !titleState.who;
+  const marked = mine ? [...titleState.marked].map((id) => heroes.find((h) => E.heroId(h) === id)).filter((h) => h && isOwned(h) && E.normName(h.title || E.NO_TITLE) === t.key) : [];
+  return t.ranks.map((r) => {
+    const chips = [...r.missing.map((h) => ({ h, on: false })), ...marked.filter((h) => h.rank === r.rank).map((h) => ({ h, on: true }))]
+      .sort((a, b) => a.h.name.localeCompare(b.h.name, 'ru'));
+    return `<div class="tp-rank${r.done ? ' done' : ''}" style="${rankVar(r.rank)}">
       <p class="tp-rank-head"><b>Ранг ${esc(r.rank)}</b> | <span class="tp-rank-num">${r.have}/${r.total}</span>${r.done ? ' <span class="tp-ok" title="Ранг собран">✓</span>' : ''}</p>
-      ${r.missing.length ? `<div class="tp-miss">${r.missing.map((h) => `<button class="tp-hero" data-open-card="${esc(E.heroId(h))}" title="${esc(`${h.name} · ${h.rank} · ${h.cls}`)}">${thumbHtml(h, false)}<span>${esc(h.name)}</span></button>`).join('')}</div>` : ''}
-    </div>`).join('');
+      ${chips.length ? `<div class="tp-miss">${chips.map((x) => titleChip(x.h, x.on, mine)).join('')}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 function titleRowHtml(t) {
   const open = titleState.open.has(t.key);
@@ -4702,7 +4725,7 @@ function titleRowHtml(t) {
     <div class="tp-body" data-tp-body>${open ? titleBodyHtml(t) : ''}</div>
   </details>`;
 }
-function renderTitleProgress() {
+function renderTitleProgress(keepOrder = false) {
   const out = $('titlesOut');
   if (!loaded) { out.innerHTML = '<p class="empty">Загружаю…</p>'; return; }
   const me = myPlayerKey();
@@ -4721,12 +4744,28 @@ function renderTitleProgress() {
   $('titlesSort').value = titleState.sort;
   $('titlesStarted').setAttribute('aria-pressed', String(titleState.started));
   const list = E.sortTitleProgress(all, { sort: titleState.sort, started: titleState.started });
+  // Отметили героя — тайтл не должен уезжать из-под пальца: порядок остаётся, как был.
+  if (keepOrder && titleState.orderKeys) { const at = new Map(titleState.orderKeys.map((k, i) => [k, i])); list.sort((a, b) => (at.has(a.key) ? at.get(a.key) : 1e9) - (at.has(b.key) ? at.get(b.key) : 1e9)); }
+  else titleState.orderKeys = list.map((t) => t.key);
   const shown = list.slice(0, titleState.limit);
   $('titlesCount').textContent = list.length === all.length ? `Тайтлов: ${fmt(list.length)}` : `Найдено: ${fmt(list.length)} из ${fmt(all.length)}`;
   out.innerHTML = shown.length ? `<div class="card tp-list">${shown.map(titleRowHtml).join('')}</div>`
     : `<p class="empty">${titleState.started ? 'Ни одного тайтла не начато. Отметь героев в «Моей коллекции» или пришли карты боту.' : 'Пока пусто.'}</p>`;
   const left = list.length - shown.length;
   $('titlesMore').innerHTML = left > 0 ? `<button class="btn ghost" data-titles-more>Показать ещё, осталось ${fmt(left)}</button>` : '';
+}
+// «＋» у недостающего героя: отметить «есть у меня» (или снять), не открывая карточку героя.
+function titleToggleOwn(id) {
+  const hero = heroes.find((h) => E.heroId(h) === id);
+  if (!hero || titleState.who) return;
+  setOwned(id, !collection[id]);
+  titleState.marked.add(id);
+  saveCollection();
+  const y = window.scrollY;
+  renderTitleProgress(true);
+  window.scrollTo(0, y);
+  const again = [...document.querySelectorAll('[data-tp-own]')].find((b) => b.dataset.tpOwn === id);
+  if (again) again.focus({ preventScroll: true });
 }
 // Тайтл раскрывается — недостающие герои рисуются тогда (их сотни, картинки грузятся лениво).
 $('titlesOut').addEventListener('toggle', (e) => {
@@ -6283,6 +6322,8 @@ document.querySelector('.wrap').addEventListener('click', (e) => {
   if (e.target.closest('[data-players-more]')) { playersState.limit += PLAYERS_SHOWN; renderPlayers(); return; }
   if (e.target.closest('[data-cat-more]')) { catState.limit += CAT_PAGE; renderCards(); return; }
   if (e.target.closest('[data-titles-more]')) { titleState.limit += TITLE_PAGE; renderTitleProgress(); return; }
+  const tpOwn = e.target.closest('[data-tp-own]');
+  if (tpOwn) { titleToggleOwn(tpOwn.dataset.tpOwn); return; }
   const titlesOf = e.target.closest('[data-titles-of]');
   if (titlesOf) { openTitlesOf(titlesOf.dataset.titlesOf, titlesOf.dataset.titleOpen || ''); return; }
   // Ссылка в бота внутри мини-приложения — средствами Telegram (меню аватара обрабатывает свои ссылки само).
