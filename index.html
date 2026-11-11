@@ -2832,7 +2832,8 @@ function renderCollection() {
     const list = heroes.filter((h) => h.rank === key);
     return { key, total: list.length, count: list.filter(isOwned).length };
   });
-  $('colProgress').innerHTML = `<div class="card"><h2>По рангам</h2>${progressRows(byRank)}</div><div class="card"><h2>По аниме</h2>${progressRows(byTitle)}</div>`;
+  // «По аниме» убрано (collection-trim): то же есть в «По тайтлам», туда и ведёт ссылка.
+  $('colProgress').innerHTML = `<div class="card"><h2>По рангам</h2>${progressRows(byRank)}<p class="small"><button type="button" class="link-btn" data-titles-of="">📚 Прогресс по аниме — в «По тайтлам» →</button></p></div>`;
 
   $('colRanks').innerHTML = [['', 'Все ранги'], ...E.RANKS.map((r) => [r, r])].map(([value, label]) => `<button class="chip" data-col-rank="${value}" aria-pressed="${colState.rank === value}">${label}</button>`).join('');
   $('colClasses').innerHTML = [['', 'Все классы'], ...E.CLASSES.map((c) => [c, `${ICONS[c]} ${c}`])].map(([value, label]) => `<button class="chip" data-col-cls="${esc(value)}" aria-pressed="${colState.cls === value}">${esc(label)}</button>`).join('');
