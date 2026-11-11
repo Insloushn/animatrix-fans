@@ -1306,7 +1306,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=04405d5125"></script>
+<script src="engine.js?v=bf631b1a01"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -2697,7 +2697,7 @@ function renderCard() {
   const picAt = pics.length ? ((cardState.pic % pics.length) + pics.length) % pics.length : 0;
   const pic = pics[picAt];
   const myId = myPlayerKey().slice(3);
-  const mySkins = siteData && cardsData && myId ? [...new Set(E.cardOwned(cardsData, myId).filter((x) => x[0] === E.heroCode(hero) && x[1]).map((x) => x[1]))] : [];
+  const mySkins = siteData && cardsData && myId ? [...new Set([...E.cardOwned(cardsData, myId), ...E.cardSkinOnly(cardsData, myId)].filter((x) => x[0] === E.heroCode(hero) && x[1]).map((x) => x[1]))] : [];
   const picBlock = pic ? `<div class="card-pics">
       ${pic.none ? `<div class="pic-box pic-none" style="${rankVar(hero.rank)}">${CAT_SILHOUETTE}<p class="small">Картинки карты пока нет — пришли карту: <a href="${BOT_CARDS_LINK}" target="_blank" rel="noopener" data-tg-link>/cards</a></p></div>`
         : `<div class="pic-box"><img src="${esc(picUrl(pic))}" alt="${esc(hero.name)}${pic.skin ? `, скин ${esc(pic.skin)}` : ''}" data-pic-zoom="${esc(picUrl(pic))}"></div>`}
@@ -3866,7 +3866,7 @@ function favDraft() {
   const s = profileDraft.s;
   return s ? E.favCards(heroes, cardsData, myPlayerKey().slice(3), s.fav) : [];
 }
-function favLine(x) { return `${esc(x.hero.name)} · ${esc(x.hero.rank)}${x.skin ? ' · 🎭 скин' : ''}`; }
+function favLine(x) { return `${esc(x.hero.name)} · ${esc(x.hero.rank)}${x.skin ? (x.only ? ' · 🎭 только скин' : ' · 🎭 скин') : ''}`; }
 function favResultsHtml() {
   const mine = myPlayerKey().slice(3);
   const chosen = favDraft();
@@ -3880,7 +3880,7 @@ function profileFavBox(s) {
   const mine = myPlayerKey().slice(3);
   if (!siteData || !cardsData || !heroes.length) return '';
   const intro = `<h3>⭐ Любимые карты</h3>`;
-  if (!E.cardOwned(cardsData, mine).length) {
+  if (!E.cardOwned(cardsData, mine).length && !E.cardSkinOnly(cardsData, mine).length) {
     return `${intro}<p class="small muted">Любимыми можно сделать только карты, которые бот видел у тебя. Отправь свои карты боту (<a href="${BOT_CARDS_LINK}" target="_blank" rel="noopener" data-tg-link>/cards в @AniMatrix_fansBot</a>) — они появятся здесь.</p>`;
   }
   const chosen = favDraft();
@@ -4203,7 +4203,7 @@ function renderProfile() {
   const settingsBox = mine && tg ? profileSettingsHtml(name) : '';
   // Картинки карт и скинов, добавленные благодаря игроку (cards.json, tickets/art-contest.md).
   const artTile = art ? `<div class="stat-tile text"><span class="small muted">🖼 Добавил артов</span><b>${esc(art.text)}</b></div>` : '';
-  const ownTiles = own.cards ? `<div class="stat-tile" title="${esc(CARDS_PROOF)}"><span class="small muted">🃏 Карт (подтверждено)</span><b>${fmt(own.cards)}</b></div>`
+  const ownTiles = own.cards || own.skins ? `<div class="stat-tile" title="${esc(CARDS_PROOF)}"><span class="small muted">🃏 Карт (подтверждено)</span><b>${fmt(own.cards)}</b></div>`
     + `<div class="stat-tile" title="${esc(CARDS_PROOF)}"><span class="small muted">🎭 Скинов (подтверждено)</span><b>${fmt(own.skins)}</b></div>` : '';
   const titlesBox = titleSum && titleSum.started > 0 ? `<div class="card" id="profTitles">
       <h2>📚 Тайтлы</h2>
@@ -7535,7 +7535,7 @@ function cloudLoad() {
 // pullAuto — переключатель ('0' — выключен), pullN и pull0… — разобранные герои (E.packPullMarks). Отметки только добавляются.
 const pullMark = { on: true, done: null, added: 0 };
 let pullMarkParts = 0;
-const PULL_MARK_NOTE = 'Только крутки и просмотр героев в чатах с @Insloushn, конкурсы и карты, пересланные или отправленные боту @AniMatrix_fansBot (команда /cards), — остальные карты отмечай сам. Новые карты появляются через 1–2 минуты.';
+const PULL_MARK_NOTE = 'Только крутки и просмотр героев в чатах с @Insloushn, конкурсы и карты, пересланные или отправленные боту @AniMatrix_fansBot (команда /cards), — остальные карты отмечай сам. Скин без героя («Наймите героя» в списке скинов) попадает в «только скин». Новые карты появляются через 1–2 минуты.';
 const pullMarkText = (n) => `Из твоих круток ${n % 10 === 1 && n % 100 !== 11 ? 'отмечена' : 'отмечено'} ${n} ${plural(n, 'карта', 'карты', 'карт')}`;
 const fromPulls = (h) => !!(pullMark.done && pullMark.done[E.heroCode(h)] === true && isOwned(h));
 
@@ -7652,18 +7652,25 @@ function cardMarksSave() {
 
 function autoMarkCards() {
   if (!tg || !cloudReady || !cardMark.done || !pullMark.done || !pullMark.on || !heroes.length || !cardsData) return;
-  const owned = E.cardOwned(cardsData, myPlayerKey().slice(3));
-  if (!owned.length) return;
+  const me = myPlayerKey().slice(3);
+  const owned = E.cardOwned(cardsData, me);
+  const only = E.cardSkinOnly(cardsData, me); // скин есть, героя нет — в «только скин», карту не ставит (tickets/skin-only.md)
+  if (!owned.length && !only.length) return;
   const plan = E.cardAutoMark(collection, owned, cardMark.done, heroes);
-  if (E.packPullMarks(plan.done) === E.packPullMarks(cardMark.done)) return;
+  const withCards = { ...collection };
+  plan.add.forEach((id) => { withCards[id] = { skin: false }; });
+  const plan2 = E.cardSkinOnlyMark(withCards, only, plan.done, heroes);
+  if (E.packPullMarks(plan2.done) === E.packPullMarks(cardMark.done)) return;
   plan.add.forEach((id) => setOwned(id, true));
   plan.skins.forEach((id) => { collection[id] = { ...collection[id], skin: true }; });
-  cardMark.done = plan.done;
-  if (plan.add.length || plan.skins.length) {
+  plan2.add.forEach((id) => setSkin(id, true));
+  cardMark.done = plan2.done;
+  const skinsNew = plan.skins.length + plan2.add.length;
+  if (plan.add.length || skinsNew) {
     cardMark.added += plan.add.length;
-    cardMark.skins += plan.skins.length;
+    cardMark.skins += skinsNew;
     saveCollection();
-    const text = `🃏 ${markFresh ? cardFreshText(plan.add.length, plan.skins.length) : cardMarkText(plan.add.length, plan.skins.length)}`;
+    const text = `🃏 ${markFresh ? cardFreshText(plan.add.length, skinsNew) : cardMarkText(plan.add.length, skinsNew)}`;
     notify(text);
     setTimeout(() => { if ($('notice').textContent === text) notify(''); }, 8000);
   }

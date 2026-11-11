@@ -1310,10 +1310,9 @@
       }
       put('sx', `${spaced(pp.sss || 0)} / ${spaced(pp.ss || 0)}`, '', '', 'profPulls');
     }
-    if (own && own.cards > 0) {
-      put('co', spaced(own.cards), [ctx.totalCards ? `из ${spaced(ctx.totalCards)}` : '', own.skins ? `скинов ${spaced(own.skins)}` : ''].filter(Boolean).join(' · '), '', 'profTiles');
-      if (own.skins > 0) put('sk', spaced(own.skins), '', '', 'profTiles');
-    }
+    if (own && own.cards > 0) put('co', spaced(own.cards), [ctx.totalCards ? `из ${spaced(ctx.totalCards)}` : '', own.skins ? `скинов ${spaced(own.skins)}` : ''].filter(Boolean).join(' · '), '', 'profTiles');
+    // «Только скин» — тоже скин (tickets/skin-only.md), даже когда карт у игрока нет.
+    if (own && own.skins > 0) put('sk', spaced(own.skins), '', '', 'profTiles');
     if (t) {
       if (t.contests > 0) put('cn', spaced(t.contests), '', '', 'profContests');
       if (t.bestPlace) put('bc', `№${t.bestPlace}`, '', '', 'profContests');
@@ -1366,14 +1365,16 @@
     return parseFav(tokens, 24);
   }
   // Подтверждено ли: owned — [[код, скин или '', уровень]] (cards.json → owners). Карта — есть запись героя; скин — запись со скином.
-  const favOwned = (owned, item) => (owned || []).some((x) => x && x[0] === item.code && (!item.skin || !!x[1]));
+  // only — «только скин» ([[код, скин]], cards.json → skinOnly): скин принимается и без героя; карта — нет (tickets/skin-only.md).
+  const favOwned = (owned, item, only) => (owned || []).some((x) => x && x[0] === item.code && (!item.skin || !!x[1]))
+    || (!!item.skin && (only || []).some((x) => x && x[0] === item.code));
   // → { ok: подтверждённые (до шести, порядок сохранён), skipped: не подтверждено, cut: подтверждено, но сверх шести }
-  function favConfirm(owned, list) {
+  function favConfirm(owned, list, only) {
     const ok = [];
     let skipped = 0;
     let cut = 0;
     (list || []).forEach((item) => {
-      if (!favOwned(owned, item)) { skipped += 1; return; }
+      if (!favOwned(owned, item, only)) { skipped += 1; return; }
       if (ok.length >= FAV_MAX) { cut += 1; return; }
       ok.push(item);
     });
@@ -1383,7 +1384,8 @@
   function favCards(heroes, cardsData, id, fav) {
     const byCode = new Map((heroes || []).map((h) => [heroCode(h), h]));
     const owned = cardOwned(cardsData, id);
-    return parseFav(fav).filter((x) => favOwned(owned, x) && byCode.has(x.code)).map((x) => ({ hero: byCode.get(x.code), code: x.code, skin: x.skin }));
+    const only = cardSkinOnly(cardsData, id);
+    return parseFav(fav).filter((x) => favOwned(owned, x, only) && byCode.has(x.code)).map((x) => ({ hero: byCode.get(x.code), code: x.code, skin: x.skin, ...(x.skin && !owned.some((o) => o[0] === x.code) ? { only: true } : {}) }));
   }
   // Что игрок может выбрать: его подтверждённые карты и (если бот видел скин) скины; query — по имени, рангу, тайтлу (без регистра);
   // exclude — уже выбранные (строки «код» / «кодS»). → [{ hero, code, skin, token }], по имени, у героя сначала карта, потом скин.
@@ -1392,6 +1394,8 @@
     const byCode = new Map((heroes || []).map((h) => [heroCode(h), h]));
     const have = new Map(); // код → { skin: есть ли скин }
     cardOwned(cardsData, id).forEach((x) => { const e = have.get(x[0]) || { skin: false }; if (x[1]) e.skin = true; have.set(x[0], e); });
+    // «Только скин» — героя нет: в выборе только скин (only: true), карты героя нет.
+    const onlyCodes = new Set(cardSkinOnly(cardsData, id).map((x) => x[0]));
     const skip = new Set(exclude || []);
     const out = [];
     have.forEach((e, code) => {
@@ -1399,6 +1403,12 @@
       if (!hero || (q && ![hero.name, hero.rank, hero.title].some((t) => t && normName(t).includes(q)))) return;
       if (!skip.has(code)) out.push({ hero, code, skin: false, token: code });
       if (e.skin && !skip.has(code + 'S')) out.push({ hero, code, skin: true, token: code + 'S' });
+    });
+    onlyCodes.forEach((code) => {
+      const hero = byCode.get(code);
+      if (!hero || have.has(code) || skip.has(code + 'S')) return;
+      if (q && ![hero.name, hero.rank, hero.title].some((t) => t && normName(t).includes(q))) return;
+      out.push({ hero, code, skin: true, only: true, token: code + 'S' });
     });
     return out.sort((x, y) => x.hero.name.localeCompare(y.hero.name, 'ru') || x.hero.rank.localeCompare(y.hero.rank) || Number(x.skin) - Number(y.skin));
   }
@@ -1520,7 +1530,7 @@
       if (!p.name && x.name) p.name = String(x.name);
       if (!p.tgName && x.name) p.tgName = String(x.name);
     });
-    Object.keys((cardData && cardData.owners) || {}).forEach((id) => {
+    [...new Set([...Object.keys((cardData && cardData.owners) || {}), ...Object.keys((cardData && cardData.skinOnly) || {})])].forEach((id) => {
       if (!/^\d+$/.test(id)) return;
       const p = get(`id:${id}`, id);
       const n = cardOwnedCounts(cardData, id);
@@ -1707,10 +1717,40 @@
     return Array.isArray(list) ? list.filter((x) => Array.isArray(x) && x[0]) : [];
   }
 
-  // Подтверждено ботом: cards — разные герои, skins — разные пары герой+скин. known — только эти коды (null — все).
+  // «Только скин» из cards.json (skinOnly: ID → [[код, скин]], tickets/skin-only.md): скин куплен, героя у игрока нет.
+  // Запись героя в owners важнее — такой скин уже там, и дубль не берётся.
+  function cardSkinOnly(data, id) {
+    const list = data && data.skinOnly && data.skinOnly[String(id || '')];
+    if (!Array.isArray(list)) return [];
+    const have = new Set(cardOwned(data, id).map((x) => x[0]));
+    return list.filter((x) => Array.isArray(x) && x[0] && x[1] && !have.has(x[0]));
+  }
+
+  // Подтверждено ботом: cards — разные герои, skins — разные пары герой+скин (и «только скин»: это скин, а не карта).
+  // known — только эти коды (null — все).
   function cardOwnedCounts(data, id, known) {
     const list = cardOwned(data, id).filter((x) => !known || known.has(x[0]));
-    return { cards: new Set(list.map((x) => x[0])).size, skins: new Set(list.filter((x) => x[1]).map((x) => `${x[0]}|${x[1]}`)).size };
+    const only = cardSkinOnly(data, id).filter((x) => !known || known.has(x[0]));
+    const skins = new Set([...list.filter((x) => x[1]), ...only].map((x) => `${x[0]}|${x[1]}`));
+    return { cards: new Set(list.map((x) => x[0])).size, skins: skins.size };
+  }
+
+  // Автоотметка «только скин» из карт: есть скин в cards.json (skinOnly), героя нет ни в коллекции, ни среди добавляемых.
+  // collection — id → запись (с уже добавленными картами), done — разобранное (код~ → true, если отметили). Отметки только
+  // добавляют; снятое вручную само не вернётся. → { add: [id героев], done }.
+  function cardSkinOnlyMark(collection, only, done, heroes) {
+    const byCode = new Map((heroes || []).map((h) => [heroCode(h), h]));
+    const next = { ...(done || {}) };
+    const add = [];
+    (only || []).forEach(([code]) => {
+      const hero = byCode.get(code);
+      const key = `${code}~`;
+      if (!hero || !hero.skin || key in next) return;
+      const id = heroId(hero);
+      next[key] = !collection[id] && !add.includes(id);
+      if (next[key]) add.push(id);
+    });
+    return { add, done: next };
   }
 
   // Автоотметка из карт — как из круток: только добавляет. done — разобранное (код → true, если добавили карты;
@@ -2000,7 +2040,7 @@
     const skinsOf = new Map();
     const add = (id, heroIdValue) => { if (!owned.has(id)) owned.set(id, new Set()); owned.get(id).add(heroIdValue); };
     pullPlayers.forEach(([id, p]) => pullHeroIds(pulls, p, heroes).forEach((h) => add(id, h)));
-    Object.keys((cards && cards.owners) || {}).forEach((id) => {
+    [...new Set([...Object.keys((cards && cards.owners) || {}), ...Object.keys((cards && cards.skinOnly) || {})])].forEach((id) => {
       cardOwned(cards, id).forEach(([code]) => { if (byCode.has(code)) add(id, byCode.get(code)); });
       skinsOf.set(id, cardOwnedCounts(cards, id, byCode).skins);
     });
@@ -2499,7 +2539,7 @@
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
     AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, parseBpos, bposFrameH, profileStartCode, parseProfileCode, parseTiles, FAV_MAX, parseFav, favString, favStartCode, parseFavCode, favOwned, favConfirm, favCards, favCandidates, profileTiles, TILE_LABELS, TILE_CODES, TILE_MAX,
-    pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, versionPic, cardOwned, cardOwnedCounts, cardAutoMark, titleProgress, sortTitleProgress, titleSummary, confirmedHeroIds,
+    pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, versionPic, cardOwned, cardSkinOnly, cardOwnedCounts, cardAutoMark, cardSkinOnlyMark, titleProgress, sortTitleProgress, titleSummary, confirmedHeroIds,
     NAV_GROUPS, navGroups, navGroupOf, homeFeed, feedTime, plural, cardCounts, cardCatalog, artHunt, artQuery, ratings, cardCredits,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
