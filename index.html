@@ -5368,9 +5368,41 @@ function findHero(query) {
   return heroes.find((h) => E.normName(h.name) === q) || heroes.find((h) => E.normName(h.name).includes(q)) || null;
 }
 
+// «Сравнение»: одноимённые герои различаются подписью «имя · ранг · тайтл» и heroId.
+let compareLabelsFor = null;
+let compareLabels = new Map();
+function compareLabelMap() {
+  if (compareLabelsFor === heroes) return compareLabels;
+  compareLabelsFor = heroes;
+  const count = new Map();
+  heroes.forEach((h) => { const n = E.normName(h.name); count.set(n, (count.get(n) || 0) + 1); });
+  compareLabels = new Map(heroes.map((h) => [count.get(E.normName(h.name)) > 1 ? cardLabel(h) : h.name, h]));
+  return compareLabels;
+}
+const compareLabelOf = (h) => [...compareLabelMap()].find(([, x]) => x === h)?.[0] || h.name;
+
+// Ответ: { hero } — герой найден; { options } — имя у нескольких героев, нужен выбор; {} — нет такого.
+function resolveCompare(c) {
+  if (c.id) {
+    const byId = heroes.find((h) => E.heroId(h) === c.id);
+    if (byId) return { hero: byId };
+  }
+  const map = compareLabelMap();
+  if (map.has(c.query)) return { hero: map.get(c.query) };
+  const q = E.normName(c.query);
+  if (!q) return {};
+  const exact = heroes.filter((h) => E.normName(h.name) === q);
+  if (exact.length === 1) return { hero: exact[0] };
+  if (exact.length > 1) return { options: exact };
+  const part = heroes.filter((h) => E.normName(h.name).includes(q));
+  if (part.length === 1) return { hero: part[0] };
+  if (part.length > 1 && new Set(part.map((h) => E.normName(h.name))).size === 1) return { options: part };
+  return part.length ? { hero: part[0] } : {};
+}
+
 function pickHero(side) {
   const c = compare[side];
-  const hero = findHero(c.query);
+  const hero = resolveCompare(c).hero;
   if (!hero) return null;
   const factor = E.levelFactor(c.level || 1, c.skin);
   return { ...hero, bm: hero.baseBm * factor, hp: hero.baseHp * factor };
@@ -5388,6 +5420,13 @@ function plainLine(att, def) {
   </tr>`;
 }
 
+function compareChoice(side) {
+  const { options } = resolveCompare(compare[side]);
+  if (!options) return 'Такого героя нет в базе';
+  const names = options.map((h) => `<button class="link-btn" data-cmp-pick="${side}:${esc(E.heroId(h))}">${esc(h.rank)} · ${esc(h.title || E.NO_TITLE)}</button>`);
+  return `Таких героев ${options.length}: ${names.join(', ')}. Выбери одного.`;
+}
+
 function renderVerdict() {
   const a = pickHero('a');
   const b = pickHero('b');
@@ -5397,7 +5436,7 @@ function renderVerdict() {
     if (!info) return;
     info.innerHTML = h
       ? withThumb(h, esc(`${h.rank} · ${ICONS[h.cls]} ${h.cls} · БМ ${fmt(h.bm)} · ЖВ ${fmt(h.hp)}`), compare[side].skin)
-      : 'Такого героя нет в базе';
+      : compareChoice(side);
   });
   $('compareModes').innerHTML = [['skills', 'С навыками'], ['plain', 'Без навыков'], ['both', 'Оба варианта']]
     .map(([mode, label]) => `<button class="chip" data-compare-mode="${mode}" aria-pressed="${settings.compareMode === mode}">${label}</button>`)
@@ -5476,7 +5515,7 @@ function renderPlainVerdict(a, b) {
 }
 
 function renderCompare() {
-  $('heroList').innerHTML = heroes.map((h) => `<option value="${esc(h.name)}">${h.rank} · ${h.cls}</option>`).join('');
+  $('heroList').innerHTML = [...compareLabelMap()].map(([label, h]) => `<option value="${esc(label)}">${h.rank} · ${h.cls}</option>`).join('');
   renderSide('a', 'Первый герой');
   renderSide('b', 'Второй герой');
   renderVerdict();
@@ -6426,7 +6465,7 @@ $('cardOut').addEventListener('click', async (e) => {
     renderCard();
   } else if (e.target.closest('[data-card-compare]')) {
     compare.b = { ...compare.a };
-    compare.a = { query: hero.name, level: 1, skin: false };
+    compare.a = { query: compareLabelOf(hero), id: E.heroId(hero), level: 1, skin: false };
     showTab('compare');
   } else if (e.target.closest('[data-card-link]')) {
     const link = heroLink(hero);
@@ -6677,11 +6716,27 @@ $('compareModes').addEventListener('click', (e) => {
   saveSettings();
   renderVerdict();
 });
+$('view-compare').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cmp-pick]');
+  if (!b) return;
+  const side = b.dataset.cmpPick[0];
+  const id = b.dataset.cmpPick.slice(2);
+  const hero = heroes.find((h) => E.heroId(h) === id);
+  if (!hero) return;
+  compare[side] = { query: compareLabelOf(hero), id, level: compare[side].level, skin: false };
+  renderCompare();
+});
 $('view-compare').addEventListener('change', (e) => {
   const m = e.target.id.match(/^([ab])-(query|level|skin)$/);
   if (!m) return;
   const c = compare[m[1]];
-  if (m[2] === 'query') { c.query = e.target.value; c.skin = false; renderCompare(); return; }
+  if (m[2] === 'query') {
+    c.query = e.target.value;
+    c.id = compareLabelMap().has(c.query) ? E.heroId(compareLabelMap().get(c.query)) : '';
+    c.skin = false;
+    renderCompare();
+    return;
+  }
   if (m[2] === 'level') c.level = Math.max(1, parseInt(e.target.value, 10) || 1);
   if (m[2] === 'skin') c.skin = e.target.checked;
   renderVerdict();
