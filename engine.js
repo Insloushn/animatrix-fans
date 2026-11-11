@@ -1415,6 +1415,14 @@
     const n = Number(v);
     return ok && n >= 0 && n <= 100 ? n : null;
   }
+  // Высота рамки выбора полосы в % высоты кадра 16:9 (tickets/banner-strip-video.md): строка W×H показывает H/(W·9/16) кадра.
+  // Нет размеров строки — 14 (как было); не больше 100 и не меньше 3.
+  function bposFrameH(rowW, rowH) {
+    const w = Number(rowW);
+    const h = Number(rowH);
+    if (!(w > 0) || !(h > 0)) return 14;
+    return Math.round(Math.max(3, Math.min(100, (h / w) * (16 / 9) * 100)) * 100) / 100;
+  }
   function profileMap(data) {
     const map = new Map();
     const src = (data && data.profiles && typeof data.profiles === 'object') ? data.profiles : {};
@@ -2490,7 +2498,7 @@
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
-    AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, parseBpos, profileStartCode, parseProfileCode, parseTiles, FAV_MAX, parseFav, favString, favStartCode, parseFavCode, favOwned, favConfirm, favCards, favCandidates, profileTiles, TILE_LABELS, TILE_CODES, TILE_MAX,
+    AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, parseBpos, bposFrameH, profileStartCode, parseProfileCode, parseTiles, FAV_MAX, parseFav, favString, favStartCode, parseFavCode, favOwned, favConfirm, favCards, favCandidates, profileTiles, TILE_LABELS, TILE_CODES, TILE_MAX,
     pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, versionPic, cardOwned, cardOwnedCounts, cardAutoMark, titleProgress, sortTitleProgress, titleSummary, confirmedHeroIds,
     NAV_GROUPS, navGroups, navGroupOf, homeFeed, feedTime, plural, cardCounts, cardCatalog, artHunt, artQuery, ratings, cardCredits,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,

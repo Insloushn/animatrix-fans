@@ -613,9 +613,10 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .tile-pick li { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
 .tile-pick li span { flex: 1; min-width: 0; }
 .bpos-stage { position: relative; aspect-ratio: 16 / 9; max-width: 420px; border-radius: 8px; overflow: hidden; touch-action: none; cursor: ns-resize; user-select: none; background: #15121f; }
-.bpos-stage img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
-.bpos-frame { position: absolute; left: 0; right: 0; height: 14%; top: calc((100% - 14%) * var(--bpos, 50) / 100); box-shadow: 0 0 0 100vmax rgba(0,0,0,.55); outline: 2px solid #fff; pointer-events: none; }
-.bpos-sample { max-width: 420px; min-height: 52px; }
+.bpos-stage img, .bpos-stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.bpos-frame { position: absolute; left: 0; right: 0; height: calc(var(--bfh, 14) * 1%); top: calc((100% - var(--bfh, 14) * 1%) * var(--bpos, 50) / 100); box-shadow: 0 0 0 100vmax rgba(0,0,0,.55); outline: 2px solid #fff; pointer-events: none; }
+.player-row.bpos-sample { width: 100%; }
+.bpos-sample .row-bg video { opacity: 1; transition: none; }
 .fav-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 .visit-fav { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .visit-fav .hero-thumb { width: 28px; height: 28px; }
@@ -1305,7 +1306,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=135d5f6dbe"></script>
+<script src="engine.js?v=04405d5125"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -3836,9 +3837,10 @@ function profileSettingsBody() {
   const bpos = E.parseBpos(s.bpos) === null ? 50 : s.bpos;
   const bannerBox = banner ? `<h3>🖼 Баннер в списках</h3>
       <p class="small muted">Какая полоса баннера видна в строках «Игроков» и «Рейтингов». Двигай рамку мышью или пальцем, либо ползунком.</p>
-      <div class="bpos-stage" data-bpos-stage style="--bpos:${bpos}"><img src="${esc(banner.poster)}" alt="" draggable="false"><span class="bpos-frame"></span></div>
+      <div class="bpos-stage" data-bpos-stage style="--bpos:${bpos}">${bposMedia(banner)}<span class="bpos-frame"></span></div>
       <input type="range" min="0" max="100" step="1" value="${bpos}" data-bpos-range aria-label="Полоса баннера сверху вниз">
-      <div class="player-row has-bg bpos-sample"><span class="row-bg" data-bpos-sample style="--bpos:${bpos}%" aria-hidden="true"><img src="${esc(banner.poster)}" alt=""></span>${avatarHtml(myPlayerKey(), name)}<span class="player-text"><b>${esc(name)}</b><small>так выглядит твоя строка</small></span></div>
+      <p class="small muted">Так будет выглядеть твоя строка в «Рейтингах»:</p>
+      <div class="player-row rate-row has-bg bpos-sample"><span class="row-bg" data-bpos-sample style="--bpos:${bpos}%" aria-hidden="true">${bposMedia(banner)}</span><span class="rate-place">${recPlace(1)}</span>${avatarHtml(myPlayerKey(), name)}<span class="player-text"><b>${esc(name)}</b><small>круток 1 234</small></span><b class="rate-value">1 234</b></div>
       <div><button type="button" class="btn ghost mini" data-bpos-center>По центру</button></div>` : '';
   return `<div class="prof-set${s.av ? '' : ' av-off'}">
       <div class="prof-preview">${avatarHtml(myPlayerKey(), name, true, s)}<span><b>${esc(name)}</b>${s.tg && tgName ? `<br><span class="small muted">в Telegram: ${esc(tgName)}</span>` : ''}<br><span class="small muted">так тебя видят другие</span></span></div>
@@ -3910,7 +3912,40 @@ function profileSettingsHtml(name) {
   profileDraft.name = name;
   return `<details class="card profile-settings" id="profileSettings"${profileDraft.open ? ' open' : ''}><summary>⚙️ Настройки профиля</summary><div id="profileSettingsBody">${profileSettingsBody()}</div></details>`;
 }
-// Полоса баннера в строках (tickets/banner-strip.md): без перерисовки блока, чтобы не рвать перетаскивание.
+// Полоса баннера в строках (tickets/banner-strip.md, banner-strip-video.md): без перерисовки блока, чтобы не рвать перетаскивание.
+// Заставка и видео (без звука; при «меньше движения» — только заставка). Играет, пока блок на экране и вкладка видна.
+function bposMedia(b) {
+  const img = b.poster ? `<img src="${esc(b.poster)}" alt="" draggable="false">` : '';
+  const video = reducedMotion() || !b.video ? '' : `<video data-bpos-video src="${esc(b.video)}" ${b.poster ? `poster="${esc(b.poster)}" ` : ''}muted loop playsinline autoplay preload="auto"></video>`;
+  return img + video;
+}
+let bposFh = 14;
+let bposIO = null;
+let bposRO = null;
+function bposFit() {
+  const sm = document.querySelector('.bpos-sample');
+  if (!sm) return;
+  const r = sm.getBoundingClientRect();
+  if (!(r.width > 0)) return; // блок закрыт — размер пришлёт ResizeObserver при открытии
+  bposFh = E.bposFrameH(r.width, r.height);
+  const st = document.querySelector('[data-bpos-stage]');
+  if (st) st.style.setProperty('--bfh', String(bposFh));
+}
+function bposPlayback(v, on) {
+  if (on && !document.hidden && !reducedMotion()) { v.muted = true; const p = v.play(); if (p && p.catch) p.catch(() => { /* остаётся заставка */ }); } else { try { v.pause(); } catch (e) { /* уже остановлено */ } }
+}
+function bposWatch() {
+  if (!document.querySelector('[data-bpos-stage]')) return;
+  if (window.IntersectionObserver && !bposIO) bposIO = new IntersectionObserver((list) => list.forEach((en) => { en.target._inView = en.isIntersecting; bposPlayback(en.target, en.isIntersecting); }));
+  if (window.ResizeObserver && !bposRO) bposRO = new ResizeObserver(bposFit);
+  document.querySelectorAll('[data-bpos-video]').forEach((v) => { if (bposIO) bposIO.observe(v); else bposPlayback(v, true); });
+  const sm = document.querySelector('.bpos-sample');
+  if (sm && bposRO) bposRO.observe(sm);
+  bposFit();
+}
+new MutationObserver(bposWatch).observe($('profileOut'), { childList: true, subtree: true });
+window.addEventListener('resize', bposFit);
+document.addEventListener('visibilitychange', () => document.querySelectorAll('[data-bpos-video]').forEach((v) => bposPlayback(v, v._inView !== false)));
 function bposSet(v) {
   const n = Math.max(0, Math.min(100, Math.round(v)));
   if (!profileDraft.s) return;
@@ -3925,7 +3960,7 @@ function bposSet(v) {
 function bposDrag(e) {
   const st = e.target.closest && e.target.closest('[data-bpos-stage]');
   if (!st || !profileDraft.s) return;
-  const at = (ev) => { const b = st.getBoundingClientRect(); const fh = b.height * 0.14; bposSet(((ev.clientY - b.top - fh / 2) / (b.height - fh)) * 100); };
+  const at = (ev) => { const b = st.getBoundingClientRect(); const fh = b.height * bposFh / 100; bposSet(((ev.clientY - b.top - fh / 2) / (b.height - fh)) * 100); };
   at(e);
   try { st.setPointerCapture(e.pointerId); } catch (x) { /* без захвата */ }
   const move = (ev) => at(ev);
