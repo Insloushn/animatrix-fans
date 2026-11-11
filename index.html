@@ -622,9 +622,22 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .bh-act { display: flex; flex-wrap: wrap; gap: 6px; }
 .bh-act a.btn { text-decoration: none; }
 .bpos-sample .row-bg video { opacity: 1; transition: none; }
-.fav-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+/* «⭐ Любимые карты» (tickets/fav-tile-name.md, ч. 2): на ПК сетка без дыр — SSS в одну колонку, картинка целиком;
+   на телефоне — полка со свайпом (ниже, в @media). Порядок карт — как выбрал игрок. */
+.fav-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.fav-grid .cat-tile.wide { grid-column: auto; }
+.fav-grid .cat-tile.wide .cat-pic { aspect-ratio: 3 / 4; }
+.fav-grid .cat-tile b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: break-word; }
+/* Плитка «Любимчик»: имя переносится только между словами, до 2 строк; на узкой плитке миниатюра над именем. */
+.visit-tile.fv { container-type: inline-size; }
 .visit-fav { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.visit-fav .hero-thumb { width: 28px; height: 28px; }
+.visit-fav .hero-thumb { width: 28px; height: 28px; flex: none; }
+.visit-fav-text { display: grid; gap: 1px; min-width: 0; }
+.visit-tile .visit-fav b { font-size: 16px; overflow-wrap: normal; hyphens: auto; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.visit-fav-text .small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+@container (max-width: 110px) {
+  .visit-fav { flex-direction: column; align-items: flex-start; gap: 4px; }
+}
 .fav-chosen li { align-items: center; }
 .fav-chosen .hero-thumb, .fav-pick .hero-thumb { width: 32px; height: 32px; }
 .fav-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -852,6 +865,11 @@ details.card summary { cursor: pointer; font-weight: 500; }
   .cat-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cat-tools #catSearch { grid-column: 1 / -1; }
   .cat-cls { display: none; } /* на телефоне класс — значком */
+  /* Любимые карты — один ряд со свайпом: картинки одной высоты, справа видна часть следующей. */
+  .cat-grid.fav-grid { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: thin; padding-bottom: 4px; }
+  .fav-grid .cat-tile { flex: none; width: 136px; scroll-snap-align: start; }
+  .fav-grid .cat-tile.wide { width: 263px; }
+  .fav-grid .cat-tile .cat-pic, .fav-grid .cat-tile.wide .cat-pic { height: 170px; aspect-ratio: auto; }
 }
 /* Переход из меню аватара к блоку: на телефоне блок не прячется под строкой с названием раздела. */
 #profileSettings, #colAdvice { scroll-margin-top: 64px; }
@@ -1311,7 +1329,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=3e19306c1a"></script>
+<script src="engine.js?v=f6dff947c3"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -4168,7 +4186,10 @@ function visitValueHtml(x) {
   if (x.code !== 'fv' || !x.heroId) return `<b>${esc(x.value)}</b>`;
   const hero = heroes.find((h) => E.heroId(h) === x.heroId);
   const thumb = hero ? thumbHtml(hero, x.skin) : '';
-  return `<span class="visit-fav">${thumb}<b style="${rankVar(x.rank)};color:var(--rk)">${esc(x.value)}</b></span><span class="small muted">${esc(x.rank)}${x.skin ? ' · 🎭 скин' : ''}</span>`;
+  // Имя до скобки — крупно, уточнение из скобок — в мелкой строке с рангом (tickets/fav-tile-name.md).
+  const { main, sub } = E.heroNameParts(x.value);
+  const line = [sub, x.rank, x.skin ? '🎭 скин' : ''].filter(Boolean).join(' · ');
+  return `<span class="visit-fav">${thumb}<span class="visit-fav-text"><b lang="ru" style="${rankVar(x.rank)};color:var(--rk)">${esc(main)}</b><span class="small muted">${esc(line)}</span></span></span>`;
 }
 // Карточка любимой карты — как в каталоге: картинка карты (или скина), без картинки — заглушка; нажатие — карточка героя.
 function favTileHtml({ hero: h, skin }) {
@@ -4212,7 +4233,7 @@ function renderProfile() {
       ${mine ? '' : `<p class="small muted" title="${esc(CARDS_PROOF)}">Подтверждено ботом: карты, которые он видел у игрока.</p>`}
     </div>` : '';
   const visit = banner ? E.profileTiles({ pp, luckMin: (pullStats && pullStats.luckMin) || 50, own, totalCards: heroes.length, t, art, favorite: favFirst, titles: titleSum }, profileFor(key).tiles) : [];
-  const visitHtml = visit.length ? `<div class="visit-tiles">${visit.map((x) => `<button type="button" class="visit-tile${x.tone ? ` ${x.tone}` : ''}" data-visit-go="${esc(x.anchor)}"><span class="small muted">${esc(x.label)}</span>${visitValueHtml(x)}${x.note ? `<span class="small muted">${esc(x.note)}</span>` : ''}</button>`).join('')}</div>` : '';
+  const visitHtml = visit.length ? `<div class="visit-tiles">${visit.map((x) => `<button type="button" class="visit-tile${x.tone ? ` ${x.tone}` : ''}${x.code === 'fv' && x.heroId ? ' fv' : ''}" data-visit-go="${esc(x.anchor)}"${x.code === 'fv' ? ` title="${esc(x.value)}"` : ''}><span class="small muted">${esc(x.label)}</span>${visitValueHtml(x)}${x.note ? `<span class="small muted">${esc(x.note)}</span>` : ''}</button>`).join('')}</div>` : '';
   const head = `<div class="card profile-head${banner ? ' has-banner' : ''}">
       ${banner ? bannerHtml(banner) : ''}${banner ? '<div class="profile-main">' : ''}${avatarHtml(key, name, true)}
       <div class="profile-name">

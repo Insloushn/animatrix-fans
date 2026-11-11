@@ -1380,6 +1380,12 @@
     });
     return { ok, skipped, cut };
   }
+  // Имя героя для плитки «Любимчик» (tickets/fav-tile-name.md): «Йор (Изверг Войны)» → { main: 'Йор', sub: 'Изверг Войны' }.
+  function heroNameParts(name) {
+    const s = String(name || '').trim();
+    const m = /^([^()]*[^\s()])\s*\(([^()]+)\)$/.exec(s);
+    return m ? { main: m[1], sub: m[2].trim() } : { main: s, sub: '' };
+  }
   // Любимые карты игрока для показа: только подтверждённые в cards.json и герои, которые есть в базе → [{ hero, code, skin }].
   function favCards(heroes, cardsData, id, fav) {
     const byCode = new Map((heroes || []).map((h) => [heroCode(h), h]));
@@ -2576,7 +2582,7 @@
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
-    AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, parseBpos, bposFrameH, profileStartCode, parseProfileCode, parseTiles, FAV_MAX, parseFav, favString, favStartCode, parseFavCode, favOwned, favConfirm, favCards, favCandidates, profileTiles, TILE_LABELS, TILE_CODES, TILE_MAX,
+    AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, parseBpos, bposFrameH, profileStartCode, parseProfileCode, parseTiles, FAV_MAX, parseFav, favString, favStartCode, parseFavCode, favOwned, favConfirm, favCards, heroNameParts, favCandidates, profileTiles, TILE_LABELS, TILE_CODES, TILE_MAX,
     pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, versionPic, cardOwned, cardSkinOnly, cardOwnedCounts, cardAutoMark, cardSkinOnlyMark, titleProgress, sortTitleProgress, titleSummary, confirmedHeroIds,
     NAV_GROUPS, navGroups, navGroupOf, homeFeed, feedTime, plural, cardCounts, cardCatalog, artHunt, artQuery, ratings, cardCredits,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
