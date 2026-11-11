@@ -1293,12 +1293,13 @@
   }
   const spaced = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   // Плитки, для которых у игрока есть данные: код → { code, label, value, note, tone, anchor }.
-  // ctx: pp — игрок в pull-stats, luckMin, own — { cards, skins }, totalCards, t — p.tiles профиля, art — cardCredits, favorite — { text, tone } или null,
+  // ctx: pp — игрок в pull-stats, luckMin, own — { cards, skins }, totalCards, t — p.tiles профиля, art — cardCredits, favorite — { text, tone, ... } или null
+  // (любимая карта: heroId, rank, skin, anchor — tickets/fav-cards.md),
   // titles — titleSummary (плитка «Тайтлов собрано»).
   function tileData(ctx) {
     const { pp, own, t, art, favorite, titles } = ctx || {};
     const out = {};
-    const put = (code, value, note = '', tone = '', anchor = '') => { out[code] = { code, label: TILE_LABELS[code], value, note, tone, anchor }; };
+    const put = (code, value, note = '', tone = '', anchor = '', extra = null) => { out[code] = { code, label: TILE_LABELS[code], value, note, tone, anchor, ...(extra || {}) }; };
     if (pp && pp.pulls > 0) {
       put('pu', spaced(pp.pulls), '', '', 'profPulls');
       const luck = pullLuck(pp, ctx.luckMin || 50);
@@ -1318,7 +1319,7 @@
       if (t.bestPlace) put('bc', `№${t.bestPlace}`, '', '', 'profContests');
       if (t.recordBest) put('br', `№${t.recordBest}`, '', '', 'profRecords');
     }
-    if (favorite && favorite.text) put('fv', favorite.text, '', favorite.tone || '', 'profPulls');
+    if (favorite && favorite.text) put('fv', favorite.text, favorite.note || '', favorite.tone || '', favorite.anchor || 'profPulls', favorite.heroId ? { rank: favorite.rank || '', heroId: favorite.heroId, skin: !!favorite.skin } : null);
     if (art && art.total > 0) put('ar', spaced(art.total), art.split ? art.text : '', '', 'profTiles');
     if (titles && titles.started > 0) put('ti', spaced(titles.full), `из ${spaced(titles.total)}`, '', 'profTitles');
     return out;
@@ -1336,16 +1337,90 @@
     return out;
   }
 
+
+  // ---------- Любимые карты (tickets/fav-cards.md) ----------
+  // До FAV_MAX карт или скинов, только подтверждённые ботом (cards.json → owners). Хранение: «код,кодS» (S в конце — скин;
+  // коды героев — строчные, поэтому S не путается с кодом). В ссылку для бота: «fav_код-кодS», пусто — «fav_none».
+  const FAV_MAX = 6;
+  const FAV_TOKEN = /^([0-9a-z]{1,7})(S?)$/;
+  // Из строки «a,bS» или списка: только верные записи, без повторов, не больше max → [{ code, skin }].
+  function parseFav(v, max = FAV_MAX) {
+    const out = [];
+    (Array.isArray(v) ? v : String(v || '').split(',')).forEach((t) => {
+      const item = t && typeof t === 'object' ? `${t.code}${t.skin ? 'S' : ''}` : String(t).trim();
+      const m = item.match(FAV_TOKEN);
+      if (m && !out.some((x) => x.code === m[1] && x.skin === !!m[2]) && out.length < max) out.push({ code: m[1], skin: !!m[2] });
+    });
+    return out;
+  }
+  const favString = (list) => parseFav(list).map((x) => `${x.code}${x.skin ? 'S' : ''}`).join(',');
+  const favStartCode = (list) => { const t = favString(list).replace(/,/g, '-'); return t ? `fav_${t}` : 'fav_none'; };
+  // Разбор /start fav_…: список (до 24 записей — дальше бот режет по подтверждённым) или null, если код не наш или испорчен.
+  function parseFavCode(code) {
+    const t = String(code || '');
+    if (t.length > 64 || !/^[A-Za-z0-9_-]+$/.test(t) || !t.startsWith('fav_')) return null;
+    const body = t.slice(4);
+    if (body === 'none') return [];
+    const tokens = body.split('-');
+    if (tokens.some((x) => !FAV_TOKEN.test(x))) return null;
+    return parseFav(tokens, 24);
+  }
+  // Подтверждено ли: owned — [[код, скин или '', уровень]] (cards.json → owners). Карта — есть запись героя; скин — запись со скином.
+  const favOwned = (owned, item) => (owned || []).some((x) => x && x[0] === item.code && (!item.skin || !!x[1]));
+  // → { ok: подтверждённые (до шести, порядок сохранён), skipped: не подтверждено, cut: подтверждено, но сверх шести }
+  function favConfirm(owned, list) {
+    const ok = [];
+    let skipped = 0;
+    let cut = 0;
+    (list || []).forEach((item) => {
+      if (!favOwned(owned, item)) { skipped += 1; return; }
+      if (ok.length >= FAV_MAX) { cut += 1; return; }
+      ok.push(item);
+    });
+    return { ok, skipped, cut };
+  }
+  // Любимые карты игрока для показа: только подтверждённые в cards.json и герои, которые есть в базе → [{ hero, code, skin }].
+  function favCards(heroes, cardsData, id, fav) {
+    const byCode = new Map((heroes || []).map((h) => [heroCode(h), h]));
+    const owned = cardOwned(cardsData, id);
+    return parseFav(fav).filter((x) => favOwned(owned, x) && byCode.has(x.code)).map((x) => ({ hero: byCode.get(x.code), code: x.code, skin: x.skin }));
+  }
+  // Что игрок может выбрать: его подтверждённые карты и (если бот видел скин) скины; query — по имени, рангу, тайтлу (без регистра);
+  // exclude — уже выбранные (строки «код» / «кодS»). → [{ hero, code, skin, token }], по имени, у героя сначала карта, потом скин.
+  function favCandidates(heroes, cardsData, id, query, exclude) {
+    const q = normName(query || '');
+    const byCode = new Map((heroes || []).map((h) => [heroCode(h), h]));
+    const have = new Map(); // код → { skin: есть ли скин }
+    cardOwned(cardsData, id).forEach((x) => { const e = have.get(x[0]) || { skin: false }; if (x[1]) e.skin = true; have.set(x[0], e); });
+    const skip = new Set(exclude || []);
+    const out = [];
+    have.forEach((e, code) => {
+      const hero = byCode.get(code);
+      if (!hero || (q && ![hero.name, hero.rank, hero.title].some((t) => t && normName(t).includes(q)))) return;
+      if (!skip.has(code)) out.push({ hero, code, skin: false, token: code });
+      if (e.skin && !skip.has(code + 'S')) out.push({ hero, code, skin: true, token: code + 'S' });
+    });
+    return out.sort((x, y) => x.hero.name.localeCompare(y.hero.name, 'ru') || x.hero.rank.localeCompare(y.hero.rank) || Number(x.skin) - Number(y.skin));
+  }
+
   // Настройки профиля из profiles.json (пишет бот): ID → { tg, past, av }. Хранятся только отличия от умолчаний:
   // имя Telegram скрыто (tg 0), прошлые ники видны (past 1), аватар из Telegram (av '').
   // tiles — выбранные плитки визитки (tickets/profile-summary.md): коды через запятую, '' — по умолчанию.
-  const PROFILE_DEFAULTS = { tg: false, past: true, av: '', tiles: '' };
+  // fav — любимые карты (tickets/fav-cards.md): «код,кодS» (S — скин), '' — нет.
+  // bpos — видимая полоса баннера в строках «Игроков» и «Рейтингов»: % по вертикали (object-position), 50 — по центру (tickets/banner-strip.md).
+  const PROFILE_DEFAULTS = { tg: false, past: true, av: '', tiles: '', fav: '', bpos: 50 };
+  // Целое 0–100 (число или строка из цифр), иначе null.
+  function parseBpos(v) {
+    const ok = typeof v === 'number' ? Number.isInteger(v) : /^\d{1,3}$/.test(String(v));
+    const n = Number(v);
+    return ok && n >= 0 && n <= 100 ? n : null;
+  }
   function profileMap(data) {
     const map = new Map();
     const src = (data && data.profiles && typeof data.profiles === 'object') ? data.profiles : {};
     Object.entries(src).forEach(([id, x]) => {
       if (!/^\d+$/.test(id) || !x || typeof x !== 'object') return;
-      map.set(id, { tg: x.tg === 1, past: x.past !== 0, av: parseAvatarCode(x.av) ? x.av : '', tiles: parseTiles(x.tiles).join(',') });
+      map.set(id, { tg: x.tg === 1, past: x.past !== 0, av: parseAvatarCode(x.av) ? x.av : '', tiles: parseTiles(x.tiles).join(','), fav: favString(parseFav(x.fav)), bpos: parseBpos(x.bpos) === null ? 50 : parseBpos(x.bpos) });
     });
     return map;
   }
@@ -1353,7 +1428,7 @@
 
   // Код для бота: «set_tg0_past1_a07-2», аватар из Telegram — «avtg». Не больше 64 символов [A-Za-z0-9_-].
   // Плитки визитки — «tl-pu-lk», по умолчанию — «tldef»; не названы (старый код) — не меняются.
-  const profileStartCode = (s) => `set_tg${s.tg ? 1 : 0}_past${s.past ? 1 : 0}_${s.av || 'avtg'}${s.tiles === undefined ? '' : `_${parseTiles(s.tiles).length ? `tl-${parseTiles(s.tiles).join('-')}` : 'tldef'}`}`;
+  const profileStartCode = (s) => `set_tg${s.tg ? 1 : 0}_past${s.past ? 1 : 0}_${s.av || 'avtg'}${s.tiles === undefined ? '' : `_${parseTiles(s.tiles).length ? `tl-${parseTiles(s.tiles).join('-')}` : 'tldef'}`}${s.bpos === undefined || parseBpos(s.bpos) === null ? '' : `_bp${parseBpos(s.bpos)}`}`;
   // Разбор кода из /start: { tg?, past?, av? } — только названные части; неверный код — null.
   function parseProfileCode(code) {
     const s = String(code || '');
@@ -1366,6 +1441,7 @@
       else if ((m = part.match(/^past([01])$/))) out.past = m[1] === '1';
       else if (part === 'avtg') out.av = '';
       else if (part === 'tldef') out.tiles = '';
+      else if (/^bp\d{1,3}$/.test(part)) { const b = parseBpos(part.slice(2)); if (b === null) return null; out.bpos = b; }
       else if (/^tl(-[a-z]{2})+$/.test(part)) out.tiles = parseTiles(part.slice(3).split('-')).join(','); // чужие коды отбрасываются
       else if (parseAvatarCode(part)) out.av = part;
       else return null;
@@ -1763,6 +1839,21 @@
     return list.sort((a, b) => RANKS.indexOf(a.h.rank) - RANKS.indexOf(b.h.rank) || s.get(a) - s.get(b)
       || a.h.name.localeCompare(b.h.name, 'ru'));
   }
+
+  // Блок «🖼 Нужны арты» (tickets/home-art-hunt.md): герои без картинки карты (скин не считается).
+  // Сначала те, что, возможно, есть у игрока (owned), затем старшие ранги (SSS → F), затем имя.
+  // → { heroes, withPic, missing, items: [{ h, mine }] }, в items — не больше limit.
+  function artHunt(heroes, data, { owned = () => false, limit = 6 } = {}) {
+    const list = heroes || [];
+    const images = (data && data.images) || {};
+    const rankOrder = (r) => { const i = RANKS.indexOf(r); return i < 0 ? RANKS.length : i; };
+    const miss = list.filter((h) => !(images[heroCode(h)] && images[heroCode(h)].img)).map((h) => ({ h, mine: !!owned(h) }));
+    miss.sort((a, b) => Number(b.mine) - Number(a.mine) || rankOrder(a.h.rank) - rankOrder(b.h.rank) || a.h.name.localeCompare(b.h.name, 'ru'));
+    return { heroes: list.length, withPic: list.length - miss.length, missing: miss.length, items: miss.slice(0, limit) };
+  }
+
+  // Запрос для поиска бота игры: вставляется в личке @AniMatrix_fansBot (как в /cards).
+  const artQuery = (h) => `@AniMatrixGame_bot ${h.name}`;
 
   // ---------- Прогресс по тайтлам (tickets/title-progress.md) ----------
   // owned — функция (герой → есть ли) или набор heroId. Скин не считается: герой либо есть, либо нет.
@@ -2399,9 +2490,9 @@
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
-    AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, profileStartCode, parseProfileCode, parseTiles, profileTiles, TILE_LABELS, TILE_CODES, TILE_MAX,
+    AVATAR_FIG_NAMES, AVATAR_COLORS, AVATAR_FIG_COLORS, avatarCode, parseAvatarCode, avatarSeedCode, avatarPreset, PROFILE_DEFAULTS, profileMap, profileOf, parseBpos, profileStartCode, parseProfileCode, parseTiles, FAV_MAX, parseFav, favString, favStartCode, parseFavCode, favOwned, favConfirm, favCards, favCandidates, profileTiles, TILE_LABELS, TILE_CODES, TILE_MAX,
     pullScope, pullPlayer, pullLuck, pullHeroIds, pullAutoMark, packPullMarks, unpackPullMarks, cardImages, versionPic, cardOwned, cardOwnedCounts, cardAutoMark, titleProgress, sortTitleProgress, titleSummary, confirmedHeroIds,
-    NAV_GROUPS, navGroups, navGroupOf, homeFeed, feedTime, plural, cardCounts, cardCatalog, ratings, cardCredits,
+    NAV_GROUPS, navGroups, navGroupOf, homeFeed, feedTime, plural, cardCounts, cardCatalog, artHunt, artQuery, ratings, cardCredits,
     STAT_TIERS, statsFor, statsSections, statsNote, sectionCaption, statsTableHtml, statsHtml, statsText,
     CLASS_ICONS, SKIN_MARK, EVENT_MARK, exportTitle, exportCaption, exportCells, exportMessages, exportHtml, exportArticles, exportNote, limitPlaces,
     CLASSES, RANKS, DEFAULTS, NO_TITLE, SKIN_BONUS, fight, duel, plainFight, formulaScore,

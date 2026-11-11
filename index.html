@@ -91,6 +91,33 @@ html.theme-anim, html.theme-anim *:not(.theme-thumb):not(.theme-thumb *) {
 .saved.on { color: var(--good); }
 .saved.off { color: var(--warn); }
 
+/* Поиск по сайту: герои и игроки одним списком (tickets/global-search.md). */
+.gsearch { position: relative; align-self: center; }
+.gs-open { all: unset; display: none; cursor: pointer; width: 30px; height: 30px; box-sizing: border-box; border-radius: 15px; border: 1px solid var(--line); text-align: center; line-height: 28px; font-size: 14px; }
+.gs-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gs-field input { box-sizing: border-box; width: 190px; padding: 5px 10px; border-radius: 15px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); font: 400 13px var(--body); }
+.gs-field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.gs-pop { position: absolute; z-index: 200; top: calc(100% + 6px); right: 0; width: min(360px, calc(100vw - 32px)); max-height: min(70vh, 460px); overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 28px rgba(0, 0, 0, .28); padding: 6px; }
+.gs-pop[hidden] { display: none; }
+.gs-pop h3 { margin: 6px 8px 2px; font: 600 11px var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.gs-row { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border-radius: 8px; cursor: pointer; min-width: 0; }
+.gs-row[aria-selected="true"], .gs-row:hover { background: var(--tint, rgba(127, 127, 127, .15)); }
+.gs-row .hero-thumb, .gs-row .avatar { width: 32px; height: 32px; flex: none; }
+.gs-row .hero-thumb { border-radius: 6px; object-fit: cover; }
+.gs-text { display: grid; min-width: 0; font-size: 14px; }
+.gs-text b { font-weight: 500; overflow-wrap: anywhere; }
+.gs-text small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.gs-text mark { background: none; color: var(--accent); font-weight: 700; }
+.gs-empty { padding: 10px 8px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  header .gsearch { position: absolute; top: 0; right: 68px; }
+  .gs-open { display: block; }
+  .gs-field { display: none; }
+  .gsearch.open .gs-field { display: block; position: fixed; left: 16px; right: 16px; top: 52px; z-index: 201; }
+  .gsearch.open .gs-field input { width: 100%; padding: 9px 14px; font-size: 16px; }
+  .gs-pop { position: fixed; left: 16px; right: 16px; top: 100px; width: auto; max-height: calc(100dvh - 160px); }
+}
+
 /* Шапка на телефоне: название и переключатель темы в одной строке, счётчики — мелко под ним. */
 @media (max-width: 760px) {
   header { display: flex; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 2px; position: relative; }
@@ -585,6 +612,24 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .tile-pick { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .tile-pick li { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
 .tile-pick li span { flex: 1; min-width: 0; }
+.bpos-stage { position: relative; aspect-ratio: 16 / 9; max-width: 420px; border-radius: 8px; overflow: hidden; touch-action: none; cursor: ns-resize; user-select: none; background: #15121f; }
+.bpos-stage img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.bpos-frame { position: absolute; left: 0; right: 0; height: 14%; top: calc((100% - 14%) * var(--bpos, 50) / 100); box-shadow: 0 0 0 100vmax rgba(0,0,0,.55); outline: 2px solid #fff; pointer-events: none; }
+.bpos-sample { max-width: 420px; min-height: 52px; }
+.fav-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+.visit-fav { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.visit-fav .hero-thumb { width: 28px; height: 28px; }
+.fav-chosen li { align-items: center; }
+.fav-chosen .hero-thumb, .fav-pick .hero-thumb { width: 32px; height: 32px; }
+.fav-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.fav-search { box-sizing: border-box; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: inherit; font: inherit; }
+.fav-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.fav-pick { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 8px; cursor: pointer; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
+.fav-pick:hover, .fav-pick:focus-visible { border-color: var(--accent); }
+.fav-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.fav-pick[disabled] { opacity: .5; cursor: not-allowed; }
+.fav-txt { flex: 1; min-width: 0; display: grid; }
+.fav-pick small { font-size: 12px; }
 .tile-add { display: flex; flex-wrap: wrap; gap: 6px; }
 @media (min-width: 820px) {
   .profile-head.has-banner .profile-main { align-content: space-between; }
@@ -598,7 +643,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .player-row.has-bg small, .player-row.has-bg .rate-place { color: rgba(255,255,255,.82); }
 .player-row.has-bg:hover, .player-row.has-bg:focus-visible { background: none; }
 .row-bg { position: absolute; inset: 0; z-index: -1; background: #15121f; }
-.row-bg img, .row-bg video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.row-bg img, .row-bg video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% var(--bpos, 50%); }
 .row-bg video { opacity: 0; transition: opacity .25s; }
 .row-bg video.on { opacity: 1; }
 .row-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(10,8,20,.9) 0%, rgba(10,8,20,.65) 45%, rgba(10,8,20,.25) 100%); }
@@ -629,8 +674,29 @@ details.card summary { cursor: pointer; font-weight: 500; }
 #view-players .tools > span { flex: none; }
 
 /* Главная: карточки с «Все →» и плитки разделов. */
-#homeOut { grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); align-items: start; }
+/* На ПК (≥ 1100 px) — две независимые колонки (renderHome собирает их сам), иначе одна колонка. */
+#homeOut { grid-template-columns: minmax(0, 1fr); align-items: start; }
+.home-cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 14px; align-items: start; }
+.home-col { display: grid; gap: 14px; min-width: 0; align-content: start; }
+.home-col > * { min-width: 0; }
 .home-card { gap: 8px; }
+/* «🖼 Нужны арты» и фильтр «Без картинки»: строка — заглушка в цвете ранга, имя, кнопка копирования запроса. */
+.art-head { display: grid; gap: 6px; }
+.art-head .track { max-width: none; height: 8px; border-radius: 4px; }
+.art-head .track span { border-radius: 4px; }
+.art-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.art-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.art-row:first-child { border-top: 0; }
+.art-text { display: grid; min-width: 0; }
+.art-text .link-btn { text-align: left; overflow-wrap: anywhere; }
+.art-text small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.art-copy { min-width: 40px; }
+.art-hint { margin: 0; }
+.art-note { margin: 0; color: var(--accent); }
+.art-note:empty { display: none; }
+.art-group h3 { margin: 12px 0 2px; font-size: 14px; }
+.art-group h3 small { color: var(--muted); font-weight: 400; }
+.cat-grid.art-groups { display: block; }
 /* «Кого качать»: ранги свёрнуты, кроме старшего. */
 .advice-rank { border-top: 1px solid var(--line); padding-top: 8px; }
 .advice-rank summary { cursor: pointer; padding: 2px 0; }
@@ -822,6 +888,11 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <div class="head-side">
       <span class="muted small" id="total">Загружаю героев…</span>
       <span class="saved" id="saveStatus"></span>
+      <div class="gsearch" id="gSearch">
+        <button class="gs-open" type="button" id="gsOpen" aria-label="Поиск по сайту" aria-expanded="false">🔍</button>
+        <div class="gs-field"><input id="gsInput" type="search" role="combobox" aria-expanded="false" aria-controls="gsPop" aria-autocomplete="list" autocomplete="off" placeholder="Поиск: герои и игроки ( / )" aria-label="Поиск героев и игроков"></div>
+        <div class="gs-pop" id="gsPop" role="listbox" hidden></div>
+      </div>
       <button class="theme-switch" id="themeSwitch" role="switch" aria-checked="true" aria-label="Тёмная тема" title="Светлая или тёмная тема">
         <span class="theme-thumb">
           <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
@@ -1031,6 +1102,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
       <select id="catPic" aria-label="Картинка"><option value="">🖼 Все карты</option><option value="yes">🖼 С картинкой</option><option value="no">🖼 Без картинки</option></select>
     </div>
     <div class="chips" id="catChips" aria-label="Ещё фильтры">
+      <button class="chip" data-cat-nopic aria-pressed="false">🖼 Без картинки</button>
       <button class="chip" data-cat-flag="skin" aria-pressed="false">🎭 Со скином</button>
       <button class="chip" data-cat-flag="mine" aria-pressed="false">📚 Есть у меня</button>
     </div>
@@ -1233,7 +1305,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=4633105306"></script>
+<script src="engine.js?v=135d5f6dbe"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -2452,6 +2524,30 @@ function copyRich(text, html) {
 async function copyImage(canvas) {
   const blob = new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
   await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+}
+
+// ---------- Поиск по сайту (tickets/global-search.md) ----------
+// Чистая выдача: герои и игроки одним запросом. Порядок: точное совпадение → начало имени → вхождение;
+// среди равных — старший ранг / больше круток. Без регистра и ё/е.
+function globalSearch(E, query, heroList, players, limit = 6) {
+  const q = E.normName(query);
+  if (q.length < 2) return { q, heroes: [], players: [] };
+  const grade = (name) => { const n = E.normName(name || ''); return !n ? 9 : n === q ? 0 : n.startsWith(q) ? 1 : n.includes(q) ? 2 : 9; };
+  const count = new Map();
+  heroList.forEach((h) => { const n = E.normName(h.name); count.set(n, (count.get(n) || 0) + 1); });
+  const foundHeroes = heroList.map((h) => ({ hero: h, g: grade(h.name), dup: count.get(E.normName(h.name)) > 1, label: `${h.name} · ${h.rank} · ${h.title || E.NO_TITLE}` }))
+    .filter((x) => x.g < 9)
+    .sort((a, b) => a.g - b.g || E.RANKS.indexOf(a.hero.rank) - E.RANKS.indexOf(b.hero.rank) || a.hero.name.localeCompare(b.hero.name, 'ru'))
+    .slice(0, limit);
+  const foundPlayers = players.map((p) => {
+    const names = [[p.name, ''], [p.tgName, 'в Telegram'], ...(p.past || []).map((x) => [x.nick, 'раньше'])];
+    let best = { g: 9, name: '', note: '' };
+    names.forEach(([name, note]) => { const g = grade(name); if (g < best.g) best = { g, name, note }; });
+    return { player: p, g: best.g, matched: best.name, note: best.note };
+  }).filter((x) => x.g < 9)
+    .sort((a, b) => a.g - b.g || (b.player.pulls || 0) - (a.player.pulls || 0) || (b.player.contests || 0) - (a.player.contests || 0) || a.player.name.localeCompare(b.player.name, 'ru'))
+    .slice(0, limit);
+  return { q, heroes: foundHeroes, players: foundPlayers };
 }
 
 // ---------- Карточка героя ----------
@@ -3688,7 +3784,7 @@ let profileFile = new Map();
 let profilePending = null; // { tg, past, av, at }
 let profileView = new Map();
 const profileDraft = { open: false, s: null, name: '' };
-const sameProfile = (a, b) => a.tg === b.tg && a.past === b.past && a.av === b.av && (a.tiles || '') === (b.tiles || '');
+const sameProfile = (a, b) => a.tg === b.tg && a.past === b.past && a.av === b.av && (a.tiles || '') === (b.tiles || '') && (b.fav === undefined || (a.fav || '') === b.fav) && (a.bpos === undefined ? 50 : a.bpos) === (b.bpos === undefined ? 50 : b.bpos);
 function rebuildProfiles() {
   const me = myPlayerKey().slice(3);
   if (profilePending && me && (sameProfile(E.profileOf(profileFile, me), profilePending) || Date.now() - profilePending.at > PROFILE_PENDING_TTL)) {
@@ -3696,7 +3792,7 @@ function rebuildProfiles() {
     try { tg.CloudStorage.removeItem('profileSet'); } catch (e) { /* облако недоступно */ }
   }
   const map = new Map(profileFile);
-  if (profilePending && me) map.set(me, { tg: profilePending.tg, past: profilePending.past, av: profilePending.av, tiles: profilePending.tiles || '' });
+  if (profilePending && me) map.set(me, { tg: profilePending.tg, past: profilePending.past, av: profilePending.av, tiles: profilePending.tiles || '', fav: profilePending.fav === undefined ? E.profileOf(profileFile, me).fav : profilePending.fav, bpos: profilePending.bpos === undefined ? 50 : profilePending.bpos });
   profileView = map;
 }
 const profileFor = (key) => E.profileOf(profileView, key && key.startsWith('id:') ? key.slice(3) : '');
@@ -3729,12 +3825,21 @@ function profileSettingsBody() {
   const tgName = tgUserName();
   const picked = E.parseTiles(s.tl);
   const pickRows = picked.map((c, i) => `<li><span>${esc(E.TILE_LABELS[c])}</span><button type="button" class="btn ghost mini" data-tile-up="${c}" aria-label="Выше"${i ? '' : ' disabled'}>▲</button><button type="button" class="btn ghost mini" data-tile-down="${c}" aria-label="Ниже"${i < picked.length - 1 ? '' : ' disabled'}>▼</button><button type="button" class="btn ghost mini" data-tile-del="${c}" aria-label="Убрать">✕</button></li>`).join('');
-  const addChips = E.TILE_CODES.filter((c) => !picked.includes(c) && c !== 'fv').map((c) => `<button type="button" class="btn ghost mini" data-tile-add="${c}"${picked.length >= E.TILE_MAX ? ' disabled' : ''}>＋ ${esc(E.TILE_LABELS[c])}</button>`).join('');
+  const addChips = E.TILE_CODES.filter((c) => !picked.includes(c)).map((c) => `<button type="button" class="btn ghost mini" data-tile-add="${c}"${picked.length >= E.TILE_MAX ? ' disabled' : ''}>＋ ${esc(E.TILE_LABELS[c])}</button>`).join('');
+  const favBox = profileFavBox(s);
   const tilesBox = `<h3>Визитка</h3>
       <p class="small muted">Плитки под ником в профиле с баннером: до ${E.TILE_MAX}, порядок — как в списке. Нет данных — плитка пропускается. ${picked.length ? '' : 'Сейчас — по умолчанию: круток, удача, SSS / SS, коллекция, лучшее место, арты.'}</p>
       ${pickRows ? `<ol class="tile-pick">${pickRows}</ol>` : ''}
       <div class="tile-add">${addChips}</div>
       ${picked.length ? '<div><button type="button" class="btn ghost mini" data-tile-default>По умолчанию</button></div>' : ''}`;
+  const banner = E.bannerFor(BANNERS, myPlayerKey());
+  const bpos = E.parseBpos(s.bpos) === null ? 50 : s.bpos;
+  const bannerBox = banner ? `<h3>🖼 Баннер в списках</h3>
+      <p class="small muted">Какая полоса баннера видна в строках «Игроков» и «Рейтингов». Двигай рамку мышью или пальцем, либо ползунком.</p>
+      <div class="bpos-stage" data-bpos-stage style="--bpos:${bpos}"><img src="${esc(banner.poster)}" alt="" draggable="false"><span class="bpos-frame"></span></div>
+      <input type="range" min="0" max="100" step="1" value="${bpos}" data-bpos-range aria-label="Полоса баннера сверху вниз">
+      <div class="player-row has-bg bpos-sample"><span class="row-bg" data-bpos-sample style="--bpos:${bpos}%" aria-hidden="true"><img src="${esc(banner.poster)}" alt=""></span>${avatarHtml(myPlayerKey(), name)}<span class="player-text"><b>${esc(name)}</b><small>так выглядит твоя строка</small></span></div>
+      <div><button type="button" class="btn ghost mini" data-bpos-center>По центру</button></div>` : '';
   return `<div class="prof-set${s.av ? '' : ' av-off'}">
       <div class="prof-preview">${avatarHtml(myPlayerKey(), name, true, s)}<span><b>${esc(name)}</b>${s.tg && tgName ? `<br><span class="small muted">в Telegram: ${esc(tgName)}</span>` : ''}<br><span class="small muted">так тебя видят другие</span></span></div>
       <label class="check"><input type="checkbox" data-prof-tg${s.tg ? ' checked' : ''}> Показывать имя Telegram</label>
@@ -3743,9 +3848,58 @@ function profileSettingsBody() {
       <div class="av-src"><button type="button" class="btn ghost mini${s.av ? '' : ' on'}" data-av-tg aria-pressed="${!s.av}">Из Telegram</button><button type="button" class="btn ghost mini${s.av ? ' on' : ''}" data-av-fig="${s.fig}" aria-pressed="${!!s.av}">Заготовка</button></div>
       <div class="av-grid">${figs}</div>
       <div class="av-colors">${colors}</div>
+      ${favBox}
       ${tilesBox}
+      ${bannerBox}
       <div class="prof-actions"><button type="button" class="btn" data-prof-save>Сохранить</button><span class="small muted">Сохранится через бота, на сайте — через 1–2 минуты</span></div>
     </div>`;
+}
+// ---------- Любимые карты в настройках (tickets/fav-cards.md) ----------
+// Выбор — только из карт, подтверждённых ботом (cards.json → owners). Сохраняются отдельной ссылкой /start fav_… (в общий код не влезают).
+const favUi = { q: '' };
+const FAV_RESULTS = 12;
+const favToken = (x) => `${x.code}${x.skin ? 'S' : ''}`;
+// Черновик: только подтверждённые и существующие карты; порядок сохраняется.
+function favDraft() {
+  const s = profileDraft.s;
+  return s ? E.favCards(heroes, cardsData, myPlayerKey().slice(3), s.fav) : [];
+}
+function favLine(x) { return `${esc(x.hero.name)} · ${esc(x.hero.rank)}${x.skin ? ' · 🎭 скин' : ''}`; }
+function favResultsHtml() {
+  const mine = myPlayerKey().slice(3);
+  const chosen = favDraft();
+  const left = E.FAV_MAX - chosen.length;
+  const all = E.favCandidates(heroes, cardsData, mine, favUi.q, chosen.map(favToken));
+  if (!all.length) return `<p class="small muted">${favUi.q.trim() ? 'Среди твоих подтверждённых карт такой нет.' : 'Больше выбирать нечего.'}</p>`;
+  const rows = all.slice(0, FAV_RESULTS).map((x) => `<li><button type="button" class="fav-pick" data-fav-add="${esc(x.token)}"${left > 0 ? '' : ' disabled'}>${thumbHtml(x.hero, x.skin)}<span class="fav-txt">${favLine(x)}<small class="muted">${esc(x.hero.title || E.NO_TITLE)}</small></span><span class="fav-plus" aria-hidden="true">＋</span></button></li>`).join('');
+  return `<ul class="fav-list">${rows}</ul>${all.length > FAV_RESULTS ? `<p class="small muted">Показано ${FAV_RESULTS} из ${all.length} — уточни поиск.</p>` : ''}`;
+}
+function profileFavBox(s) {
+  const mine = myPlayerKey().slice(3);
+  if (!siteData || !cardsData || !heroes.length) return '';
+  const intro = `<h3>⭐ Любимые карты</h3>`;
+  if (!E.cardOwned(cardsData, mine).length) {
+    return `${intro}<p class="small muted">Любимыми можно сделать только карты, которые бот видел у тебя. Отправь свои карты боту (<a href="${BOT_CARDS_LINK}" target="_blank" rel="noopener" data-tg-link>/cards в @AniMatrix_fansBot</a>) — они появятся здесь.</p>`;
+  }
+  const chosen = favDraft();
+  const rows = chosen.map((x, i) => `<li>${thumbHtml(x.hero, x.skin)}<span class="fav-name">${favLine(x)}</span><button type="button" class="btn ghost mini" data-fav-up="${esc(favToken(x))}" aria-label="Выше"${i ? '' : ' disabled'}>▲</button><button type="button" class="btn ghost mini" data-fav-down="${esc(favToken(x))}" aria-label="Ниже"${i < chosen.length - 1 ? '' : ' disabled'}>▼</button><button type="button" class="btn ghost mini" data-fav-del="${esc(favToken(x))}" aria-label="Убрать">✕</button></li>`).join('');
+  return `${intro}
+      <p class="small muted">До ${E.FAV_MAX} карт или скинов — только те, что бот видел у тебя. Показываются в профиле, первая — плиткой «Любимчик». Сохраняются отдельной кнопкой.</p>
+      ${rows ? `<ol class="tile-pick fav-chosen">${rows}</ol>` : ''}
+      <input type="search" class="fav-search" data-fav-q placeholder="Найти среди своих карт: имя, ранг, тайтл" value="${esc(favUi.q)}" aria-label="Поиск среди своих карт">
+      <div id="favResults">${favResultsHtml()}</div>
+      <div class="prof-actions"><button type="button" class="btn" data-fav-save>Сохранить любимые</button><span class="small muted">Бот проверит, что карты у тебя есть</span></div>`;
+}
+function profileFavSave() {
+  const s = profileDraft.s;
+  if (!s || !tg) return;
+  const list = favDraft().map((x) => ({ code: x.code, skin: x.skin }));
+  const cur = profileFor(myPlayerKey());
+  profilePending = { tg: !!cur.tg, past: !!cur.past, av: cur.av || '', tiles: cur.tiles || '', ...(cur.bpos === undefined ? {} : { bpos: cur.bpos }), fav: E.favString(list), at: Date.now() };
+  try { tg.CloudStorage.setItem('profileSet', JSON.stringify(profilePending)); } catch (e) { /* облако недоступно */ }
+  rebuildProfiles();
+  renderPlayerViews();
+  tg.openTelegramLink(`${PROFILE_BOT}?start=${E.favStartCode(list)}`);
 }
 function profileSettingsHtml(name) {
   if (!profileDraft.s) {
@@ -3756,6 +3910,32 @@ function profileSettingsHtml(name) {
   profileDraft.name = name;
   return `<details class="card profile-settings" id="profileSettings"${profileDraft.open ? ' open' : ''}><summary>⚙️ Настройки профиля</summary><div id="profileSettingsBody">${profileSettingsBody()}</div></details>`;
 }
+// Полоса баннера в строках (tickets/banner-strip.md): без перерисовки блока, чтобы не рвать перетаскивание.
+function bposSet(v) {
+  const n = Math.max(0, Math.min(100, Math.round(v)));
+  if (!profileDraft.s) return;
+  profileDraft.s.bpos = n;
+  const st = document.querySelector('[data-bpos-stage]');
+  if (st) st.style.setProperty('--bpos', String(n));
+  const sm = document.querySelector('[data-bpos-sample]');
+  if (sm) sm.style.setProperty('--bpos', n + '%');
+  const rg = document.querySelector('[data-bpos-range]');
+  if (rg && Number(rg.value) !== n) rg.value = String(n);
+}
+function bposDrag(e) {
+  const st = e.target.closest && e.target.closest('[data-bpos-stage]');
+  if (!st || !profileDraft.s) return;
+  const at = (ev) => { const b = st.getBoundingClientRect(); const fh = b.height * 0.14; bposSet(((ev.clientY - b.top - fh / 2) / (b.height - fh)) * 100); };
+  at(e);
+  try { st.setPointerCapture(e.pointerId); } catch (x) { /* без захвата */ }
+  const move = (ev) => at(ev);
+  const up = () => { st.removeEventListener('pointermove', move); st.removeEventListener('pointerup', up); st.removeEventListener('pointercancel', up); };
+  st.addEventListener('pointermove', move);
+  st.addEventListener('pointerup', up);
+  st.addEventListener('pointercancel', up);
+}
+document.addEventListener('pointerdown', bposDrag);
+document.addEventListener('input', (e) => { if (e.target.matches && e.target.matches('[data-bpos-range]')) bposSet(Number(e.target.value)); });
 function profileSettingsRedraw() {
   const box = $('profileSettingsBody');
   if (box) box.innerHTML = profileSettingsBody();
@@ -3764,7 +3944,8 @@ function profileSave() {
   const s = profileDraft.s;
   if (!s || !tg) return;
   const set = { tg: !!s.tg, past: !!s.past, av: s.av || '', tiles: E.parseTiles(s.tl).join(',') };
-  profilePending = { ...set, at: Date.now() };
+  if (E.bannerFor(BANNERS, myPlayerKey())) set.bpos = E.parseBpos(s.bpos) === null ? 50 : s.bpos; // полоса баннера — только у кого он есть
+  profilePending = { ...set, fav: profileFor(myPlayerKey()).fav, at: Date.now() };
   try { tg.CloudStorage.setItem('profileSet', JSON.stringify(profilePending)); } catch (e) { /* облако недоступно */ }
   rebuildProfiles();
   renderPlayerViews();
@@ -3777,7 +3958,7 @@ function profilePendingLoad() {
       if (error || !value) return;
       try {
         const x = JSON.parse(value);
-        profilePending = { tg: x.tg === true, past: x.past !== false, av: E.parseAvatarCode(x.av) ? x.av : '', tiles: E.parseTiles(x.tiles).join(','), at: Number(x.at) || 0 };
+        profilePending = { tg: x.tg === true, past: x.past !== false, av: E.parseAvatarCode(x.av) ? x.av : '', tiles: E.parseTiles(x.tiles).join(','), ...(x.fav === undefined ? {} : { fav: E.favString(E.parseFav(x.fav)) }), bpos: E.parseBpos(x.bpos) === null ? 50 : x.bpos, at: Number(x.at) || 0 };
       } catch (e) { return; }
       rebuildProfiles();
       profileDraft.s = null;
@@ -3899,7 +4080,7 @@ function rowBg(key) {
   const b = E.bannerFor(BANNERS, key);
   if (!b) return { cls: '', html: '' };
   const video = !reducedMotion() && canHover() ? `<video muted loop playsinline preload="none" data-row-video data-src="${esc(b.video)}"></video>` : '';
-  return { cls: ' has-bg', html: `<span class="row-bg" aria-hidden="true">${b.poster ? `<img src="${esc(b.poster)}" alt="" loading="lazy" decoding="async">` : ''}${video}</span>` };
+  return { cls: ' has-bg', html: `<span class="row-bg" style="--bpos:${profileFor(key).bpos}%" aria-hidden="true">${b.poster ? `<img src="${esc(b.poster)}" alt="" loading="lazy" decoding="async">` : ''}${video}</span>` };
 }
 function rowVideo(e, over) {
   const row = e.target.closest && e.target.closest('.player-row.has-bg');
@@ -3920,6 +4101,22 @@ document.addEventListener('mouseout', (e) => rowVideo(e, false));
 
 function afterProfileRender() { syncSoundButtons(); playBanner(); }
 
+// Плитка «Любимчик» в визитке: имя цветом ранга и миниатюра; остальные плитки — обычная цифра.
+function visitValueHtml(x) {
+  if (x.code !== 'fv' || !x.heroId) return `<b>${esc(x.value)}</b>`;
+  const hero = heroes.find((h) => E.heroId(h) === x.heroId);
+  const thumb = hero ? thumbHtml(hero, x.skin) : '';
+  return `<span class="visit-fav">${thumb}<b style="${rankVar(x.rank)};color:var(--rk)">${esc(x.value)}</b></span><span class="small muted">${esc(x.rank)}${x.skin ? ' · 🎭 скин' : ''}</span>`;
+}
+// Карточка любимой карты — как в каталоге: картинка карты (или скина), без картинки — заглушка; нажатие — карточка героя.
+function favTileHtml({ hero: h, skin }) {
+  const pic = E.versionPic(heroPics(h), !!skin);
+  const inner = pic ? `<img src="${esc(picUrl(pic, true))}" width="240" height="320" alt="" loading="lazy" decoding="async">` : CAT_SILHOUETTE;
+  return `<button class="cat-tile fav-tile${pic && h.rank === 'SSS' ? ' wide' : ''}" data-open-card="${esc(E.heroId(h))}" data-rank="${esc(h.rank)}" title="${esc(`${h.name} · ${h.rank} · ${h.cls} · ${h.title || E.NO_TITLE}${skin ? ' · скин' : ''}`)}">
+    <span class="cat-pic${pic ? '' : ' none'}">${inner}${skin ? '<span class="cat-marks"><span title="Скин">🎭</span></span>' : ''}</span>
+    <b>${esc(h.name)}</b><small>${esc(h.rank)} · ${ICONS[h.cls]}</small>
+  </button>`;
+}
 function renderProfile() {
   stopBanner();
   if ($('view-profile').hidden) return;
@@ -3944,8 +4141,16 @@ function renderProfile() {
   const own = key.startsWith('id:') ? E.cardOwnedCounts(cardsData, key.slice(3)) : { cards: 0, skins: 0 };
   // Тайтлы (tickets/title-progress.md): свой профиль — по коллекции сайта, чужой — по подтверждённому ботом.
   const titleSum = key.startsWith('id:') ? E.titleSummary(E.titleProgress(heroes, titleOwnedFor(mine ? '' : key))) : null;
-  const visit = banner ? E.profileTiles({ pp, luckMin: (pullStats && pullStats.luckMin) || 50, own, totalCards: heroes.length, t, art, favorite: null, titles: titleSum }, profileFor(key).tiles) : [];
-  const visitHtml = visit.length ? `<div class="visit-tiles">${visit.map((x) => `<button type="button" class="visit-tile${x.tone ? ` ${x.tone}` : ''}" data-visit-go="${esc(x.anchor)}"><span class="small muted">${esc(x.label)}</span><b>${esc(x.value)}</b>${x.note ? `<span class="small muted">${esc(x.note)}</span>` : ''}</button>`).join('')}</div>` : '';
+  // Любимые карты (tickets/fav-cards.md): только подтверждённые в cards.json и существующие в базе.
+  const favList = key.startsWith('id:') && siteData && cardsData ? E.favCards(heroes, cardsData, key.slice(3), profileFor(key).fav) : [];
+  const favFirst = favList[0] ? { text: favList[0].hero.name, heroId: E.heroId(favList[0].hero), rank: favList[0].hero.rank, skin: favList[0].skin, anchor: 'profFav' } : null;
+  const favBox = favList.length ? `<div class="card" id="profFav">
+      <h2>⭐ Любимые карты</h2>
+      <div class="cat-grid fav-grid">${favList.map(favTileHtml).join('')}</div>
+      ${mine ? '' : `<p class="small muted" title="${esc(CARDS_PROOF)}">Подтверждено ботом: карты, которые он видел у игрока.</p>`}
+    </div>` : '';
+  const visit = banner ? E.profileTiles({ pp, luckMin: (pullStats && pullStats.luckMin) || 50, own, totalCards: heroes.length, t, art, favorite: favFirst, titles: titleSum }, profileFor(key).tiles) : [];
+  const visitHtml = visit.length ? `<div class="visit-tiles">${visit.map((x) => `<button type="button" class="visit-tile${x.tone ? ` ${x.tone}` : ''}" data-visit-go="${esc(x.anchor)}"><span class="small muted">${esc(x.label)}</span>${visitValueHtml(x)}${x.note ? `<span class="small muted">${esc(x.note)}</span>` : ''}</button>`).join('')}</div>` : '';
   const head = `<div class="card profile-head${banner ? ' has-banner' : ''}">
       ${banner ? bannerHtml(banner) : ''}${banner ? '<div class="profile-main">' : ''}${avatarHtml(key, name, true)}
       <div class="profile-name">
@@ -3984,7 +4189,7 @@ function renderProfile() {
     </div>` : '';
   if (p.empty) {
     const artBox = artTile || ownTiles ? `<div class="stat-tiles live-tiles" id="profTiles">${ownTiles}${artTile}</div>` : '';
-    $('profileOut').innerHTML = `${back}${head}${settingsBox}${artBox}${pulls}${titlesBox}${pulls || titlesBox || artBox ? '' : '<p class="empty">Пока пусто: участвуй в конкурсах и пересылай итоги ивентов боту @AniMatrix_fansBot.</p>'}`;
+    $('profileOut').innerHTML = `${back}${head}${banner ? favBox : ''}${settingsBox}${artBox}${banner ? '' : favBox}${pulls}${titlesBox}${pulls || titlesBox || artBox ? '' : '<p class="empty">Пока пусто: участвуй в конкурсах и пересылай итоги ивентов боту @AniMatrix_fansBot.</p>'}`;
     afterProfileRender();
     return;
   }
@@ -4011,7 +4216,7 @@ function renderProfile() {
       <span>${b.rank <= 3 ? recPlace(b.rank) : `№${b.rank}`} <b>${esc(recEventName(b.event))}</b> — ${esc(recValue(b.event, b.value))}</span>
       <span>${b.rank}-е место из ${b.of}</span>
     </li>`).join('');
-  $('profileOut').innerHTML = `${back}${head}${settingsBox}${tiles}${live}${pulls}${titlesBox}
+  $('profileOut').innerHTML = `${back}${head}${banner ? favBox : ''}${settingsBox}${tiles}${banner ? '' : favBox}${live}${pulls}${titlesBox}
     ${p.contests.length ? `<div class="card" id="profContests"><h2>🎲 Конкурсы</h2><ol class="best-list rec-best">${contestRows}</ol></div>` : ''}
     ${p.records.best.length ? `<div class="card" id="profRecords"><h2>🥇 Рекорды</h2>${REC_DISCLAIMER}<ol class="best-list rec-best">${recRows}</ol></div>` : ''}`;
   afterProfileRender();
@@ -4095,7 +4300,12 @@ function homeNews() {
 
 // «📰 Что нового»: лента событий (E.homeFeed, tickets/home-feed.md). Новые события при обновлении файлов появляются сверху мягко.
 const FEED_STEP = 20;
-const feedState = { limit: FEED_STEP, seen: null };
+// Две колонки главной — от 1100 px; при смене ширины главная собирается заново.
+// На ПК лента сначала короче (FEED_WIDE), чтобы левая колонка не уходила далеко вниз от правой.
+const homeWide = window.matchMedia('(min-width: 1100px)');
+homeWide.addEventListener('change', () => renderHome());
+const FEED_WIDE = 8;
+const feedState = { limit: homeWide.matches ? FEED_WIDE : FEED_STEP, seen: null };
 function feedItemHtml(e, now, fresh) {
   const time = `<span class="feed-time">${esc(E.feedTime(e.t, now))}</span>`;
   const cls = `feed-item${fresh ? ' feed-new' : ''}`;
@@ -4129,6 +4339,55 @@ function feedCardHtml() {
   return `<article class="card home-card" id="homeFeed"><div class="home-head"><h2>📰 Что нового</h2></div>${body}${list.length > shown.length ? '<button class="btn ghost" data-feed-more>Показать ещё</button>' : ''}</article>`;
 }
 
+// «🖼 Нужны арты» (tickets/home-art-hunt.md): герои без картинки; сначала те, что, возможно, есть у игрока.
+// Возможно есть: отмечен в коллекции на сайте или подтверждён ботом (карты, крутки). Нет cards.json (claude.ai) — блока нет.
+const ART_ROWS = 6;
+const ART_DONE_NOTE = 'Скопировано — вставь в личке @AniMatrix_fansBot и выбери свою карту';
+function artOwned() {
+  const me = myPlayerKey();
+  const sure = me && cardsData ? E.confirmedHeroIds(heroes, cardsData, pullStats, me.slice(3)) : new Set();
+  return (h) => isOwned(h) || sure.has(E.heroId(h));
+}
+function artRowHtml(h, mine) {
+  return `<li class="art-row" style="${rankVar(h.rank)}"><span class="hero-thumb thumb-none" aria-hidden="true">＋</span>
+    <span class="art-text">${openLink(h)}<small>${esc(h.rank)} · ${esc(h.title || E.NO_TITLE)}${mine ? ' · возможно, есть у тебя' : ''}</small></span>
+    <button class="btn ghost mini art-copy" data-art-copy="${esc(E.heroId(h))}" title="Скопировать запрос для бота игры" aria-label="${esc(`Скопировать запрос: ${h.name}`)}">📋</button></li>`;
+}
+function artHuntCardHtml() {
+  if (!siteData || !cardsData || !heroes.length) return '';
+  const art = E.artHunt(heroes, cardsData, { owned: artOwned(), limit: ART_ROWS });
+  const bar = `<div class="track" role="progressbar" aria-label="Собрано картинок" aria-valuemin="0" aria-valuemax="${art.heroes}" aria-valuenow="${art.withPic}"><span style="width:${art.heroes ? art.withPic / art.heroes * 100 : 0}%"></span></div>`;
+  const head = (line) => `<div class="art-head"><p>${line}</p>${bar}<p class="small muted">Собрано ${fmt(art.withPic)} из ${fmt(art.heroes)}</p></div>`;
+  if (!art.missing) {
+    return `<article class="card home-card" id="homeArt"><div class="home-head"><h2>🖼 Нужны арты</h2></div>${head('✅ <b>Каталог собран целиком</b>')}</article>`;
+  }
+  return `<article class="card home-card" id="homeArt">
+    <div class="home-head"><h2>🖼 Нужны арты</h2><button class="link-btn small" data-art-all>Весь список →</button></div>
+    ${head(`Без картинки: <b>${fmt(art.missing)}</b> из ${fmt(art.heroes)}`)}
+    <ul class="art-list">${art.items.map(({ h, mine }) => artRowHtml(h, mine)).join('')}</ul>
+    <p class="small muted art-hint">Как помочь: нажми 📋 и вставь запрос в личке <a href="${BOT_CARDS_LINK}" target="_blank" rel="noopener" data-tg-link>@AniMatrix_fansBot</a> — картинка появится на сайте за пару минут и засчитается в «🖼 Помощники».</p>
+    <p class="small art-note" data-art-note role="status"></p>
+  </article>`;
+}
+// Копирует запрос «@AniMatrixGame_bot <имя>» (как в /cards) и подписывает кнопку.
+async function artCopy(btn) {
+  const h = heroes.find((x) => E.heroId(x) === btn.dataset.artCopy);
+  if (!h) return;
+  const text = E.artQuery(h);
+  let ok = copyRich(text);
+  if (!ok) { try { await navigator.clipboard.writeText(text); ok = true; } catch (e) { /* буфер недоступен */ } }
+  const note = btn.closest('#homeArt, #catPane').querySelector('[data-art-note]');
+  if (note) note.textContent = ok ? ART_DONE_NOTE : `Не вышло скопировать — вставь вручную: ${text}`;
+  btn.textContent = ok ? '✓' : '📋';
+  setTimeout(() => { if (btn.isConnected) btn.textContent = '📋'; }, 2000);
+}
+// «Весь список →»: «Карты» с фильтром «Без картинки», остальные фильтры сброшены.
+function openArtList() {
+  Object.assign(catState, { q: '', rank: '', cls: '', title: '', pic: 'no', skin: false, mine: false, limit: CAT_PAGE, view: 'grid' });
+  if ($('view-cards').hidden) goTab('cards'); else renderCards();
+  window.scrollTo(0, 0);
+}
+
 function renderHome() {
   if ($('view-home').hidden) return;
   if (!loaded) { $('homeOut').innerHTML = '<p class="empty">Загружаю…</p>'; return; }
@@ -4136,7 +4395,7 @@ function renderHome() {
       <div class="home-head"><h2>${title}</h2>${go ? `<button class="link-btn small" data-go="${go}">Все →</button>` : ''}</div>${body}
     </article>`;
   const topRows = (players) => `<ol class="best-list rec-best">${players.slice(0, 3).map((p, i) => `<li><span>${recPlace(p.place || i + 1)} ${playerNameLink(p.id ? `id:${p.id}` : '', p.name)} — <b>${fmt(p.points)}</b> 🎲</span><span>круток ${fmt(p.pulls)}</span></li>`).join('')}</ol>`;
-  const parts = [];
+  const blk = {}; // блоки главной по именам; ниже раскладываются в колонки
 
   // Конкурс: идущий — мини-версия «Идёт сейчас», иначе итог последнего.
   const now = contestLive && contestLive.contest && !contests.some((c) => c.id === contestLive.contest.id) ? contestLive.contest : null;
@@ -4146,15 +4405,15 @@ function renderHome() {
     const legends = [...(s.sss || []).map((x) => ({ ...x, rank: 'SSS' })), ...(s.ss || []).map((x) => ({ ...x, rank: 'SS' }))]
       .sort((a, b) => b.date - a.date).slice(0, 3)
       .map((x) => { const id = E.legendOwnerId(players, x); return `<li><span>🎉 <b>${esc(x.hero)}</b> (${x.rank}) — ${playerNameLink(id ? `id:${id}` : '', x.player)}</span><span>${esc(contestTime(x.date))}</span></li>`; });
-    parts.push(card(`🔴 Идёт сейчас: ${esc(now.name)}`, 'contests', `
+    blk.contest = card(`🔴 Идёт сейчас: ${esc(now.name)}`, 'contests', `
       <p class="small muted">${now.endsAt ? `<b data-ends="${Number(now.endsAt)}">⏳ ${esc(liveLeft(now.endsAt))}</b> · ` : ''}участников: ${players.length}</p>
       ${players.length ? topRows(players) : '<p class="small muted">Пока ни одной засчитанной крутки.</p>'}
-      ${legends.length ? `<h3 class="home-sub">Последние легендарки</h3><ul class="best-list rec-best">${legends.join('')}</ul>` : ''}`));
+      ${legends.length ? `<h3 class="home-sub">Последние легендарки</h3><ul class="best-list rec-best">${legends.join('')}</ul>` : ''}`);
   } else if (contests.length) {
     const last = contests[0];
-    parts.push(card(`🏁 Последний конкурс: ${esc(last.name)}`, 'contests', `
+    blk.contest = card(`🏁 Последний конкурс: ${esc(last.name)}`, 'contests', `
       <p class="small muted">${esc(contestDate(last.endedAt || last.startedAt))} · участников: ${(last.players || []).length}</p>
-      ${topRows(last.players || [])}`));
+      ${topRows(last.players || [])}`);
   }
 
   // Мой профиль — только в Telegram, где известен свой ID.
@@ -4163,39 +4422,45 @@ function renderHome() {
     const p = E.playerProfile(records, contests, contestLive, me, pullStats, gameNicks, profileView);
     const name = p.name || tgUserName() || 'Игрок';
     const line = [p.tiles.bestPlace ? `лучшее место: №${p.tiles.bestPlace}` : '', `конкурсов: ${p.tiles.contests}`, p.live ? `сейчас №${p.live.place}` : ''].filter(Boolean).join(' · ');
-    parts.push(card('👤 Мой профиль', 'profile', `<button class="player-row home-me" data-go="profile">${avatarHtml(me, name)}<span class="player-text"><b>${esc(name)}</b><small>${esc(line)}</small></span></button>`));
+    blk.profile = card('👤 Мой профиль', 'profile', `<button class="player-row home-me" data-go="profile">${avatarHtml(me, name)}<span class="player-text"><b>${esc(name)}</b><small>${esc(line)}</small></span></button>`);
   }
 
-  parts.push(feedCardHtml());
+  blk.feed = feedCardHtml();
+  blk.art = artHuntCardHtml();
 
   // Новое в сезоне.
   const news = homeNews();
   if (news && (news.loading || news.items.length)) {
-    parts.push(card('📰 Новое в сезоне', 'news', news.loading ? '<p class="small muted">Загружаю сезоны…</p>'
+    blk.news = card('📰 Новое в сезоне', 'news', news.loading ? '<p class="small muted">Загружаю сезоны…</p>'
       : `<ul class="best-list rec-best">${news.items.map(({ h, note }) => `<li><span>${openLink(h)} · ${h.rank}</span><span>${esc(note)} · ${ICONS[h.cls]} ${esc(h.cls)} · ${esc(h.title || E.NO_TITLE)}</span></li>`).join('')}</ul>
-        ${news.total > news.items.length ? `<p class="small muted">и ещё ${news.total - news.items.length}</p>` : ''}`));
+        ${news.total > news.items.length ? `<p class="small muted">и ещё ${news.total - news.items.length}</p>` : ''}`);
   }
 
   // Свежие рекорды: последние три события, первое место.
   if (records.length) {
-    parts.push(card('🥇 Свежие рекорды', 'records', `<ul class="best-list rec-best">${records.slice(0, 3).map((ev) => {
+    blk.records = card('🥇 Свежие рекорды', 'records', `<ul class="best-list rec-best">${records.slice(0, 3).map((ev) => {
       const first = [...(ev.rows || [])].sort((a, b) => (a.place || 99) - (b.place || 99))[0];
       return `<li><span><b>${esc(recEventName(ev.title))}</b> · <span class="muted small">${esc(ev.period || recDate(ev.date))}</span></span>${first ? `<span>🥇 ${playerNameLink(E.recordPlayerKey(first), first.player)} — ${esc(recValue(ev.title, first.value))}</span>` : ''}</li>`;
-    }).join('')}</ul>`));
+    }).join('')}</ul>`);
   }
 
   // Моя коллекция.
   const counts = E.collectionCounts(heroes, collection, skinOnly);
-  parts.push(card('📚 Моя коллекция', 'collection', counts.cards || counts.skins
+  blk.collection = card('📚 Моя коллекция', 'collection', counts.cards || counts.skins
     ? `<p>Отмечено <b>${fmt(counts.cards)}</b> из ${fmt(heroes.length)} карт · скинов <b>${fmt(counts.skins)}</b></p>`
-    : '<p class="small muted">Отметь свои карты — увидишь личный топ и кого качать.</p>'));
+    : '<p class="small muted">Отметь свои карты — увидишь личный топ и кого качать.</p>');
+
+  // Раскладка (tickets/home-art-hunt.md): на ПК две независимые колонки — слева конкурс и лента, справа стопка; иначе одна колонка.
+  const pick = (names) => names.map((n) => blk[n] || '').join('');
+  const body = homeWide.matches
+    ? `<div class="home-cols"><div class="home-col">${pick(['contest', 'feed'])}</div><div class="home-col">${pick(['profile', 'art', 'news', 'records', 'collection'])}</div></div>`
+    : pick(['contest', 'profile', 'art', 'feed', 'news', 'records', 'collection']);
 
   // Разделы плитками.
   const cardsNote = () => { const n = E.cardCounts(heroes, cardsData); return `Карты: собрано ${fmt(n.withPic)} из ${fmt(n.heroes)}`; };
   const tiles = ['top', 'compare', 'battle', 'card', 'cards', 'collection', 'players', 'stats', 'records'].filter(tabShown)
     .map((t) => `<button class="home-tile" data-go="${t}"><span aria-hidden="true">${TAB_INFO[t].icon}</span><b>${esc(t === 'cards' ? cardsNote() : TAB_INFO[t].label)}</b></button>`).join('');
-  parts.push(`<div class="home-tiles">${tiles}</div>`);
-  $('homeOut').innerHTML = parts.join('');
+  $('homeOut').innerHTML = `${body}<div class="home-tiles">${tiles}</div>`;
 }
 
 // По каждому ивенту один топ из всех сохранённых списков: у игрока берётся лучший результат.
@@ -4645,6 +4910,17 @@ function catStrength() {
   return map;
 }
 
+// Список «Без картинки»: группы по тайтлам в порядке списка, в группе — как в каталоге (ранг, сила, имя).
+function artGroupsHtml(shown) {
+  const groups = [];
+  shown.forEach((x) => {
+    const t = x.h.title || E.NO_TITLE;
+    const last = groups[groups.length - 1];
+    if (last && last.title === t) last.items.push(x); else groups.push({ title: t, items: [x] });
+  });
+  return groups.map((g) => `<section class="art-group"><h3>${esc(g.title)} <small>${g.items.length}</small></h3><ul class="art-list">${g.items.map((x) => artRowHtml(x.h, x.mine)).join('')}</ul></section>`).join('');
+}
+
 function catTileHtml({ h, pic, skinPic, skins, mine }) {
   const n = (skins || []).length;
   const marks = `${skinPic ? `<span title="${n > 1 ? `Картинок скинов: ${n}` : 'Есть картинка скина'}">🎭${n > 1 ? ` ${n}` : ''}</span>` : ''}${mine ? '<span title="Есть у меня">📚</span>' : ''}`;
@@ -4684,11 +4960,21 @@ function renderCards() {
   fill('catTitle', [['', 'Все тайтлы'], ...[...new Set(heroes.map((h) => h.title || E.NO_TITLE))].sort((a, b) => a.localeCompare(b, 'ru')).map((t) => [t, t])]);
   $('catPic').value = catState.pic;
   $('catChips').querySelectorAll('[data-cat-flag]').forEach((b) => b.setAttribute('aria-pressed', String(!!catState[b.dataset.catFlag])));
+  $('catChips').querySelector('[data-cat-nopic]').setAttribute('aria-pressed', String(catState.pic === 'no'));
   const strength = catStrength();
   const list = E.cardCatalog(heroes, cardsData, catState, { owned: isOwned, strength: (h) => strength.get(h.key) || 0 });
+  // «Без картинки»: списком по тайтлам, у каждой карты кнопка копирования запроса (tickets/home-art-hunt.md).
+  const noPic = catState.pic === 'no';
+  if (noPic) {
+    const titleOf = (x) => x.h.title || E.NO_TITLE;
+    const key = (x) => (titleOf(x) === E.NO_TITLE ? '￿' : E.normName(titleOf(x)));
+    list.sort((a, b) => key(a).localeCompare(key(b), 'ru'));
+  }
   const shown = list.slice(0, catState.limit);
   $('catCount').textContent = list.length === heroes.length ? `Карт: ${fmt(list.length)}` : `Найдено: ${fmt(list.length)} из ${fmt(heroes.length)}`;
-  $('catGrid').innerHTML = shown.length ? shown.map(catTileHtml).join('') : '<p class="empty">Таких карт нет. Измени фильтры.</p>';
+  $('catGrid').classList.toggle('art-groups', noPic);
+  $('catGrid').innerHTML = !shown.length ? '<p class="empty">Таких карт нет. Измени фильтры.</p>'
+    : noPic ? `<p class="small art-note" data-art-note role="status"></p>${artGroupsHtml(shown)}` : shown.map(catTileHtml).join('');
   const left = list.length - shown.length;
   $('catMore').innerHTML = left > 0 ? `<button class="btn ghost" data-cat-more>Показать ещё, осталось ${fmt(left)}</button>` : '';
 }
@@ -5362,10 +5648,16 @@ function renderSide(side, label) {
     <div class="small muted" id="${side}-info"></div>`;
 }
 
-function findHero(query) {
+// Ручной ввод в «Карточке героя». Ответ: { hero } — герой найден; { options } — имя у нескольких героев, нужен выбор; {} — нет такого.
+function cardLookup(query) {
   const q = E.normName(query);
-  if (!q) return null;
-  return heroes.find((h) => E.normName(h.name) === q) || heroes.find((h) => E.normName(h.name).includes(q)) || null;
+  if (!q) return {};
+  const exact = heroes.filter((h) => E.normName(h.name) === q);
+  if (exact.length === 1) return { hero: exact[0] };
+  if (exact.length > 1) return { options: exact };
+  const part = heroes.filter((h) => E.normName(h.name).includes(q));
+  if (part.length > 1 && new Set(part.map((h) => E.normName(h.name))).size === 1) return { options: part };
+  return part.length ? { hero: part[0] } : {};
 }
 
 // «Сравнение»: одноимённые герои различаются подписью «имя · ранг · тайтл» и heroId.
@@ -6346,6 +6638,86 @@ $('view-stats').addEventListener('pointermove', (e) => moveStatTip(e, e.target.c
 $('view-stats').addEventListener('focusin', (e) => moveStatTip(e, e.target.closest('[data-tip-value]')));
 $('view-stats').addEventListener('focusout', () => { $('statTip').hidden = true; });
 $('view-stats').addEventListener('pointerleave', () => { $('statTip').hidden = true; });
+// Поиск по сайту: поле в шапке, выпадающий список «Герои» / «Игроки», ↑↓ Enter Esc, «/» на ПК.
+const gs = { items: [], sel: -1 };
+function gsMark(text, q) {
+  const low = E.normName(text);
+  const i = low.length === String(text).length ? low.indexOf(q) : -1;
+  return i < 0 ? esc(text) : `${esc(text.slice(0, i))}<mark>${esc(text.slice(i, i + q.length))}</mark>${esc(text.slice(i + q.length))}`;
+}
+function gsClose() {
+  $('gsPop').hidden = true;
+  $('gsInput').setAttribute('aria-expanded', 'false');
+  gs.items = []; gs.sel = -1;
+}
+function gsRender() {
+  const res = globalSearch(E, $('gsInput').value, heroes, playerDir());
+  if (res.q.length < 2) { gsClose(); return; }
+  gs.items = [];
+  const heroRows = res.heroes.map((x) => {
+    const i = gs.items.push({ hero: E.heroId(x.hero) }) - 1;
+    const thumb = typeof thumbHtml === 'function' ? thumbHtml(x.hero, false) : '';
+    return `<button class="gs-row" role="option" id="gsItem${i}" data-gs="${i}">${thumb}<span class="gs-text"><b>${gsMark(x.hero.name, res.q)}</b><small>${esc(x.hero.rank)} · ${esc(x.hero.title || E.NO_TITLE)}${x.hero.skin ? ' · 🎭' : ''}</small></span></button>`;
+  });
+  const playerRows = res.players.map((x) => {
+    const p = x.player;
+    const i = gs.items.push({ player: p.key }) - 1;
+    const meta = [p.contests ? `конкурсов ${p.contests}` : '', p.cards ? `карт ${fmt(p.cards)}` : ''].filter(Boolean).join(' · ');
+    const via = x.note ? `${x.note}: ${gsMark(x.matched, res.q)}` : '';
+    return `<button class="gs-row" role="option" id="gsItem${i}" data-gs="${i}">${avatarHtml(p.key, p.name)}<span class="gs-text"><b>${gsMark(shownName(p.key, p.name), res.q)}</b><small>${[via, meta].filter(Boolean).join(' · ') || ' '}</small></span></button>`;
+  });
+  $('gsPop').innerHTML = !gs.items.length ? '<div class="gs-empty">Ничего не нашлось</div>'
+    : `${heroRows.length ? `<h3>Герои</h3>${heroRows.join('')}` : ''}${playerRows.length ? `<h3>Игроки</h3>${playerRows.join('')}` : ''}`;
+  $('gsPop').hidden = false;
+  $('gsInput').setAttribute('aria-expanded', 'true');
+  gsSelect(gs.items.length ? 0 : -1);
+}
+function gsSelect(i) {
+  gs.sel = i;
+  document.querySelectorAll('#gsPop .gs-row').forEach((el) => {
+    const on = Number(el.dataset.gs) === i;
+    el.setAttribute('aria-selected', on ? 'true' : 'false');
+    if (on) { $('gsInput').setAttribute('aria-activedescendant', el.id); el.scrollIntoView({ block: 'nearest' }); }
+  });
+}
+function gsGo(i) {
+  const it = gs.items[i];
+  if (!it) return;
+  gsClose();
+  $('gsInput').value = '';
+  $('gSearch').classList.remove('open');
+  $('gsOpen').setAttribute('aria-expanded', 'false');
+  if (it.hero) openCard(it.hero); else openPlayer(it.player);
+}
+$('gsInput').addEventListener('input', gsRender);
+$('gsInput').addEventListener('focus', () => { if ($('gsInput').value) gsRender(); });
+$('gsInput').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (!gs.items.length) return;
+    e.preventDefault();
+    gsSelect((gs.sel + (e.key === 'ArrowDown' ? 1 : gs.items.length - 1)) % gs.items.length);
+  } else if (e.key === 'Enter') { e.preventDefault(); gsGo(gs.sel); }
+  else if (e.key === 'Escape') { gsClose(); $('gSearch').classList.remove('open'); $('gsOpen').setAttribute('aria-expanded', 'false'); $('gsInput').blur(); }
+});
+$('gsPop').addEventListener('mousedown', (e) => e.preventDefault()); // фокус остаётся в поле
+$('gsPop').addEventListener('click', (e) => { const r = e.target.closest('[data-gs]'); if (r) gsGo(Number(r.dataset.gs)); });
+$('gsOpen').addEventListener('click', () => {
+  const open = !$('gSearch').classList.contains('open');
+  $('gSearch').classList.toggle('open', open);
+  $('gsOpen').setAttribute('aria-expanded', String(open));
+  if (open) $('gsInput').focus(); else gsClose();
+});
+document.addEventListener('click', (e) => { if (!e.target.closest('#gSearch')) { gsClose(); if (window.matchMedia('(max-width: 760px)').matches) { $('gSearch').classList.remove('open'); $('gsOpen').setAttribute('aria-expanded', 'false'); } } });
+document.addEventListener('keydown', (e) => {
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.matches('input, textarea, select') || t.isContentEditable)) return;
+  e.preventDefault();
+  $('gSearch').classList.add('open');
+  $('gsOpen').setAttribute('aria-expanded', 'true');
+  $('gsInput').focus();
+});
+
 // Картинка крупно: закрывается нажатием или Esc.
 $('picZoom').addEventListener('click', () => { $('picZoom').hidden = true; });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('picZoom').hidden) $('picZoom').hidden = true; });
@@ -6360,6 +6732,9 @@ document.querySelector('.wrap').addEventListener('click', (e) => {
   if (e.target.closest('[data-go-back]')) { goBack(); return; }
   if (e.target.closest('[data-feed-more]')) { feedState.limit += FEED_STEP; renderHome(); return; }
   if (e.target.closest('[data-players-more]')) { playersState.limit += PLAYERS_SHOWN; renderPlayers(); return; }
+  const artCopyBtn = e.target.closest('[data-art-copy]');
+  if (artCopyBtn) { artCopy(artCopyBtn); return; }
+  if (e.target.closest('[data-art-all]')) { openArtList(); return; }
   if (e.target.closest('[data-cat-more]')) { catState.limit += CAT_PAGE; renderCards(); return; }
   if (e.target.closest('[data-titles-more]')) { titleState.limit += TITLE_PAGE; renderTitleProgress(); return; }
   const tpOwn = e.target.closest('[data-tp-own]');
@@ -6389,6 +6764,7 @@ document.querySelector('.wrap').addEventListener('click', (e) => {
     return;
   }
   if (e.target.closest('[data-av-tg]') && profileDraft.s) { profileDraft.s.av = ''; profileSettingsRedraw(); return; }
+  if (e.target.closest('[data-bpos-center]') && profileDraft.s) { profileDraft.s.bpos = 50; profileSettingsRedraw(); return; }
   const tileBtn = profileDraft.s && e.target.closest('[data-tile-add],[data-tile-del],[data-tile-up],[data-tile-down],[data-tile-default]');
   if (tileBtn) {
     const d = tileBtn.dataset;
@@ -6405,6 +6781,21 @@ document.querySelector('.wrap').addEventListener('click', (e) => {
   }
   const visitGo = e.target.closest('[data-visit-go]');
   if (visitGo) { const el = $(visitGo.dataset.visitGo); if (el) el.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' }); return; }
+  const favBtn = profileDraft.s && e.target.closest('[data-fav-add],[data-fav-del],[data-fav-up],[data-fav-down]');
+  if (favBtn) {
+    const d = favBtn.dataset;
+    const list = favDraft().map(favToken);
+    const token = d.favAdd || d.favDel || d.favUp || d.favDown;
+    const i = list.indexOf(token);
+    if (d.favAdd) { if (i < 0 && list.length < E.FAV_MAX) list.push(token); }
+    else if (d.favDel) { if (i >= 0) list.splice(i, 1); }
+    else if (d.favUp && i > 0) [list[i - 1], list[i]] = [list[i], list[i - 1]];
+    else if (d.favDown && i >= 0 && i < list.length - 1) [list[i + 1], list[i]] = [list[i], list[i + 1]];
+    profileDraft.s.fav = E.favString(list);
+    profileSettingsRedraw();
+    return;
+  }
+  if (e.target.closest('[data-fav-save]')) { profileFavSave(); return; }
   if (e.target.closest('[data-prof-save]')) { profileSave(); return; }
   if (e.target.closest('[data-profile-share]')) {
     const key = profileState.key || myPlayerKey();
@@ -6418,10 +6809,18 @@ document.querySelector('.wrap').addEventListener('click', (e) => {
 });
 // Нет картинки аватара — остаётся заготовка под ней.
 document.addEventListener('error', (e) => { if (e.target.matches && e.target.matches('img[data-avatar]')) e.target.remove(); }, true);
+// Поиск среди своих карт: пересобирается только список результатов, поле не теряет фокус.
+$('profileOut').addEventListener('input', (e) => {
+  if (!e.target.matches('[data-fav-q]')) return;
+  favUi.q = e.target.value;
+  const box = $('favResults');
+  if (box) box.innerHTML = favResultsHtml();
+});
 $('profileOut').addEventListener('change', (e) => {
   if (!profileDraft.s) return;
   if (e.target.matches('[data-prof-tg]')) { profileDraft.s.tg = e.target.checked; profileSettingsRedraw(); }
   if (e.target.matches('[data-prof-past]')) { profileDraft.s.past = e.target.checked; profileSettingsRedraw(); }
+  if (e.target.matches('[data-bpos-range]')) bposSet(Number(e.target.value));
 });
 $('profileOut').addEventListener('toggle', (e) => { if (e.target.id === 'profileSettings') profileDraft.open = e.target.open; }, true);
 $('rateTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-rate]'); if (b) { rateState.tab = b.dataset.rate; renderRatings(); } });
@@ -6430,7 +6829,7 @@ $('catRank').addEventListener('change', (e) => catSet({ rank: e.target.value }))
 $('catCls').addEventListener('change', (e) => catSet({ cls: e.target.value }));
 $('catTitle').addEventListener('change', (e) => catSet({ title: e.target.value }));
 $('catPic').addEventListener('change', (e) => catSet({ pic: e.target.value }));
-$('catChips').addEventListener('click', (e) => { const b = e.target.closest('[data-cat-flag]'); if (b) catSet({ [b.dataset.catFlag]: !catState[b.dataset.catFlag] }); });
+$('catChips').addEventListener('click', (e) => { if (e.target.closest('[data-cat-nopic]')) { catSet({ pic: catState.pic === 'no' ? '' : 'no' }); return; } const b = e.target.closest('[data-cat-flag]'); if (b) catSet({ [b.dataset.catFlag]: !catState[b.dataset.catFlag] }); });
 $('playersSearch').addEventListener('input', (e) => { playersState.search = e.target.value; playersState.limit = PLAYERS_SHOWN; renderPlayers(); });
 $('cardSearch').addEventListener('input', (e) => {
   const id = cardOptions.get(e.target.value);
@@ -6439,9 +6838,12 @@ $('cardSearch').addEventListener('input', (e) => {
 $('cardSearch').addEventListener('change', (e) => {
   const value = e.target.value.trim();
   if (!value || cardOptions.has(value)) return;
-  const hero = findHero(value);
-  if (hero) openCard(E.heroId(hero));
-  else $('cardStatus').textContent = 'Такого героя нет. Проверь написание имени.';
+  const found = cardLookup(value);
+  if (found.hero) { $('cardStatus').textContent = ''; openCard(E.heroId(found.hero)); }
+  else if (found.options) {
+    // Имя у нескольких героев — выбор, как в «Сравнении».
+    $('cardStatus').innerHTML = `Таких героев ${found.options.length}: ${found.options.map((h) => `<button class="link-btn" data-open-card="${esc(E.heroId(h))}">${esc(h.rank)} · ${esc(h.title || E.NO_TITLE)}</button>`).join(', ')}. Выбери одного.`;
+  } else $('cardStatus').textContent = 'Такого героя нет. Проверь написание имени.';
 });
 $('cardOut').addEventListener('click', async (e) => {
   const hero = heroes.find((h) => E.heroId(h) === cardState.id);
