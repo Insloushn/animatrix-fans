@@ -559,6 +559,11 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .pic-zoom { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .88); display: grid; place-items: center; padding: 16px; cursor: zoom-out; }
 .pic-zoom[hidden] { display: none; }
 .pic-zoom img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.rename-back { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .55); display: grid; place-items: center; padding: 16px; }
+.rename-back[hidden] { display: none; }
+.rename-card { width: min(520px, 100%); max-height: 100%; overflow: auto; }
+.rename-card input { width: 100%; box-sizing: border-box; }
+.rename-card .bad { color: var(--bad); }
 /* Профиль и «Игроки»: круглый аватар; под фото — заготовка (tickets/profile-settings.md), видна, пока фото нет. */
 .avatar { position: relative; flex: none; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; display: inline-grid; place-items: center; background: var(--accent); }
 .avatar.big { width: 72px; height: 72px; }
@@ -1329,7 +1334,18 @@ details.card summary { cursor: pointer; font-weight: 500; }
   </section>
 </div>
 
-<script src="engine.js?v=f6dff947c3"></script>
+  <div class="rename-back" id="renameBox" data-admin hidden role="dialog" aria-modal="true" aria-labelledby="renameHead">
+    <div class="card rename-card">
+      <h2 id="renameHead"></h2>
+      <label class="small muted" for="renameInput">Новое название</label>
+      <input id="renameInput" type="text" autocomplete="off" maxlength="120">
+      <div class="small" id="renamePreview"></div>
+      <div class="tools"><button class="btn" id="renameSave" disabled>Сохранить</button><button class="btn ghost" id="renameCancel">Отмена</button><span class="small muted" id="renameResult"></span></div>
+      <p class="small muted">После переименования — «Скачать файл для сайта» и выложить <code>data.json</code>; картинки и коллекции перенесутся сами в течение часа. Сезонные снимки не меняются.</p>
+    </div>
+  </div>
+
+<script src="engine.js?v=c06612e779"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -1430,6 +1446,7 @@ function setHeroes(next) {
   titles = next;
   heroes = derive(titles);
   loaded = true;
+  applyRenamesLocal(); // переименованные герои: коллекция браузера переезжает к новым адресам
   renderAll();
 }
 
@@ -1530,6 +1547,126 @@ async function changeHero(key, change) {
   } catch (e) {
     notify(writeError(e));
   }
+}
+
+// ---------- Переименование тайтла и героя (tickets/rename-title.md) ----------
+// Код героя зависит от названия тайтла и имени, поэтому переименование ведёт журнал в базе (renames/<id>: { from, to, at }), а в
+// data.json идёт карта кодов { старый: новый }. По ней сайт и бот переносят картинки, владельцев, коллекции, любимые и ссылки.
+
+const RENAME_HINT = 'После переименования — «Скачать файл для сайта» и выложить data.json; картинки и коллекции перенесутся сами в течение часа.';
+const RENAME_CARDS_URL = 'https://insloushn.github.io/animatrix-fans/cards.json';
+let renameLog = [];      // админ: [{ id, from, to, at }]
+let renameSiteMap = {};  // сайт: data.json → renames
+const renameMapNow = () => (siteData ? renameSiteMap : E.renameMap(renameLog));
+// Только то, что имеет смысл сейчас: новый герой есть в базе, а героя со старым кодом уже нет.
+const renameLive = () => E.renameAllowed(renameMapNow(), heroes);
+
+// Коллекция в браузере: записи переименованных героев переезжают к новым (один раз — дальше старых ключей уже нет).
+function applyRenamesLocal() {
+  const map = renameLive();
+  if (!Object.keys(map).length) return;
+  const res = E.renameLocal(collection, skinOnly, map, heroes);
+  if (!res.changed) return;
+  collection = res.collection;
+  skinOnly = res.skinOnly;
+  tidySkinOnly();
+  saveCollection();
+}
+
+function setRenameLog(list) {
+  renameLog = list;
+  applyRenamesLocal();
+}
+
+const renameState = { change: null, current: '', plan: null, cards: undefined, busy: false };
+
+// cards.json сайта для предпросмотра: на сайте он уже загружен, в админке — запросом (если браузер не пустит, предпросмотр без него).
+async function renameCards() {
+  if (typeof cardsData !== 'undefined' && cardsData) return cardsData;
+  if (renameState.cards !== undefined) return renameState.cards;
+  try {
+    const response = await fetch(`${RENAME_CARDS_URL}?t=${Date.now()}`, { cache: 'no-cache' });
+    renameState.cards = response.ok ? await response.json() : null;
+  } catch (e) { renameState.cards = null; }
+  return renameState.cards;
+}
+
+function openRename(change, head, current) {
+  if (!canWrite) return;
+  Object.assign(renameState, { change, current, plan: null, busy: false });
+  $('renameHead').textContent = head;
+  $('renameInput').value = current;
+  $('renameInput').disabled = false;
+  $('renameResult').textContent = '';
+  $('renameCancel').textContent = 'Отмена';
+  $('renameBox').hidden = false;
+  $('renameInput').focus();
+  $('renameInput').select();
+  renderRenamePreview();
+  renameCards().then(() => { if (!$('renameBox').hidden) renderRenamePreview(); });
+}
+
+function closeRename() {
+  $('renameBox').hidden = true;
+  renameState.change = null;
+}
+
+function renderRenamePreview() {
+  const change = renameState.change;
+  if (!change || renameState.busy) return;
+  const name = $('renameInput').value;
+  const plan = E.planRename(titles, { ...change, name });
+  renameState.plan = plan;
+  const same = name.replace(/\s+/g, ' ').trim() === renameState.current;
+  let html = '';
+  if (plan.error) {
+    html = same ? '<p class="muted">Введи новое название.</p>' : `<p class="bad">${esc(plan.error)}</p>`;
+  } else {
+    html = `<p>Затронет героев: <b>${plan.heroes}</b>.</p>`;
+    if (!plan.pairs.length) {
+      html += '<p class="muted">Меняется только вид названия (регистр): картинки и коллекции остаются на месте.</p>';
+    } else {
+      const cards = renameState.cards || (typeof cardsData !== 'undefined' ? cardsData : null);
+      if (cards) {
+        const impact = E.renameImpact(cards, plan.pairs);
+        html += `<p>Картинок: <b>${impact.pics}</b>, у владельцев: <b>${impact.players}</b> — перенесутся сами.</p>`;
+      } else {
+        html += '<p class="muted">Картинки и владельцев отсюда не видно (cards.json недоступен) — перенос пройдёт и без этого.</p>';
+      }
+    }
+  }
+  $('renamePreview').innerHTML = html;
+  $('renameSave').disabled = !canWrite || !!plan.error;
+}
+
+async function saveRename() {
+  const plan = renameState.plan;
+  if (!plan || plan.error || !canWrite || renameState.busy) return;
+  renameState.busy = true;
+  $('renameSave').disabled = true;
+  $('renameInput').disabled = true;
+  $('renameResult').textContent = 'Сохраняю…';
+  try {
+    const at = new Date().toISOString();
+    const stamp = Date.now().toString(36);
+    const entries = plan.pairs.map((p, i) => ({ id: `r-${stamp}-${i.toString(36)}`, from: p.from, to: p.to, at }));
+    // Журнал раньше названия: не записалось название — лишняя строка журнала безвредна (герой с прежним адресом ещё есть, её не применят).
+    if (db) {
+      for (const x of entries) await db.doc(`renames/${x.id}`).set({ from: x.from, to: x.to, at: x.at });
+    } else if (entries.length && !writeStore('ani-renames', renameLog.concat(entries))) {
+      throw new Error('storage');
+    }
+    setRenameLog(renameLog.concat(entries));
+    await applyDocs([plan.doc], []);
+    $('renameResult').textContent = `Готово: переименовано героев — ${plan.heroes}. Теперь «Скачать файл для сайта» и выложить data.json.`;
+    $('renameCancel').textContent = 'Закрыть';
+  } catch (e) {
+    $('renameResult').textContent = writeError(e);
+    $('renameInput').disabled = false;
+  }
+  renameState.busy = false;
+  if ($('renameInput').disabled) return;
+  renderRenamePreview();
 }
 
 // ---------- Настройки расчёта в базе ----------
@@ -1645,7 +1782,7 @@ let restorePlan = null;
 function restoreSummaryText(plan) {
   const date = plan.savedAt && !Number.isNaN(new Date(plan.savedAt).getTime()) ? dateText(new Date(plan.savedAt)) : 'не указана';
   const kind = plan.kind === 'site' ? 'сборка сайта' : 'выгрузка страницы';
-  const inFile = `тайтлов ${fmt(plan.titles.length)}, героев ${fmt(plan.heroCount)}, сезонов ${fmt(plan.seasons.length)}, рекордов ${fmt(plan.records.length)}`;
+  const inFile = `тайтлов ${fmt(plan.titles.length)}, героев ${fmt(plan.heroCount)}, сезонов ${fmt(plan.seasons.length)}, рекордов ${fmt(plan.records.length)}${plan.renames.length ? `, переименований ${fmt(plan.renames.length)}` : ''}`;
   const nowHeroes = titles.reduce((sum, t) => sum + (t.heroes || []).length, 0);
   const now = `тайтлов ${fmt(titles.length)}, героев ${fmt(nowHeroes)}, сезонов ${fmt(seasons.length)}, рекордов ${fmt(records.length)}`;
   const missing = plan.missing.length ? ` В файле нет: ${plan.missing.join(', ')}.` : '';
@@ -1661,12 +1798,13 @@ function closeRestore() {
 
 // Запись только добавляет и заменяет по id, ничего не удаляет: повтор безопасен.
 async function runRestore(plan) {
-  const done = { titles: 0, seasons: 0, records: 0, settings: false };
+  const done = { titles: 0, seasons: 0, records: 0, renames: 0, settings: false };
   const progress = (text) => { $('restoreResult').textContent = text; };
   const doneText = () => [
     `тайтлы ${done.titles} из ${plan.titles.length}`,
     `сезоны ${done.seasons} из ${plan.seasons.length}`,
     `рекорды ${done.records} из ${plan.records.length}`,
+    ...(plan.renames.length ? [`переименования ${done.renames} из ${plan.renames.length}`] : []),
     ...(plan.settings ? [`настройки расчёта ${done.settings ? 'записаны' : 'нет'}`] : []),
   ].join(', ');
   try {
@@ -1724,6 +1862,23 @@ async function runRestore(plan) {
       if (!writeStore('ani-records', list)) throw new Error('storage');
       setRecords(list);
       done.records = plan.records.length;
+    }
+
+    // Журнал переименований: renames/<id>, как записи в базе; дубли по id заменяются.
+    if (plan.renames.length) {
+      const ids = new Set(plan.renames.map((r) => r.id));
+      const list = renameLog.filter((x) => !ids.has(x.id)).concat(plan.renames.map((r) => ({ id: r.id, ...r.doc })));
+      if (db) {
+        for (const r of plan.renames) {
+          progress(`Переименования: ${done.renames + 1} из ${plan.renames.length}…`);
+          await db.doc(`renames/${r.id}`).set(r.doc);
+          done.renames += 1;
+        }
+      } else {
+        if (!writeStore('ani-renames', list)) throw new Error('storage');
+        done.renames = plan.renames.length;
+      }
+      setRenameLog(list);
     }
 
     if (plan.settings) {
@@ -5943,7 +6098,7 @@ function renderHeroesTab() {
     <td>${fmt(h.baseBm)}</td><td>${fmt(h.baseHp)}</td>
     <td class="left"><label class="skin-toggle"><input type="checkbox" data-skin="${esc(h.key)}"${h.skin ? ' checked' : ''}${canWrite ? '' : ' disabled'}> 🎭</label></td>
     <td class="left"><label class="skin-toggle"><input type="checkbox" data-event="${esc(h.key)}"${h.event ? ' checked' : ''}${canWrite ? '' : ' disabled'}> ${EVENT_MARK}</label></td>
-    <td>${canWrite ? `<button class="btn ghost mini" data-remove="${esc(h.key)}">Удалить</button>` : ''}</td>
+    <td>${canWrite ? `<button class="btn ghost mini" data-rename-hero="${esc(h.key)}" title="${esc(RENAME_HINT)}">✏️ Имя</button> <button class="btn ghost mini" data-remove="${esc(h.key)}">Удалить</button>` : ''}</td>
   </tr>`).join('');
   $('heroTable').innerHTML = `<thead><tr>
     <th class="left">Герой</th><th class="left">Ранг</th><th class="left">Класс</th>
@@ -6139,7 +6294,8 @@ function renderTitles() {
         <span class="title-main">${handle}<span>${esc(t.title)} <span class="muted small num">${list.length}${eventCount ? ` · ${EVENT_MARK} ${eventCount}` : ''}</span></span></span>
         <span class="actions">
           ${dateCell}${moves}
-          ${canWrite ? `<button class="btn ghost mini" data-events-all="${esc(t.id)}" data-on="${allEvents ? '0' : '1'}">${allEvents ? 'Снять ивент со всех' : `${EVENT_MARK} Отметить всех`}</button>
+          ${canWrite ? `<button class="btn ghost mini" data-rename-title="${esc(t.id)}" title="${esc(RENAME_HINT)}">✏️ Переименовать</button>
+          <button class="btn ghost mini" data-events-all="${esc(t.id)}" data-on="${allEvents ? '0' : '1'}">${allEvents ? 'Снять ивент со всех' : `${EVENT_MARK} Отметить всех`}</button>
           <button class="btn ghost mini" data-del="${esc(t.id)}">Удалить</button>` : ''}
         </span></div>`;
     }).join('')
@@ -7072,6 +7228,8 @@ $('siteExport').addEventListener('click', async () => {
       })),
       seasons: list,
       records,
+      // Журнал переименований: сборка сайта сводит его в карту кодов data.json → renames.
+      renames: renameLog.map(({ id, from, to, at }) => ({ id, from, to, at: at || '' })),
       settings: { maxMoves: settings.maxMoves, runs: settings.runs, formula: settings.formula },
     });
     if (downloads) await downloads.save({ filename: 'animatrix-data.json', data });
@@ -7241,6 +7399,12 @@ $('heroTable').addEventListener('change', (e) => {
   });
 });
 $('heroTable').addEventListener('click', (e) => {
+  const rn = e.target.closest('[data-rename-hero]');
+  if (rn) {
+    const hero = heroes.find((h) => h.key === rn.dataset.renameHero);
+    if (hero) openRename({ kind: 'hero', titleId: hero.titleId, hero: { name: hero.name, rank: hero.rank, bm: hero.baseBm, hp: hero.baseHp } }, `Имя героя: ${hero.name} (${hero.rank}, ${hero.title})`, hero.name);
+    return;
+  }
   const b = e.target.closest('[data-remove]');
   if (b && armed(b)) changeHero(b.dataset.remove, () => null);
 });
@@ -7314,6 +7478,12 @@ const finishTitleDrag = (e) => {
 $('titleRows').addEventListener('pointerup', finishTitleDrag);
 $('titleRows').addEventListener('pointercancel', finishTitleDrag);
 $('titleRows').addEventListener('click', async (e) => {
+  const rn = e.target.closest('[data-rename-title]');
+  if (rn) {
+    const doc = titles.find((t) => t.id === rn.dataset.renameTitle);
+    if (doc) openRename({ kind: 'title', titleId: doc.id }, `Переименовать тайтл «${doc.title}»`, doc.title);
+    return;
+  }
   const move = e.target.closest('[data-move]');
   if (move) {
     const id = move.closest('[data-title-id]').dataset.titleId;
@@ -7349,6 +7519,12 @@ $('titleRows').addEventListener('click', async (e) => {
     notify(writeError(err));
   }
 });
+$('renameInput').addEventListener('input', renderRenamePreview);
+$('renameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !$('renameSave').disabled) saveRename(); });
+$('renameSave').addEventListener('click', saveRename);
+$('renameCancel').addEventListener('click', closeRename);
+$('renameBox').addEventListener('click', (e) => { if (e.target === $('renameBox')) closeRename(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('renameBox').hidden) closeRename(); });
 $('seasonSave').addEventListener('click', saveSeason);
 $('seasonRows').addEventListener('click', (e) => {
   const show = e.target.closest('[data-season-show]');
@@ -7397,6 +7573,7 @@ function startLocal(message) {
   setHeroes(readStore('ani-titles', []));
   setSeasons(readStore('ani-seasons', []).map(({ docs: _skip, ...rest }) => rest));
   setRecords(readStore('ani-records', []));
+  setRenameLog(readStore('ani-renames', []));
   notify(message);
 }
 
@@ -7473,7 +7650,11 @@ function trackView(path) {
 function heroByCode(code) {
   let id = '';
   try { id = decodeURIComponent(code); } catch (e) { return null; }
-  return heroes.find((h) => E.heroCode(h) === code) || heroes.find((h) => E.heroId(h) === id) || null;
+  const found = heroes.find((h) => E.heroCode(h) === code) || heroes.find((h) => E.heroId(h) === id) || null;
+  if (found) return found;
+  // Герой переименован: старая ссылка (код или полный адрес) ведёт на нового (tickets/rename-title.md).
+  const to = E.renameLookup(renameLive(), code) || E.renameLookup(renameLive(), id);
+  return to ? heroes.find((h) => E.heroCode(h) === to) || null : null;
 }
 
 function heroLink(hero) {
@@ -7553,7 +7734,7 @@ function cloudLoad() {
   tg.CloudStorage.getItem('colN', (error, value) => {
     if (error) { setCloudStatus('loadError'); return; }
     const count = parseInt(value, 10) || 0;
-    const finish = (remote, remoteSkin) => {
+    const finish = (remote, remoteSkin, renamed) => {
       const merge = changedBeforeCloud;
       changedBeforeCloud = false;
       collection = merge ? { ...remote, ...collection } : (count ? remote : collection);
@@ -7564,7 +7745,7 @@ function cloudLoad() {
       cloudReady = true;
       cloudParts = count;
       setCloudStatus('saved');
-      if (!count || merge) cloudSave();
+      if (!count || merge || renamed) cloudSave(); // renamed: коды переименованных героев в облаке заменены — записать один раз
       renderRanking();
       autoMarkAll();
     };
@@ -7573,7 +7754,8 @@ function cloudLoad() {
     tg.CloudStorage.getItems(keys, (error2, values) => {
       if (error2) { setCloudStatus('loadError'); return; }
       const text = keys.map((k) => values[k] || '').join('');
-      finish(E.unpackCollection(text, heroes), E.unpackSkinOnly(text, heroes));
+      const renamed = E.renameText(text, renameLive()); // tickets/rename-title.md
+      finish(E.unpackCollection(renamed.text, heroes), E.unpackSkinOnly(renamed.text, heroes), renamed.changed);
     });
   });
 }
@@ -7595,6 +7777,8 @@ function pullMarksLoad() {
     const finish = (text) => {
       pullMark.done = E.unpackPullMarks(text);
       pullMarkParts = count;
+      const renamed = E.renameDone(pullMark.done, renameLive()); // tickets/rename-title.md
+      if (renamed.changed) { pullMark.done = renamed.done; pullMarksSave(); }
       if (!$('view-collection').hidden) renderColAccount();
       autoMarkAll();
     };
@@ -7667,7 +7851,13 @@ function cardMarksLoad() {
   tg.CloudStorage.getItems(['cardN'], (error, values) => {
     if (error || !values) return;
     const count = parseInt(values.cardN, 10) || 0;
-    const finish = (text) => { cardMark.done = E.unpackPullMarks(text); cardMarkParts = count; autoMarkAll(); };
+    const finish = (text) => {
+      cardMark.done = E.unpackPullMarks(text);
+      cardMarkParts = count;
+      const renamed = E.renameDone(cardMark.done, renameLive()); // tickets/rename-title.md
+      if (renamed.changed) { cardMark.done = renamed.done; cardMarksSave(); }
+      autoMarkAll();
+    };
     if (!count) { finish(''); return; }
     const keys = Array.from({ length: count }, (_, i) => `card${i}`);
     tg.CloudStorage.getItems(keys, (error2, parts) => {
@@ -7832,6 +8022,7 @@ function startPublic(site) {
   $('saveStatus').textContent = site.builtAt ? `Обновлено ${dateText(new Date(site.builtAt))}` : '';
   setRecords(site.records || []);
   setContests(site.contests || []);
+  renameSiteMap = site.renames && typeof site.renames === 'object' && !Array.isArray(site.renames) ? site.renames : {};
   setHeroes(site.titles);
   routeHash();
   window.addEventListener('hashchange', routeHash);
@@ -7893,6 +8084,10 @@ renderAll();
   }, () => {});
   db.collection('records').onSnapshot((snap) => {
     setRecords(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  }, () => {});
+  // Журнал переименований (tickets/rename-title.md): нет доступа — без него страница работает, как раньше.
+  db.collection('renames').onSnapshot((snap) => {
+    setRenameLog(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
   }, () => {});
 })();
 </script>

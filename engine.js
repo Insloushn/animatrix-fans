@@ -924,6 +924,156 @@
     return collection;
   }
 
+  // ---------- Переименование тайтла и героя (tickets/rename-title.md) ----------
+  // Код героя зависит от названия тайтла и имени: после переименования картинки и владельцы (бот), коллекции (облако Telegram и
+  // браузер), любимые и ссылки отрываются от героя. Поэтому в базе пишется журнал { from, to } — адреса героя до и после,
+  // а в data.json идёт карта кодов { старый: новый }, по которой всё это переезжает. Сезонные снимки не трогаются.
+  const codeOfId = (id) => hashString(String(id)).toString(36);
+  const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
+  const cleanName = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+
+  // Что станет после переименования. change: { kind: 'title', titleId, name } или
+  // { kind: 'hero', titleId, hero: { name, rank, bm, hp }, name }. → { error } или
+  // { doc: документ тайтла для записи, pairs: [{ from, to }] — адреса героев до и после, heroes: сколько героев затронуто }.
+  // Слияние (имя совпало с другим тайтлом или героем того же ранга в тайтле) — отказ.
+  function planRename(titles, change) {
+    const name = cleanName(change && change.name);
+    if (!name) return { error: 'Введи новое название.' };
+    const doc = (titles || []).find((t) => t.id === (change && change.titleId));
+    if (!doc) return { error: 'Такого тайтла уже нет в базе. Обнови страницу.' };
+    const idOf = (title, hero) => heroId({ rank: hero.rank, title, name: hero.name });
+    const diff = (pairs) => pairs.filter((p) => p.from !== p.to);
+
+    if (change.kind === 'title') {
+      if (doc.title === NO_TITLE) return { error: `«${NO_TITLE}» переименовать нельзя: туда попадают герои без тайтла.` };
+      if (normName(name) === normName(NO_TITLE)) return { error: `Название «${NO_TITLE}» занято: так называется место для героев без тайтла.` };
+      if (name === doc.title) return { error: 'Название не изменилось.' };
+      const clash = titles.find((t) => t.id !== doc.id && normName(t.title) === normName(name));
+      if (clash) return { error: `Тайтл «${clash.title}» уже есть. Переименование не объединяет тайтлы — выбери другое название.` };
+      const list = (doc.heroes || []).map((h) => ({ ...h }));
+      return {
+        doc: { id: doc.id, title: name, heroes: list },
+        pairs: diff(list.map((h) => ({ from: idOf(doc.title, h), to: idOf(name, h) }))),
+        heroes: list.length,
+      };
+    }
+
+    const want = (change && change.hero) || {};
+    const list = (doc.heroes || []).map((h) => ({ ...h }));
+    const index = list.findIndex((h) => h.name === want.name && h.rank === want.rank && h.bm === want.bm && h.hp === want.hp);
+    if (index < 0) return { error: 'Такого героя уже нет в базе. Обнови страницу.' };
+    const hero = list[index];
+    if (name === hero.name) return { error: 'Имя не изменилось.' };
+    const clash = list.find((h, i) => i !== index && h.rank === hero.rank && normName(h.name) === normName(name));
+    if (clash) return { error: `В тайтле «${doc.title}» уже есть ${hero.rank}-герой «${clash.name}». Переименование не объединяет героев — выбери другое имя.` };
+    list[index] = { ...hero, name };
+    return { doc: { id: doc.id, title: doc.title, heroes: list }, pairs: diff([{ from: idOf(doc.title, hero), to: idOf(doc.title, list[index]) }]), heroes: 1 };
+  }
+
+  // Что затронет переименование по cards.json сайта: картинок (карта и скины) и игроков, у которых такие герои есть.
+  function renameImpact(cards, pairs) {
+    const codes = new Set((pairs || []).map((p) => codeOfId(p.from)));
+    const images = (cards && cards.images) || {};
+    let pics = 0;
+    codes.forEach((code) => {
+      const x = images[code];
+      if (x) pics += (x.img ? 1 : 0) + Object.keys(x.skins || {}).length;
+    });
+    const players = new Set();
+    ['owners', 'skinOnly'].forEach((field) => Object.entries((cards && cards[field]) || {}).forEach(([id, list]) => {
+      if (Array.isArray(list) && list.some((x) => Array.isArray(x) && codes.has(x[0]))) players.add(id);
+    }));
+    return { pics, players: players.size };
+  }
+
+  // Журнал [{ from, to, at }] → { старый код: новый код }. Цепочка А→Б→В сводится к последнему имени (и промежуточное Б тоже
+  // ведёт в В); возврат к прежнему имени снимает запись «А→Б» и оставляет «Б→А»: ключи, уже переехавшие в Б, вернутся.
+  function renameMap(entries) {
+    const map = {};
+    (Array.isArray(entries) ? entries : [])
+      .filter((e) => e && typeof e.from === 'string' && typeof e.to === 'string' && e.from && e.to)
+      .map((e, i) => ({ e, i }))
+      .sort((a, b) => String(a.e.at || '').localeCompare(String(b.e.at || '')) || String(a.e.id || '').localeCompare(String(b.e.id || '')) || a.i - b.i)
+      .forEach(({ e }) => {
+        const from = codeOfId(e.from);
+        const to = codeOfId(e.to);
+        if (from === to) return;
+        Object.keys(map).forEach((k) => { if (map[k] === from) map[k] = to; });
+        map[from] = to;
+        Object.keys(map).forEach((k) => { if (map[k] === k) delete map[k]; });
+      });
+    return map;
+  }
+
+  // Применяется только то, что имеет смысл сейчас: новый герой есть в базе, а героя со старым кодом уже нет
+  // (иначе запись «А→Б» утащила бы ключи нового героя, которому досталось старое имя).
+  function renameAllowed(map, heroes) {
+    const codes = new Set((heroes || []).map(heroCode));
+    const out = {};
+    Object.keys(map && typeof map === 'object' ? map : {}).forEach((from) => {
+      const to = map[from];
+      if (/^[0-9a-z]{1,8}$/.test(from) && typeof to === 'string' && /^[0-9a-z]{1,8}$/.test(to) && to !== from && codes.has(to) && !codes.has(from)) out[from] = to;
+    });
+    return out;
+  }
+
+  // Новый код по старому коду или полному адресу героя (старые ссылки). '' — переименования не было.
+  function renameLookup(map, codeOrId) {
+    const text = String(codeOrId || '');
+    if (hasOwn(map, text)) return map[text];
+    const byId = codeOfId(text);
+    return hasOwn(map, byId) ? map[byId] : '';
+  }
+
+  // Строка облака Telegram «код, код*, код~, код+…»: старые коды заменяются новыми, повторы убираются.
+  function renameText(text, map) {
+    let changed = false;
+    const parts = String(text || '').split(',').filter(Boolean).map((part) => {
+      const m = part.match(/^([0-9a-z]+)([*~]?)(\+?)$/);
+      if (!m || !hasOwn(map, m[1])) return part;
+      changed = true;
+      return `${map[m[1]]}${m[2]}${m[3]}`;
+    });
+    return { text: changed ? [...new Set(parts)].sort().join(',') : String(text || ''), changed };
+  }
+
+  // Разобранные героев автоотметки (код → true/false; «код*» — скин, «код~» — только скин): ключи переезжают, «добавили крутки» не теряется.
+  function renameDone(done, map) {
+    const next = {};
+    const moved = [];
+    Object.keys(done || {}).forEach((key) => {
+      const m = key.match(/^([0-9a-z]+)([*~]?)$/);
+      if (m && hasOwn(map, m[1])) moved.push([`${map[m[1]]}${m[2]}`, !!done[key]]);
+      else next[key] = done[key];
+    });
+    moved.forEach(([key, value]) => { next[key] = key in next ? !!(next[key] || value) : value; });
+    return { done: next, changed: moved.length > 0 };
+  }
+
+  // Коллекция в браузере (ключи — адреса героев): записи старых героев переезжают к новым. map — после renameAllowed.
+  function renameLocal(collection, skinOnly, map, heroes) {
+    const byCode = new Map((heroes || []).map((h) => [heroCode(h), heroId(h)]));
+    const out = { collection: { ...(collection || {}) }, skinOnly: { ...(skinOnly || {}) }, changed: false };
+    Object.keys(collection || {}).forEach((id) => {
+      const code = codeOfId(id);
+      const to = hasOwn(map, code) ? byCode.get(map[code]) : '';
+      if (!to || to === id) return;
+      const mine = out.collection[to];
+      out.collection[to] = mine ? { ...out.collection[id], ...mine, skin: !!(mine.skin || out.collection[id].skin) } : out.collection[id];
+      delete out.collection[id];
+      out.changed = true;
+    });
+    Object.keys(skinOnly || {}).forEach((id) => {
+      const code = codeOfId(id);
+      const to = hasOwn(map, code) ? byCode.get(map[code]) : '';
+      if (!to || to === id) return;
+      out.skinOnly[to] = out.skinOnly[id];
+      delete out.skinOnly[id];
+      out.changed = true;
+    });
+    return out;
+  }
+
   // Одно значение в облаке Telegram вмещает до 4096 знаков, поэтому длинный текст делится на части.
   function chunkText(text, size) {
     const parts = [];
@@ -2178,6 +2328,14 @@
       records.push({ id, doc });
     }
 
+    // Журнал переименований (tickets/rename-title.md): в выгрузке страницы — список, в data.json сайта — карта кодов, её не берём.
+    const renames = [];
+    for (let i = 0; i < (Array.isArray(data.renames) ? data.renames.length : 0); i += 1) {
+      const r = data.renames[i];
+      if (!r || typeof r !== 'object' || !isText(r.id) || !isText(r.from) || !isText(r.to)) return fail(`Переименование №${i + 1}: нет id или адресов героя.`);
+      renames.push({ id: r.id, doc: { from: r.from, to: r.to, at: typeof r.at === 'string' ? r.at : '' } });
+    }
+
     const settings = cleanCalcSettings(data.settings);
     const kind = Array.isArray(data.records) || !data.results ? 'page' : 'site';
     const missing = [];
@@ -2191,6 +2349,7 @@
       titles,
       seasons,
       records,
+      renames,
       settings,
       missing,
       heroCount: titles.reduce((sum, t) => sum + t.heroes.length, 0),
@@ -2578,7 +2737,7 @@
   return {
     bannerFor, bannersOf, bannerVersion, bannerHist, parseBannerHistCode, bannerHistCode, BHIST_MAX, createSound, squadPool, pickRuns, seededRate, createPickJob, skinOnlyStrong, leveledHero, cardLevels, stormDamage, stormTop, PICK,
     deriveHeroes, numberedHeroes, offTopHeroes, groupCacheKey, runsForGroup, hasEqualScores, offTopRow, collectGroupRows, groupError,
-    packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, unpackSkinOnly, collectionCounts, chunkText, hitsToKill, seasonNews,
+    packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, unpackSkinOnly, collectionCounts, codeOfId, planRename, renameImpact, renameMap, renameAllowed, renameLookup, renameText, renameDone, renameLocal, chunkText, hitsToKill, seasonNews,
     RECORD_EVENTS, RECORD_UNITS, recordEventInfo, detectRecordEvent,
     parseRecordLines, parseEventMessage, parsePlayerCell, periodEnd, recordLeaders, recordScore, recordPlayerKey, recordEventKey, playerRecords, cleanRecordName, sortRecordEvents,
     legendOwnerId, playerDirectory, playerProfile, hallOfFame, gameNickMap, playerMatches, resolvePlayerKey,
