@@ -1863,7 +1863,7 @@
     { id: 'heroes', icon: '🏆', label: 'Герои', menu: true, tabs: ['top', 'compare', 'battle', 'card', 'cards', 'news'] },
     { id: 'contests', icon: '🎲', label: 'Конкурсы', menu: false, tabs: ['contests'] },
     { id: 'players', icon: '👥', label: 'Игроки', menu: true, tabs: ['players', 'ratings', 'records', 'stats'] },
-    { id: 'more', icon: '☰', label: 'Ещё', menu: true, tabs: ['antistress', 'heroes', 'seasons', 'add', 'export', 'rules'] },
+    { id: 'more', icon: '☰', label: 'Ещё', menu: true, tabs: ['events', 'antistress', 'heroes', 'seasons', 'add', 'export', 'rules'] },
   ];
   // Группы только с открытыми разделами (shown — какие видны этому посетителю); пустая группа не показывается.
   function navGroups(shown) {
@@ -2715,6 +2715,305 @@
     return b && (b.video || b.poster) ? { id, video: b.video || '', poster: b.poster || '' } : null;
   }
 
+  // ---------- Календарь событий (events.json пишет бот командами админа, tickets/events-calendar.md) ----------
+  // Даты в данных — строки 'ГГГГ-ММ-ДД' по Москве (UTC+3 круглый год). «Сегодня» считается по МСК, не по часам телефона.
+  const CAL_MSK = 3 * 3600 * 1000;
+  const CAL_DAY = 86400 * 1000;
+  const CAL_KINDS = { bot: 'событие бота', season: 'сезон', market: 'чёрный рынок', ours: 'наше' };
+  const CAL_MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  const CAL_WEEK = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+  const CAL_SOON = 60;   // «Скоро» — на столько дней вперёд
+  const CAL_PAST = 30;   // «Прошло» — за столько дней назад
+  const CAL_TEXT_MAX = 500;
+  const CAL_TITLE_MAX = 80;
+  const CAL_EVERY_MAX = 366;
+
+  const calIso = (y, m, d) => `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const calDate = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+  const calValid = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && calIso(calDate(s).getUTCFullYear(), calDate(s).getUTCMonth() + 1, calDate(s).getUTCDate()) === s;
+  // Сегодня по Москве для момента ms.
+  const calToday = (ms) => new Date(Number(ms) + CAL_MSK).toISOString().slice(0, 10);
+  const calAdd = (s, days) => new Date(calDate(s).getTime() + days * CAL_DAY).toISOString().slice(0, 10);
+  const calDiff = (a, b) => Math.round((calDate(b) - calDate(a)) / CAL_DAY); // дней от a до b
+  const calWeekday = (s) => CAL_WEEK[calDate(s).getUTCDay()];
+  // Минуты от полуночи по Москве.
+  const calNowMin = (ms) => { const d = new Date(Number(ms) + CAL_MSK); return d.getUTCHours() * 60 + d.getUTCMinutes(); };
+  const calTimeMin = (t) => { const m = /^(\d{2}):(\d{2})$/.exec(t || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+
+  // Вид по названию: «сезон» → season, «рынок» → market, иначе событие бота. «наш» задаётся явно.
+  function calKindOf(title) {
+    const t = String(title || '').toLowerCase();
+    if (/сезон/.test(t)) return 'season';
+    if (/рын(ок|к)/.test(t)) return 'market';
+    return 'bot';
+  }
+
+  // «15–21 ноября», «30 ноября – 6 декабря», «1 декабря» (+ ', вт' — withDay).
+  function calRangeText(start, end, withDay = true) {
+    const a = calDate(start);
+    const b = calDate(end || start);
+    const day = (d) => `${d.getUTCDate()} ${CAL_MONTHS[d.getUTCMonth()]}`;
+    const years = a.getUTCFullYear() !== b.getUTCFullYear();
+    if (start === (end || start)) return withDay ? `${day(a)}, ${calWeekday(start)}` : day(a);
+    let text;
+    if (years) text = `${day(a)} ${a.getUTCFullYear()} – ${day(b)} ${b.getUTCFullYear()}`;
+    else if (a.getUTCMonth() === b.getUTCMonth()) text = `${a.getUTCDate()}–${day(b)}`;
+    else text = `${day(a)} – ${day(b)}`;
+    return withDay ? `${text}, ${calWeekday(start)}–${calWeekday(end)}` : text;
+  }
+
+  // Строка команды /event_add (без самой команды): первая строка — даты, повтор, «наш» и название; дальше — описание.
+  // Год без указания — тот, при котором дата ближе всего к сегодняшней по МСК (01.09 в ноябре — этот год, 15.01 в ноябре — следующий).
+  // Ответ: { event: { kind, title, start, end, time, every, text } } или { error: 'date' | 'title' | 'range' | 'every' }.
+  function parseCalendarLine(text, nowMs) {
+    const lines = String(text || '').replace(/\r/g, '').split('\n');
+    let head = (lines.shift() || '').trim();
+    const body = lines.join('\n').trim().slice(0, CAL_TEXT_MAX);
+    const dm = /^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?(?:\s+(\d{1,2})[:.](\d{2}))?(?:\s*[-–—]\s*(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?)?(?=\s|$)/.exec(head);
+    if (!dm) return { error: 'date' };
+    head = head.slice(dm[0].length).trim();
+    const today = calToday(nowMs);
+    const make = (d, m, y) => { const s = calIso(y, m, d); return calValid(s) ? s : null; };
+    let start;
+    if (dm[3]) start = make(+dm[1], +dm[2], +dm[3]);
+    else {
+      const y = Number(today.slice(0, 4));
+      const near = [y - 1, y, y + 1].map((yy) => make(+dm[1], +dm[2], yy)).filter(Boolean);
+      start = near.sort((p, q) => Math.abs(calDiff(today, p)) - Math.abs(calDiff(today, q)))[0] || null;
+    }
+    if (!start) return { error: 'date' };
+    let time = null;
+    if (dm[4] !== undefined) {
+      if (+dm[4] > 23 || +dm[5] > 59) return { error: 'date' };
+      time = `${String(+dm[4]).padStart(2, '0')}:${dm[5]}`;
+    }
+    let end = start;
+    if (dm[6]) {
+      const sy = Number(start.slice(0, 4));
+      end = dm[8] ? make(+dm[6], +dm[7], +dm[8]) : make(+dm[6], +dm[7], sy);
+      if (end && !dm[8] && end < start) end = make(+dm[6], +dm[7], sy + 1); // 30.12–05.01
+      if (!end) return { error: 'date' };
+      if (end < start || calDiff(start, end) > CAL_EVERY_MAX) return { error: 'range' };
+    }
+    let every = null;
+    let kind = '';
+    for (let changed = true; changed;) {
+      changed = false;
+      const ev = /^кажд(?:ые|ый|ую)\s+(?:(\d{1,3})\s+)?(дн(?:я|ей)|день|недел[июь]|неделю)(?=\s|$)/i.exec(head);
+      if (ev) {
+        const n = ev[1] ? Number(ev[1]) : 1;
+        every = /^недел/i.test(ev[2]) ? n * 7 : n;
+        head = head.slice(ev[0].length).trim();
+        changed = true;
+        if (!every || every > CAL_EVERY_MAX || every <= calDiff(start, end)) return { error: 'every' };
+      }
+      const ours = /^наш[аеи]?(?=\s|$)/i.exec(head);
+      if (ours) { kind = 'ours'; head = head.slice(ours[0].length).trim(); changed = true; }
+    }
+    const title = head.replace(/\s+/g, ' ').trim().slice(0, CAL_TITLE_MAX);
+    if (!title) return { error: 'title' };
+    return { event: { kind: kind || calKindOf(title), title, start, end, time, every, text: body } };
+  }
+
+  // Записи файла: только целые, с верными датами. Порядок — как в файле.
+  function calendarEvents(file) {
+    const list = file && Array.isArray(file.events) ? file.events : [];
+    return list.filter((e) => e && typeof e.title === 'string' && e.title && calValid(e.start) && (!e.end || (calValid(e.end) && e.end >= e.start)))
+      .map((e) => ({
+        id: String(e.id || ''), kind: CAL_KINDS[e.kind] ? e.kind : 'bot', title: e.title, start: e.start, end: e.end || e.start,
+        time: calTimeMin(e.time) === null ? null : e.time, every: Number(e.every) > 0 ? Math.floor(Number(e.every)) : null, text: typeof e.text === 'string' ? e.text : '',
+      }));
+  }
+
+  // Даты события, пересекающие окно [from, to]: повтор (every) разворачивается от первой даты.
+  function calOccurrences(ev, from, to) {
+    const len = calDiff(ev.start, ev.end);
+    if (!ev.every) return ev.end >= from && ev.start <= to ? [{ start: ev.start, end: ev.end }] : [];
+    const out = [];
+    const skip = Math.max(0, Math.floor((calDiff(ev.start, from) - len) / ev.every));
+    for (let k = skip; out.length < 200; k += 1) {
+      const start = calAdd(ev.start, k * ev.every);
+      if (start > to) break;
+      const end = calAdd(start, len);
+      if (end >= from) out.push({ start, end });
+    }
+    return out;
+  }
+
+  // Подпись к дате: «ещё 3 дня, до сб» / «последний день» / «завтра» / «через 5 дней» / «сегодня в 12:00» / «2 дня назад».
+  function calLeftText(item, today, nowMin) {
+    if (item.group === 'now') {
+      if (item.open) return 'идёт';
+      const left = calDiff(today, item.end);
+      return left === 0 ? 'последний день' : `ещё ${left} ${plural(left, 'день', 'дня', 'дней')}, до ${calWeekday(item.end)}`;
+    }
+    if (item.group === 'soon') {
+      const d = calDiff(today, item.start);
+      if (d === 0) return `сегодня в ${item.time}`;
+      return d === 1 ? 'завтра' : `через ${d} ${plural(d, 'день', 'дня', 'дней')}`;
+    }
+    const ago = calDiff(item.end, today);
+    return ago === 1 ? 'вчера' : `${ago} ${plural(ago, 'день', 'дня', 'дней')} назад`;
+  }
+
+  // Записи, пересекающие окно [from, to], с группой (now/soon/past) и подписями относительно сегодняшнего дня по МСК.
+  // live — contest-live.json: идущий конкурс сам попадает как наш (finished — id завершённых, их нет).
+  // order — порядок внесения: сначала файл, потом конкурс.
+  function calItems(file, nowMs, from, to, { live = null, finished = [] } = {}) {
+    const today = calToday(nowMs);
+    const nowMin = calNowMin(nowMs);
+    const items = [];
+    calendarEvents(file).forEach((ev, order) => {
+      calOccurrences(ev, from, to).forEach((o) => {
+        const t = calTimeMin(ev.time);
+        let group = o.end < today ? 'past' : o.start > today ? 'soon' : 'now';
+        if (group === 'now' && o.start === today && t !== null && nowMin < t) group = 'soon'; // начнётся сегодня позже
+        items.push({ ...ev, ...o, key: `${ev.id || ev.title}@${o.start}`, group, order });
+      });
+    });
+    const c = live && live.contest;
+    if (c && c.name && !(finished || []).includes(c.id)) {
+      const start = c.startedAt ? calToday(Number(c.startedAt) * 1000) : today;
+      let end = c.endsAt ? calToday(Number(c.endsAt) * 1000) : today;
+      if (end < today) end = today;
+      if (end >= from && start <= to) items.push({ id: '', kind: 'ours', title: `🎲 ${c.name}`, start, end, time: null, every: null, text: 'Конкурс круток идёт сейчас', key: `live@${c.id}`, group: 'now', open: !c.endsAt, contest: true, order: 1e6 });
+    }
+    items.forEach((x) => { x.dates = (x.open ? `с ${calRangeText(x.start, x.start, false)}` : calRangeText(x.start, x.end)) + (x.time ? `, ${x.time}` : ''); x.left = calLeftText(x, today, nowMin); });
+    return items;
+  }
+
+  // Три группы по МСК: «Сейчас идёт» (до конца ближе — выше), «Скоро» (60 дней, ближайшие сверху), «Прошло» (30 дней, свежие сверху).
+  function calendarGroups(file, nowMs, opts = {}) {
+    const today = calToday(nowMs);
+    const items = calItems(file, nowMs, calAdd(today, -CAL_PAST), calAdd(today, CAL_SOON), opts);
+    const by = (g) => items.filter((x) => x.group === g);
+    const nowList = by('now').sort((a, b) => (!!a.open - !!b.open) || a.end.localeCompare(b.end) || a.title.localeCompare(b.title, 'ru'));
+    const soon = by('soon').sort((a, b) => a.start.localeCompare(b.start) || String(a.time || '').localeCompare(String(b.time || '')) || a.title.localeCompare(b.title, 'ru'));
+    const past = by('past').sort((a, b) => b.end.localeCompare(a.end) || a.title.localeCompare(b.title, 'ru'));
+    return { today, now: nowList, soon, past };
+  }
+
+  // Записи одного срока и вида — одна карточка: сверху срок и отсчёт, ниже строки (в порядке внесения).
+  // Порядок карточек — как первая запись каждой в переданном списке.
+  function calCards(items) {
+    const cards = [];
+    const byKey = new Map();
+    (items || []).forEach((x) => {
+      const key = [x.kind, x.start, x.end, x.time || '', x.open ? 'o' : ''].join('|');
+      let card = byKey.get(key);
+      if (!card) {
+        card = { key, kind: x.kind, start: x.start, end: x.end, time: x.time || null, open: !!x.open, group: x.group, dates: x.dates, left: x.left, lines: [] };
+        byKey.set(key, card);
+        cards.push(card);
+      }
+      card.lines.push(x);
+    });
+    cards.forEach((c) => c.lines.sort((a, b) => (a.order - b.order) || a.start.localeCompare(b.start)));
+    return cards;
+  }
+
+  // ---------- Вид «Месяц» ----------
+  const CAL_MONTHS_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+  const CAL_BACK = 2;    // месяцев назад от текущего
+  const CAL_FWD = 3;     // месяцев вперёд
+  const CAL_LANES = 3;   // полос в дне, остальное — «+N»
+  const CAL_KIND_ORDER = ['bot', 'season', 'market', 'ours'];
+
+  // 'ГГГГ-ММ' ± n месяцев.
+  function calMonthShift(ym, n) {
+    const [y, m] = String(ym).split('-').map(Number);
+    const t = y * 12 + (m - 1) + n;
+    return `${String(Math.floor(t / 12)).padStart(4, '0')}-${String((t % 12) + 1).padStart(2, '0')}`;
+  }
+  // Какие месяцы доступны: два назад, три вперёд от сегодняшнего (по МСК).
+  function calMonthRange(nowMs) {
+    const cur = calToday(nowMs).slice(0, 7);
+    return { cur, min: calMonthShift(cur, -CAL_BACK), max: calMonthShift(cur, CAL_FWD) };
+  }
+  const calClampMonth = (ym, nowMs) => { const r = calMonthRange(nowMs); return ym < r.min ? r.min : ym > r.max ? r.max : ym; };
+  const calMonthTitle = (ym) => `${CAL_MONTHS_NOM[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
+
+  // Эмодзи в начале названия и остальной текст: «🩸 Героический Штурм: D» → ['🩸', 'Героический Штурм: D'].
+  function calSplitTitle(title) {
+    const m = /^((?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:️|‍\p{Extended_Pictographic}|\p{Emoji_Modifier})*)\s*/u.exec(String(title || ''));
+    return m ? [m[1], String(title).slice(m[0].length)] : ['', String(title || '')];
+  }
+
+  // Сетка месяца Пн–Вс: недели, в каждой — дни и полосы (многодневные — через дни, однодневные — значком в клетке).
+  // Полоса разбита по неделям: fromPrev/toNext — продолжение с прошлой / на следующую неделю. lane — строка, 0..CAL_LANES-1;
+  // что не влезло — в more дня («+N»). Фон дня — вид, которого в дне больше всего.
+  function calMonth(file, nowMs, ym, opts = {}) {
+    const today = calToday(nowMs);
+    const first = `${ym}-01`;
+    const last = calAdd(calAdd(`${calMonthShift(ym, 1)}-01`, 0), -1);
+    const gridStart = calAdd(first, -((calDate(first).getUTCDay() + 6) % 7));
+    const gridEnd = calAdd(last, 6 - ((calDate(last).getUTCDay() + 6) % 7));
+    const items = calItems(file, nowMs, gridStart, gridEnd, opts).sort((a, b) => a.order - b.order || a.start.localeCompare(b.start));
+    const weeks = [];
+    const total = (calDiff(gridStart, gridEnd) + 1) / 7;
+    for (let w = 0; w < total; w += 1) {
+      const ws = calAdd(gridStart, w * 7);
+      const we = calAdd(ws, 6);
+      const days = [];
+      for (let i = 0; i < 7; i += 1) {
+        const date = calAdd(ws, i);
+        days.push({ date, num: calDate(date).getUTCDate(), inMonth: date >= first && date <= last, today: date === today, past: date < today, kind: null, seasonStart: '', more: 0, count: 0 });
+      }
+      const segs = items.filter((x) => x.end >= ws && x.start <= we).map((x) => {
+        const from = x.start < ws ? 0 : calDiff(ws, x.start);
+        const to = x.end > we ? 6 : calDiff(ws, x.end);
+        const [icon, name] = calSplitTitle(x.title);
+        return { item: x, key: x.key, kind: x.kind, title: x.title, icon, name, from, to, span: to - from + 1, fromPrev: x.start < ws, toNext: x.end > we, lane: -1, multi: x.end > x.start };
+      });
+      // Полосы в порядке: раньше начинается, дольше идёт, раньше внесено; многодневные впереди однодневных.
+      segs.sort((a, b) => (b.multi - a.multi) || (a.from - b.from) || (b.span - a.span) || (a.item.order - b.item.order));
+      const busy = [];
+      segs.forEach((sg) => {
+        let lane = 0;
+        const free = (l) => { for (let i = sg.from; i <= sg.to; i += 1) if (busy[l] && busy[l][i]) return false; return true; };
+        while (!free(lane)) lane += 1;
+        sg.lane = lane;
+        if (!busy[lane]) busy[lane] = [];
+        for (let i = sg.from; i <= sg.to; i += 1) busy[lane][i] = true;
+      });
+      days.forEach((d, i) => {
+        const here = segs.filter((sg) => sg.from <= i && i <= sg.to);
+        d.count = here.length;
+        d.more = here.filter((sg) => sg.lane >= CAL_LANES).length;
+        const tally = {};
+        here.forEach((sg) => { tally[sg.kind] = (tally[sg.kind] || 0) + 1; });
+        d.kind = CAL_KIND_ORDER.slice().sort((a, b) => (tally[b] || 0) - (tally[a] || 0))[0];
+        if (!tally[d.kind]) d.kind = null;
+        const ss = here.find((sg) => sg.kind === 'season' && sg.item.start === d.date);
+        if (ss) d.seasonStart = ss.icon || '❄️';
+      });
+      weeks.push({ start: ws, days, segs: segs.filter((sg) => sg.lane < CAL_LANES), lanes: Math.min(CAL_LANES, busy.length) });
+    }
+    return { ym, title: calMonthTitle(ym), today, weeks, range: calMonthRange(nowMs) };
+  }
+
+  // Карточки (по сроку и виду) тех записей, что идут в этот день.
+  function calDayCards(file, nowMs, date, opts = {}) {
+    const items = calItems(file, nowMs, date, date, opts).sort((a, b) => a.order - b.order || a.start.localeCompare(b.start));
+    return calCards(items);
+  }
+
+  // Ближайшая дата записи с сегодняшнего дня (идущая или следующая); нет — null. Для /events в боте.
+  function calNext(ev, nowMs) {
+    const today = calToday(nowMs);
+    const occ = calOccurrences(ev, today, ev.every ? calAdd(today, ev.every + calDiff(ev.start, ev.end)) : '9999-12-31');
+    return occ[0] || null;
+  }
+
+  // Как бот понял запись: «🩸 Героический Штурм: D — 15–21 ноября (вс–сб), событие бота».
+  function calEventSummary(ev) {
+    const dates = ev.start === ev.end ? calRangeText(ev.start, ev.end) : `${calRangeText(ev.start, ev.end, false)} (${calWeekday(ev.start)}–${calWeekday(ev.end)})`;
+    const parts = [`${dates}${ev.time ? `, ${ev.time} МСК` : ''}`];
+    if (ev.every) parts.push(`каждые ${ev.every} ${plural(ev.every, 'день', 'дня', 'дней')}`);
+    parts.push(CAL_KINDS[ev.kind] === 'наше' ? 'наше событие' : CAL_KINDS[ev.kind] || CAL_KINDS.bot);
+    return `${ev.title} — ${parts.join(', ')}`;
+  }
+
   // Общий переключатель звука сайта: одно состояние на всё, хранится в storage (может быть недоступен).
   const SOUND_KEY = 'ani-sound';
   function createSound(storage) {
@@ -2735,6 +3034,7 @@
   }
 
   return {
+    CAL_KINDS, CAL_SOON, CAL_PAST, CAL_LANES, calItems, calCards, calMonth, calMonthShift, calMonthRange, calClampMonth, calMonthTitle, calSplitTitle, calDayCards, calToday, calAdd, calDiff, calWeekday, calKindOf, calRangeText, parseCalendarLine, calendarEvents, calOccurrences, calendarGroups, calNext, calEventSummary,
     bannerFor, bannersOf, bannerVersion, bannerHist, parseBannerHistCode, bannerHistCode, BHIST_MAX, createSound, squadPool, pickRuns, seededRate, createPickJob, skinOnlyStrong, leveledHero, cardLevels, stormDamage, stormTop, PICK,
     deriveHeroes, numberedHeroes, offTopHeroes, groupCacheKey, runsForGroup, hasEqualScores, offTopRow, collectGroupRows, groupError,
     packGroupResult, unpackGroupResult, cacheHash, heroId, heroCode, packCollection, unpackCollection, unpackSkinOnly, collectionCounts, codeOfId, planRename, renameImpact, renameMap, renameAllowed, renameLookup, renameText, renameDone, renameLocal, chunkText, hitsToKill, seasonNews,

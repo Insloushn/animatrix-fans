@@ -1,6 +1,19 @@
 <!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><script async src="https://telegram.org/js/telegram-web-app.js" onload="window.onAniTelegram && window.onAniTelegram()"></script></head><body><title>AniMatrix Fans</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&display=swap">
+<script>
+/* Откуда брать файлы (tickets/no-github.md). На нашем адресе (сервер) — свои, рядом со страницей: fonts/, media/, cards.json. На github.io
+   (старые ссылки), в claude.ai и при предпросмотре с localhost — прежние: Google Fonts и репозитории GitHub. Решает window.aniOwnSite. */
+(function () {
+  var host = location.hostname;
+  var own = !(window.claude && window.claude.use) && /^https?:$/.test(location.protocol) && !!host
+    && !/(^|\.)github\.io$|(^|\.)claude\.(ai|com)$|(^|\.)claudeusercontent\.com$|^(localhost|127\.0\.0\.1|\[::1\])$/.test(host);
+  window.aniOwnSite = own;
+  var link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = own ? 'fonts/fonts.css' : 'https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&display=swap';
+  document.head.appendChild(link);
+})();
+</script>
 <script>
 /* Тема ставится до первой отрисовки, иначе страница мигает другой темой. По умолчанию тёмная. */
 (function () {
@@ -730,6 +743,68 @@ details.card summary { cursor: pointer; font-weight: 500; }
 .home-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 12px; }
 .home-head .link-btn { color: var(--accent); white-space: nowrap; font-size: 14px; }
 .home-sub { margin: 4px 0 0; font-size: 14px; }
+/* 📅 События (tickets/events-calendar.md): метка вида цветом, строка — название, когда, даты. */
+.ev-head h1 { margin: 0 0 4px; }
+.ev-card { display: grid; gap: 6px; }
+.ev-card h2 { margin: 0; }
+.ev-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.ev-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline; padding: 8px 0 8px 10px; border-top: 1px solid var(--line); border-left: 3px solid var(--ev, var(--accent)); }
+.ev-row:first-child { border-top: 0; }
+.ev-dates { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
+.ev-title { overflow-wrap: anywhere; }
+.ev-left { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.ev-lines { grid-column: 1 / -1; list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ev-line { display: grid; gap: 1px; }
+.ev-meta, .ev-text { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+.ev-text { white-space: pre-line; }
+.ev-kind { font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 10px; border: 1px solid var(--ev); color: var(--ev); white-space: nowrap; }
+.ev-bot { --ev: var(--cls-tank); }
+.ev-season { --ev: var(--good); }
+.ev-market { --ev: var(--warn); }
+.ev-ours { --ev: var(--cls-hyb); }
+/* Переключатель «Список · Месяц» и сетка месяца: цвета видов — те же --ev, что у меток. */
+.ev-switch { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 0; }
+.mo-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mo-nav b { flex: 1 1 auto; text-align: center; font-size: 17px; min-width: 9ch; }
+.mo-grid { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+.mo-wd, .mo-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.mo-wd span { text-align: center; font-size: 12px; color: var(--muted); padding: 4px 0; border-left: 1px solid var(--line); }
+.mo-week { --nh: 24px; --lh: 19px; grid-template-rows: var(--nh) repeat(var(--lanes, 0), var(--lh)) 15px; position: relative; }
+.mo-day { grid-row: 1 / -1; display: flex; flex-direction: column; justify-content: space-between; align-items: stretch; min-height: 42px; padding: 2px 3px; margin: 0; border: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); border-radius: 0; background: color-mix(in srgb, var(--ev, transparent) 17%, transparent); color: var(--fg); font: inherit; text-align: left; cursor: pointer; position: relative; }
+.mo-day:hover { background: color-mix(in srgb, var(--ev, var(--accent)) 20%, transparent); }
+.mo-day.out { background: color-mix(in srgb, var(--ev, transparent) 8%, transparent); }
+.mo-day.out .mo-num { opacity: .45; }
+.mo-day.past .mo-num { color: var(--muted); }
+.mo-day.past { background: color-mix(in srgb, var(--ev, transparent) 9%, transparent); }
+.mo-day.sstart { box-shadow: inset 0 0 0 2px var(--good); }
+.mo-day.sel { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 2; }
+.mo-top { display: flex; justify-content: space-between; align-items: center; min-height: 20px; }
+.mo-num { font-size: 13px; line-height: 18px; min-width: 20px; text-align: center; border-radius: 10px; }
+.mo-day.today .mo-num { box-shadow: 0 0 0 2px var(--accent); font-weight: 700; }
+.mo-star { font-style: normal; font-size: 16px; line-height: 1; }
+.mo-more { font-size: 11px; font-weight: 600; color: var(--muted); line-height: 13px; }
+.mo-bar { display: flex; align-items: center; gap: 3px; min-width: 0; margin: 1px 2px; padding: 0 4px; border-radius: 4px; font-size: 12px; line-height: 17px; white-space: nowrap; overflow: hidden; background: color-mix(in srgb, var(--ev) 32%, var(--panel)); border-left: 3px solid var(--ev); color: var(--fg); pointer-events: none; position: relative; z-index: 1; }
+.mo-bar i { font-style: normal; flex: none; }
+.mo-bar .mo-name { overflow: hidden; text-overflow: ellipsis; }
+.mo-bar.prev { margin-left: 0; border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.mo-bar.next { margin-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.mo-bar.one { border-radius: 9px; }
+.mo-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); align-items: center; }
+.mo-leg { display: inline-flex; gap: 6px; align-items: center; }
+.mo-leg i { width: 14px; height: 10px; border-radius: 3px; background: color-mix(in srgb, var(--ev) 55%, var(--panel)); border-left: 3px solid var(--ev); }
+.mo-dayhead { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.mo-dayhead h2 { margin: 0; }
+@media (max-width: 700px) {
+  .mo-week { --lh: 16px; }
+  .mo-bar { padding: 0; justify-content: center; font-size: 11px; line-height: 14px; }
+  .mo-bar.next, .mo-bar.prev { justify-content: center; }
+  .mo-bar .mo-name { display: none; }
+  .mo-bar.one { margin: 1px 3px; }
+  .mo-num { font-size: 12px; }
+  .mo-star { font-size: 13px; }
+}
+.ev-past summary { font-weight: 600; }
+.ev-foot { margin: 0; }
 .feed-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
 .feed-item { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); }
 .feed-item:first-child { border-top: 0; }
@@ -951,6 +1026,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <button role="tab" data-tab="ratings" aria-selected="false">Рейтинги</button>
     <button role="tab" data-tab="stats" aria-selected="false">Статистика</button>
     <button role="tab" data-tab="news" aria-selected="false">Новости сезона</button>
+    <button role="tab" data-tab="events" aria-selected="false">События</button>
     <button role="tab" data-tab="heroes" aria-selected="false" data-admin>Герои и скины</button>
     <button role="tab" data-tab="seasons" aria-selected="false" data-admin>Сезоны</button>
     <button role="tab" data-tab="add" aria-selected="false" data-admin>Добавить героев</button>
@@ -1178,6 +1254,10 @@ details.card summary { cursor: pointer; font-weight: 500; }
     <div id="recList" class="view"></div>
   </section>
 
+  <section class="view" id="view-events" hidden>
+    <div id="eventsOut" class="view"></div>
+  </section>
+
   <section class="view" id="view-contests" hidden>
     <div id="contestList" class="view"></div>
   </section>
@@ -1345,7 +1425,7 @@ details.card summary { cursor: pointer; font-weight: 500; }
     </div>
   </div>
 
-<script src="engine.js?v=c06612e779"></script>
+<script src="engine.js?v=70b14260f6"></script>
 <script>
 const E = window.AniEngine;
 const ICONS = E.CLASS_ICONS;
@@ -1412,6 +1492,7 @@ let heroes = [];           // все герои текущего сезона, �
 let seasons = [];          // описания сохранённых сезонов, от старых к новым
 const seasonDocs = new Map();
 let db = null, downloads = null, canWrite = true, loaded = false, siteData = null;
+const OWN_SITE = !!window.aniOwnSite; // страница открыта на нашем сервере: файлы и рекорды — свои, без GitHub (tickets/no-github.md)
 let tg = null;              // Telegram.WebApp, когда сайт открыт как мини-приложение
 let records = [];          // события с рекордами игроков, свежие сверху
 let contests = [];         // итоги конкурсов круток, свежие сверху
@@ -1554,7 +1635,7 @@ async function changeHero(key, change) {
 // data.json идёт карта кодов { старый: новый }. По ней сайт и бот переносят картинки, владельцев, коллекции, любимые и ссылки.
 
 const RENAME_HINT = 'После переименования — «Скачать файл для сайта» и выложить data.json; картинки и коллекции перенесутся сами в течение часа.';
-const RENAME_CARDS_URL = 'https://insloushn.github.io/animatrix-fans/cards.json';
+const RENAME_CARDS_URL = OWN_SITE ? 'cards.json' : 'https://insloushn.github.io/animatrix-fans/cards.json';
 let renameLog = [];      // админ: [{ id, from, to, at }]
 let renameSiteMap = {};  // сайт: data.json → renames
 const renameMapNow = () => (siteData ? renameSiteMap : E.renameMap(renameLog));
@@ -3802,19 +3883,24 @@ function fillRecEvents() {
 }
 const BOT_PROFILE = 'https://t.me/AniMatrixGame_bot?start=user_';
 const REC_SHOWN = 10;
-const recEditable = () => (canWrite && !siteData) || siteAdmin.state === 'ready';
+const recEditable = () => (canWrite && !siteData) || (viaBot ? tgAdmin() : siteAdmin.state === 'ready');
 
 // ---------- Админ рекордов на сайте ----------
-// Сайт только раздаёт файлы, поэтому рекорды записываются прямо в records.json репозитория.
-// Защита — ключ GitHub с доступом только к этому репозиторию: он хранится лишь на устройстве админа.
-// Проверка Telegram ID только показывает форму входа, подделать её может кто угодно.
+// На нашем адресе (tickets/no-github.md, часть 2) рекорды пишет бот: страница шлёт ему initData мини-приложения, бот проверяет подпись
+// Telegram токеном @AniMatrix_fansBot и пускает только админа — ключ GitHub не нужен. Вне Telegram рекорды внести нельзя.
+// На github.io (старый адрес) всё как раньше: рекорды записываются прямо в records.json репозитория ключом GitHub с доступом только к нему;
+// он хранится лишь на устройстве админа, а проверка Telegram ID только показывает форму входа — подделать её может кто угодно.
 const ADMIN_TG_ID = '921847623';
 const GH_REPO = 'Insloushn/animatrix-fans';
 const GH_FILE = 'records.json';
-const siteAdmin = { token: readStore('ani-gh-token', ''), sha: '', state: 'idle', message: '' };
+const viaBot = OWN_SITE;
+const siteAdmin = { token: viaBot ? '' : readStore('ani-gh-token', ''), sha: '', state: 'idle', message: '' };
+const tgInitData = () => (tg && tg.initData) || '';
+const tgAdmin = () => { const user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user; return !!(tgInitData() && user && String(user.id) === ADMIN_TG_ID); };
 
 const adminWanted = () => {
   if (!siteData) return false;
+  if (viaBot) return tgAdmin() || location.hash === '#admin'; // вне Telegram — только подсказка, как войти
   const user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
   return !!siteAdmin.token || location.hash === '#admin' || (user && String(user.id) === ADMIN_TG_ID);
 };
@@ -3840,12 +3926,16 @@ async function github(path, options) {
   return response.json();
 }
 
-const adminError = (e) => ({
-  401: 'GitHub не принял ключ: он неверный или истёк. Создай новый и вставь его снова.',
-  403: 'У ключа нет права записи в репозиторий. Проверь, что выдан доступ Contents: Read and write.',
-  404: 'Ключ не видит репозиторий animatrix-fans. Проверь, что при создании выбран именно он.',
-  409: 'Пока ты правил, рекорды изменились. Обнови страницу и повтори.',
-}[e && e.status] || 'Нет связи с GitHub. Проверь интернет и повтори.');
+const adminError = (e) => {
+  // Бот отвечает по-русски сам (e.api); без ответа — по коду.
+  if (viaBot) return (e && e.api) || (e && e.status ? `Бот ответил ошибкой ${e.status}. Попробуй чуть позже.` : 'Нет связи с ботом. Проверь интернет и повтори.');
+  return ({
+    401: 'GitHub не принял ключ: он неверный или истёк. Создай новый и вставь его снова.',
+    403: 'У ключа нет права записи в репозиторий. Проверь, что выдан доступ Contents: Read and write.',
+    404: 'Ключ не видит репозиторий animatrix-fans. Проверь, что при создании выбран именно он.',
+    409: 'Пока ты правил, рекорды изменились. Обнови страницу и повтори.',
+  }[e && e.status]) || 'Нет связи с GitHub. Проверь интернет и повтори.';
+};
 
 // Свежие рекорды берутся из репозитория, а не с сайта: сайт обновляется с задержкой.
 async function adminConnect() {
@@ -3869,7 +3959,22 @@ async function adminConnect() {
   renderRecords();
 }
 
-async function commitRecords(list, message) {
+// change — что именно поменялось: { save: событие } или { del: id }. Бот применяет это к своему records.json (рекорды, добавленные ботом
+// пересылкой, не затираются); в ответе — весь список. Через GitHub (старый адрес) пишется целиком list.
+async function commitRecords(list, message, change) {
+  if (viaBot) {
+    const response = await fetch('api/records', { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify({ initData: tgInitData(), ...change }) });
+    let answer = null;
+    try { answer = await response.json(); } catch (e) { /* не JSON: адрес /api/ на сервере не настроен */ }
+    if (!response.ok || !answer || !answer.ok) {
+      const error = new Error('api');
+      error.status = response.status;
+      error.api = answer && answer.error;
+      throw error;
+    }
+    setRecords(answer.events || []);
+    return;
+  }
   const body = { message, branch: 'main', content: toBase64(JSON.stringify({ savedAt: new Date().toISOString(), events: list })) };
   if (siteAdmin.sha) body.sha = siteAdmin.sha;
   const result = await github(`contents/${GH_FILE}`, { method: 'PUT', body: JSON.stringify(body) });
@@ -3881,6 +3986,12 @@ function renderRecAdmin() {
   const box = $('recAdmin');
   box.hidden = !adminWanted();
   if (box.hidden) return;
+  if (viaBot) {
+    box.innerHTML = tgAdmin()
+      ? '<div class="card-head"><div><h2>Админ</h2><p class="small" style="color:var(--good)">✓ Можно добавлять рекорды. У игроков они появятся сразу.</p></div></div>'
+      : '<h2>Вход для админа</h2><p class="small muted">Рекорды вносятся из мини-приложения Telegram: открой сайт через @AniMatrix_fansBot со своего аккаунта админа. Вне Telegram записать их нельзя — ключ не нужен.</p>';
+    return;
+  }
   if (siteAdmin.state === 'idle') { adminConnect(); return; }
   if (siteAdmin.state === 'ready') {
     box.innerHTML = `<div class="card-head"><div><h2>Админ</h2><p class="small" style="color:var(--good)">✓ Можно добавлять рекорды. У игроков изменения появятся через 1–2 минуты.</p></div>
@@ -4253,8 +4364,9 @@ function pastNicksHtml(past) {
 }
 
 // ---------- Медиа сайта (tickets/media-repo.md) ----------
-// Картинки карт и баннеры лежат в отдельном репозитории с Pages: сайт ~1 ГБ не вместит все карты.
-const MEDIA = 'https://insloushn.github.io/animatrix-media/';
+// Картинки карт и баннеры лежат отдельно от сайта (на сервере — /media/, папка animatrix-media; на github.io — репозиторий с Pages):
+// сайт ~1 ГБ не вместит все карты. Адрес выбирает OWN_SITE (начало страницы).
+const MEDIA = OWN_SITE ? 'media/' : 'https://insloushn.github.io/animatrix-media/';
 
 // ---------- Баннер профиля и звук сайта (tickets/banner-owner.md) ----------
 // Баннеры игроков (tickets/banners-all.md): из profiles.json (rebuildProfiles → E.bannersOf), файлы banners/<ID>.mp4|jpg в медиа.
@@ -4487,6 +4599,99 @@ function renderPlayers() {
       ${left > 0 ? `<div><button class="btn ghost" data-players-more>Показать ещё, осталось ${fmt(left)}</button></div>` : ''}`;
 }
 
+// ---------- 📅 События (events.json пишет бот командами админа, tickets/events-calendar.md) ----------
+// Группы и даты считает E.calendarGroups по МСК; идущий конкурс (contest-live.json) — сам в «Сейчас идёт».
+let eventsFile = null;
+const EV_VIEW_KEY = 'ani-events-view';
+const evStored = () => { try { return localStorage.getItem(EV_VIEW_KEY) === 'month' ? 'month' : 'list'; } catch (e) { return 'list'; } };
+const eventsState = { past: false, view: evStored(), month: '', day: '' };
+const EVENT_KIND_CLASS = { bot: 'ev-bot', season: 'ev-season', market: 'ev-market', ours: 'ev-ours' };
+const eventOpts = () => ({ live: contestLive, finished: contests.map((c) => c.id) });
+const eventGroups = () => E.calendarGroups(eventsFile, Date.now(), eventOpts());
+// Карточка: события одного срока и вида — вместе. seen — id уже показанных в блоке: у повтора описание только у первой даты.
+function eventCardHtml(c, short, seen) {
+  const cls = EVENT_KIND_CLASS[c.kind] || 'ev-bot';
+  const kind = `<span class="ev-kind ${cls}">${esc(E.CAL_KINDS[c.kind] || E.CAL_KINDS.bot)}</span>`;
+  const lines = c.lines.map((x) => {
+    const firstOfRepeat = !seen || !x.id || !seen.has(x.id);
+    if (seen && x.id) seen.add(x.id);
+    const title = x.contest ? `<button class="link-btn" data-go="contests">${esc(x.title)}</button>` : esc(x.title);
+    const every = x.every && !short ? ` <span class="small muted">· каждые ${x.every} ${E.plural(x.every, 'день', 'дня', 'дней')}</span>` : '';
+    return `<li class="ev-line"><span class="ev-title"><b>${title}</b>${every}</span>${x.text && !short && firstOfRepeat ? `<span class="ev-text">${esc(x.text)}</span>` : ''}</li>`;
+  }).join('');
+  return `<li class="ev-row ${cls}"><span class="ev-dates"><b>${esc(c.dates)}</b>${kind}</span><span class="ev-left">${esc(c.left)}</span><ul class="ev-lines">${lines}</ul></li>`;
+}
+const eventCardsHtml = (items, short) => ((seen) => E.calCards(items).map((c) => eventCardHtml(c, short, seen)))(new Set()).join('');
+function eventsListHtml() {
+  const g = eventGroups();
+  const block = (title, list, note) => (list.length ? `<article class="card ev-card"><h2>${title}</h2><ul class="ev-list">${eventCardsHtml(list, false)}</ul>${note || ''}</article>` : '');
+  const empty = !g.now.length && !g.soon.length && !g.past.length;
+  const past = g.past.length ? `<details class="card ev-card ev-past"${eventsState.past ? ' open' : ''} data-ev-past><summary>Прошло · ${E.calCards(g.past).length}</summary><ul class="ev-list">${eventCardsHtml(g.past, false)}</ul></details>` : '';
+  return `${empty ? '<p class="empty">Пока пусто: новых событий нет.</p>' : ''}
+    ${block('🔴 Сейчас идёт', g.now)}
+    ${block('⏳ Скоро', g.soon, `<p class="small muted">На ${E.CAL_SOON} дней вперёд.</p>`)}
+    ${past}`;
+}
+// Вид «Месяц»: сетка Пн–Вс, полосы и значки дней — по E.calMonth; под сеткой — легенда и события выбранного дня.
+function eventsMonthHtml() {
+  const now = Date.now();
+  const today = E.calToday(now);
+  eventsState.month = E.calClampMonth(eventsState.month || today.slice(0, 7), now);
+  const m = E.calMonth(eventsFile, now, eventsState.month, eventOpts());
+  if (!eventsState.day || eventsState.day.slice(0, 7) !== m.ym) eventsState.day = today.slice(0, 7) === m.ym ? today : `${m.ym}-01`;
+  const cls = (k) => EVENT_KIND_CLASS[k] || 'ev-bot';
+  const week = (w) => `<div class="mo-week" style="--lanes:${w.lanes}">${w.days.map((d, i) => {
+    const label = `${E.calRangeText(d.date, d.date)}${d.count ? `, событий: ${d.count}` : ''}`;
+    return `<button type="button" class="mo-day ${d.kind ? cls(d.kind) : ''}${d.inMonth ? '' : ' out'}${d.today ? ' today' : ''}${d.past ? ' past' : ''}${d.seasonStart ? ' sstart' : ''}${d.date === eventsState.day ? ' sel' : ''}" style="grid-column:${i + 1}" data-ev-day="${d.date}" aria-label="${esc(label)}"${d.date === eventsState.day ? ' aria-current="date"' : ''}>
+      <span class="mo-top"><span class="mo-num">${d.num}</span>${d.seasonStart ? `<i class="mo-star">${esc(d.seasonStart)}</i>` : ''}</span>${d.more ? `<span class="mo-more">+${d.more}</span>` : ''}</button>`;
+  }).join('')}${w.segs.map((sg) => `<span class="mo-bar ${cls(sg.kind)}${sg.multi ? '' : ' one'}${sg.fromPrev ? ' prev' : ''}${sg.toNext ? ' next' : ''}" style="grid-column:${sg.from + 1} / span ${sg.span};grid-row:${sg.lane + 2}" title="${esc(sg.title)}">${sg.icon ? `<i>${esc(sg.icon)}</i>` : ''}<span class="mo-name">${esc(sg.name)}</span></span>`).join('')}</div>`;
+  const legend = Object.keys(E.CAL_KINDS).map((k) => `<span class="mo-leg ${cls(k)}"><i></i>${esc(E.CAL_KINDS[k])}</span>`).join('');
+  const dayCards = E.calDayCards(eventsFile, now, eventsState.day, eventOpts());
+  const dayLabel = E.calRangeText(eventsState.day, eventsState.day);
+  return `<article class="card ev-card">
+      <div class="mo-nav"><button type="button" class="btn ghost mini" data-ev-month="prev" aria-label="Прошлый месяц"${m.ym <= m.range.min ? ' disabled' : ''}>‹</button><b>${esc(m.title)}</b><button type="button" class="btn ghost mini" data-ev-month="next" aria-label="Следующий месяц"${m.ym >= m.range.max ? ' disabled' : ''}>›</button><button type="button" class="btn ghost mini" data-ev-month="today"${m.ym === m.range.cur && eventsState.day === today ? ' disabled' : ''}>Сегодня</button></div>
+      <div class="mo-grid"><div class="mo-wd">${['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((d) => `<span>${d}</span>`).join('')}</div>${m.weeks.map(week).join('')}</div>
+      <div class="mo-legend">${legend}<span class="mo-leg">❄️ — старт сезона</span></div>
+    </article>
+    <article class="card ev-card"><div class="mo-dayhead"><h2>${esc(dayLabel)}${eventsState.day === today ? ' · сегодня' : ''}</h2></div>
+      ${dayCards.length ? `<ul class="ev-list">${((seen) => dayCards.map((c) => eventCardHtml(c, false, seen)))(new Set()).join('')}</ul>` : '<p class="small muted">В этот день событий нет.</p>'}</article>`;
+}
+function renderEvents() {
+  if ($('view-events').hidden) return;
+  const g = eventGroups();
+  const month = eventsState.view === 'month';
+  $('eventsOut').innerHTML = `<div class="ev-head"><h1>📅 События</h1><p class="small muted">События бота игры, сезоны, чёрный рынок и наши конкурсы. Время — МСК.</p>
+    <div class="ev-switch" role="group" aria-label="Вид"><button type="button" class="chip" data-ev-view="list" aria-pressed="${!month}">Список</button><button type="button" class="chip" data-ev-view="month" aria-pressed="${month}">Месяц</button></div></div>
+    ${month ? eventsMonthHtml() : eventsListHtml()}
+    <p class="small muted ev-foot">Время — МСК. Сегодня по Москве: ${esc(E.calRangeText(g.today, g.today))}.</p>`;
+}
+// «📅 Сейчас и скоро» на главной: до 3 карточек (событий одного срока и вида — одна), сначала идущие; событий нет — блока нет.
+function eventsHomeHtml() {
+  const g = eventGroups();
+  const cards = [...E.calCards(g.now), ...E.calCards(g.soon)].slice(0, 3);
+  if (!cards.length) return '';
+  return `<article class="card home-card" id="homeEvents"><div class="home-head"><h2>📅 Сейчас и скоро</h2><button class="link-btn small" data-go="events">Весь календарь →</button></div>
+    <ul class="ev-list">${cards.map((c) => eventCardHtml(c, true)).join('')}</ul></article>`;
+}
+document.addEventListener('click', (e) => {
+  const t = e.target.closest && e.target.closest('#eventsOut [data-ev-view], #eventsOut [data-ev-month], #eventsOut [data-ev-day]');
+  if (!t) return;
+  const now = Date.now();
+  if (t.dataset.evView) {
+    eventsState.view = t.dataset.evView === 'month' ? 'month' : 'list';
+    try { localStorage.setItem(EV_VIEW_KEY, eventsState.view); } catch (err) { /* вид просто не запомнится */ }
+  } else if (t.dataset.evMonth) {
+    const cur = eventsState.month || E.calToday(now).slice(0, 7);
+    if (t.dataset.evMonth === 'today') { eventsState.month = E.calToday(now).slice(0, 7); eventsState.day = E.calToday(now); }
+    else eventsState.month = E.calClampMonth(E.calMonthShift(cur, t.dataset.evMonth === 'next' ? 1 : -1), now);
+  } else if (t.dataset.evDay) {
+    eventsState.day = t.dataset.evDay;
+    eventsState.month = E.calClampMonth(eventsState.day.slice(0, 7), now);
+  }
+  renderEvents();
+});
+document.addEventListener('toggle', (e) => { if (e.target.matches && e.target.matches('[data-ev-past]')) eventsState.past = e.target.open; }, true);
+
 // ---------- Главная и нижние вкладки (tickets/site-home-tabs.md) ----------
 // Главная — раздел по умолчанию на сайте игроков; в claude.ai страница открывается на «Топе».
 const BAR_TABS = ['home', 'top', 'contests', 'profile'];
@@ -4664,6 +4869,7 @@ function renderHome() {
   }
 
   blk.feed = feedCardHtml();
+  blk.events = eventsHomeHtml();
   blk.art = artHuntCardHtml();
 
   // Новое в сезоне.
@@ -4691,8 +4897,8 @@ function renderHome() {
   // Раскладка (tickets/home-art-hunt.md): на ПК две независимые колонки — слева конкурс и лента, справа стопка; иначе одна колонка.
   const pick = (names) => names.map((n) => blk[n] || '').join('');
   const body = homeWide.matches
-    ? `<div class="home-cols"><div class="home-col">${pick(['contest', 'feed'])}</div><div class="home-col">${pick(['profile', 'art', 'news', 'records', 'collection'])}</div></div>`
-    : pick(['contest', 'profile', 'art', 'feed', 'news', 'records', 'collection']);
+    ? `<div class="home-cols"><div class="home-col">${pick(['contest', 'events', 'feed'])}</div><div class="home-col">${pick(['profile', 'art', 'news', 'records', 'collection'])}</div></div>`
+    : pick(['contest', 'events', 'profile', 'art', 'feed', 'news', 'records', 'collection']);
 
   // Разделы плитками.
   const cardsNote = () => { const n = E.cardCounts(heroes, cardsData); return `Карты: собрано ${fmt(n.withPic)} из ${fmt(n.heroes)}`; };
@@ -4820,14 +5026,14 @@ async function saveRecordEvent() {
   };
   $('recSave').disabled = true;
   try {
-    if (siteData) await commitRecords(records.filter((ev) => ev.id !== id).concat({ id, ...doc }), `Рекорды: итоги «${title}»`);
+    if (siteData) await commitRecords(records.filter((ev) => ev.id !== id).concat({ id, ...doc }), `Рекорды: итоги «${title}»`, { save: { id, ...doc } });
     else if (db) await db.doc(`records/${id}`).set(doc);
     else {
       const list = records.filter((ev) => ev.id !== id).concat({ id, ...doc });
       if (!writeStore('ani-records', list)) throw new Error('storage');
       setRecords(list);
     }
-    $('recResult').textContent = `Итоги «${title}» сохранены: игроков ${rows.length}.${siteData ? ' У игроков появятся через 1–2 минуты.' : ''}`;
+    $('recResult').textContent = `Итоги «${title}» сохранены: игроков ${rows.length}.${siteData ? (viaBot ? ' У игроков они уже есть.' : ' У игроков появятся через 1–2 минуты.') : ''}`;
     recResetForm();
   } catch (e) {
     $('recResult').textContent = siteData ? adminError(e) : writeError(e);
@@ -4838,7 +5044,7 @@ async function saveRecordEvent() {
 async function deleteRecordEvent(id) {
   try {
     const gone = records.find((ev) => ev.id === id);
-    if (siteData) await commitRecords(records.filter((ev) => ev.id !== id), `Рекорды: удалён список «${gone ? gone.title : id}»`);
+    if (siteData) await commitRecords(records.filter((ev) => ev.id !== id), `Рекорды: удалён список «${gone ? gone.title : id}»`, { del: id });
     else if (db) await db.doc(`records/${id}`).delete();
     else {
       const list = records.filter((ev) => ev.id !== id);
@@ -6359,9 +6565,10 @@ function showTab(tab, before = { tab: currentTab(), card: cardState.id }) {
   closeMenu(false);
   closeDrop(false);
   renderNav();
-  ['top', 'compare', 'battle', 'card', 'cards', 'ratings', 'collection', 'news', 'records', 'contests', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
+  ['top', 'compare', 'battle', 'card', 'cards', 'ratings', 'collection', 'news', 'records', 'contests', 'events', 'stats', 'heroes', 'seasons', 'add', 'export', 'rules'].forEach((t) => { $(`view-${t}`).hidden = t !== tab; });
   if (tab === 'records') renderRecords();
   if (tab === 'contests') renderContests();
+  if (tab === 'events') renderEvents();
   if (tab === 'card') renderCard();
   if (tab === 'cards') renderCards();
   if (tab === 'ratings') renderRatings();
@@ -6402,6 +6609,7 @@ const TAB_INFO = {
   ratings: { icon: '📊', label: 'Рейтинги', note: 'Лучшие игроки: конкурсы, легендарки, удача, рекорды' },
   records: { icon: '🥇', label: 'Рекорды игроков', note: 'Лучшие результаты в ивентах и событиях бота' },
   contests: { icon: '🎲', label: 'Конкурсы', note: 'Итоги конкурсов круток и лучшие за всё время' },
+  events: { icon: '📅', label: 'События', note: 'Что идёт в боте игры и что скоро: события, сезоны, рынок' },
   stats: { icon: '📊', label: 'Статистика', note: 'Доли рангов, классов и аниме' },
   rules: { icon: '📜', label: 'Правила боя', note: 'Как считается бой и что не подтверждено' },
   heroes: { icon: '🎭', label: 'Герои и скины', note: 'Отметки скинов и ивент-карт' },
@@ -7664,6 +7872,7 @@ function heroLink(hero) {
 }
 
 function routeHash() {
+  if (location.hash === '#events') { showTab('events'); return; }
   const match = location.hash.match(/^#hero=([^&]+)$/);
   const hero = match && heroByCode(match[1]);
   if (hero) openCard(E.heroId(hero));
@@ -7921,7 +8130,7 @@ function autoMarkAll() { autoMarkPulls(); autoMarkCards(); }
 // ---------- Файлы бота без перезагрузки (tickets/live-refresh.md) ----------
 // cards.json, nicks.json, profiles.json, pull-stats.json перечитываются: раз в 2 минуты, при возврате на страницу (не чаще раза
 // в 30 с) и 5 минут каждые 30 с после ссылки в бота за картами. Страница скрыта или сеть подвела — ничего не меняется.
-const BOT_FILES = ['pull-stats.json', 'cards.json', 'nicks.json', 'profiles.json'];
+const BOT_FILES = ['pull-stats.json', 'cards.json', 'nicks.json', 'profiles.json', 'events.json'];
 const BOT_FILES_EVERY = 2 * 60 * 1000;
 const BOT_FILES_GAP = 30 * 1000;
 const BOT_FILES_FAST = 5 * 60 * 1000;
@@ -7952,6 +8161,7 @@ async function refreshBotFiles() {
   if (fresh['cards.json']) cardsData = fresh['cards.json'];
   if (fresh['nicks.json']) gameNicks = E.gameNickMap(fresh['nicks.json']);
   if (fresh['profiles.json']) { profileFile = E.profileMap(fresh['profiles.json']); rebuildProfiles(); }
+  if (fresh['events.json']) eventsFile = fresh['events.json'];
   // Разобранное в облаке ещё не читали (при открытии файлов не было) — прочитать; оно само запустит автоотметку.
   if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9')) {
     if (!pullMark.done && (pullStats || cardsData)) pullMarksLoad();
@@ -7966,6 +8176,7 @@ async function refreshBotFiles() {
   renderStats();
   renderBattle();
   renderHome(); // лента «Что нового»
+  renderEvents();
 }
 
 function startBotFiles() {
@@ -7996,7 +8207,7 @@ function initTelegram(app) {
   const start = app.initDataUnsafe && app.initDataUnsafe.start_param;
   const hero = start && heroByCode(start);
   if (hero) openCard(E.heroId(hero));
-  if (start === 'records' || start === 'contests' || start === 'cards' || start === 'ratings' || start === 'battle') showTab(start);
+  if (start === 'records' || start === 'contests' || start === 'events' || start === 'cards' || start === 'ratings' || start === 'battle') showTab(start);
   const playerId = start && start.match(/^p_(\d+)$/);
   if (playerId) openPlayer(`id:${playerId[1]}`);
 }
@@ -8048,6 +8259,7 @@ renderAll();
     if (site) cardsData = await loadJson(`cards.json?t=${Date.now()}`);
     if (site) gameNicks = E.gameNickMap(await loadJson(`nicks.json?t=${Date.now()}`));
     if (site) { profileFile = E.profileMap(await loadJson(`profiles.json?t=${Date.now()}`)); rebuildProfiles(); }
+    if (site) eventsFile = await loadJson(`events.json?t=${Date.now()}`); // календарь (tickets/events-calendar.md); нет файла — «Пока пусто»
     if (site) startPublic(site);
     else startLocal(offline);
     return;
